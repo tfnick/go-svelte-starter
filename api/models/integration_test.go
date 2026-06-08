@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/tfnick/go-svelte-starter/api/db"
+	"github.com/tfnick/go-svelte-starter/api/framework/data/modelerror"
 	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/sqlx"
 )
@@ -331,6 +332,56 @@ func TestOSSPrimaryChannelUniquenessAndDisable(t *testing.T) {
 	}
 	if updatedSecond.IsPrimary != 1 {
 		t.Fatalf("expected second channel to become primary, got %#v", updatedSecond)
+	}
+}
+
+func TestGetEnabledPrimaryOSSChannelConfig(t *testing.T) {
+	setupModelsTestDB(t)
+
+	_, err := models.GetEnabledPrimaryOSSChannelConfig(t.Context())
+	if !errors.Is(err, modelerror.ErrNotFound) {
+		t.Fatalf("expected missing primary OSS not found error, got %v", err)
+	}
+
+	credential, err := models.CreateIntegrationCredential(t.Context(), models.CreateIntegrationCredentialCmd{
+		CredentialType: "s3_access_key",
+		ValueText:      `{"access_key_id":"ak","secret_access_key":"sk"}`,
+		Enabled:        true,
+	})
+	if err != nil {
+		t.Fatalf("create OSS credential: %v", err)
+	}
+	channel, err := models.CreateIntegrationChannel(t.Context(), models.CreateIntegrationChannelCmd{
+		Scenario:     models.IntegrationScenarioOSS,
+		ChannelCode:  "models-primary-oss",
+		ProviderCode: "cloudflare_r2",
+		AdapterKey:   "oss.cloudflare_r2.s3_compatible",
+		Environment:  "test",
+		Enabled:      true,
+		Priority:     10,
+		CredentialID: credential.ID,
+		IsPrimary:    true,
+		ConfigJSON:   `{"endpoint_url":"https://r2.example.com","bucket":"assets","region":"auto"}`,
+		MetadataJSON: "{}",
+	})
+	if err != nil {
+		t.Fatalf("create primary OSS channel: %v", err)
+	}
+
+	config, err := models.GetEnabledPrimaryOSSChannelConfig(t.Context())
+	if err != nil {
+		t.Fatalf("get primary OSS channel config: %v", err)
+	}
+	if config.ID != channel.ID || config.CredentialValue != `{"access_key_id":"ak","secret_access_key":"sk"}` {
+		t.Fatalf("unexpected primary OSS config: %#v", config)
+	}
+
+	byMetadata, err := models.GetOSSChannelConfigByCodeAndAdapter(t.Context(), "models-primary-oss", "oss.cloudflare_r2.s3_compatible")
+	if err != nil {
+		t.Fatalf("get OSS channel config by code and adapter: %v", err)
+	}
+	if byMetadata.ID != channel.ID || byMetadata.CredentialValue != config.CredentialValue {
+		t.Fatalf("unexpected OSS metadata config: %#v", byMetadata)
 	}
 }
 

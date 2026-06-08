@@ -22,7 +22,7 @@ import (
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	deepseekllm "github.com/tfnick/go-svelte-starter/api/integrations/llm/deepseek"
-	localoss "github.com/tfnick/go-svelte-starter/api/integrations/oss/local"
+	s3compatibleoss "github.com/tfnick/go-svelte-starter/api/integrations/oss/s3compatible"
 	creempayment "github.com/tfnick/go-svelte-starter/api/integrations/payment/creem"
 	user "github.com/tfnick/go-svelte-starter/api/routes"
 	appusecase "github.com/tfnick/go-svelte-starter/api/usecase"
@@ -90,8 +90,11 @@ func main() {
 	if err := appusecase.RegisterPaymentAdapter("payment.creem.hosted_checkout", creempayment.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register payment adapter")
 	}
-	if err := appusecase.RegisterOSSAdapter(appusecase.SiteLogoOSSAdapterKey, localoss.NewAdapter("data/oss/site")); err != nil {
-		logger.Fatal().Err(err).Msg("failed to register OSS adapter")
+	ossAdapter := s3compatibleoss.NewAdapter(nil)
+	for _, adapterKey := range []string{"oss.cloudflare_r2.s3_compatible", "oss.aliyun_oss.s3_compatible"} {
+		if err := appusecase.RegisterOSSAdapter(adapterKey, ossAdapter); err != nil {
+			logger.Fatal().Err(err).Str("adapter_key", adapterKey).Msg("failed to register OSS adapter")
+		}
 	}
 
 	if err := usecaseevents.RegisterEventHandlers(func(ctx fwusecase.Context, cmd usecaseevents.AwardOrderPaidPointsCmd) (usecaseevents.PointsResult, bool, error) {

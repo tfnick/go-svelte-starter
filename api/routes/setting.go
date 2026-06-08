@@ -12,9 +12,11 @@ import (
 )
 
 type SiteSettingsResponse struct {
-	LogoURL        string `json:"logo_url"`
-	LogoConfigured bool   `json:"logo_configured"`
-	LogoUpdatedAt  string `json:"logo_updated_at"`
+	LogoURL                     string `json:"logo_url"`
+	LogoConfigured              bool   `json:"logo_configured"`
+	LogoUpdatedAt               string `json:"logo_updated_at"`
+	LogoUploadAvailable         bool   `json:"logo_upload_available"`
+	LogoUploadUnavailableReason string `json:"logo_upload_unavailable_reason"`
 }
 
 func GetSiteSettings(c echo.Context) error {
@@ -68,8 +70,10 @@ func GetPublicSiteLogo(c echo.Context) error {
 
 func toSiteSettingsResponse(settings usecase.SiteSettingsCo) SiteSettingsResponse {
 	return SiteSettingsResponse{
-		LogoURL:        settings.LogoURL,
-		LogoConfigured: settings.LogoConfigured,
-		LogoUpdatedAt:  settings.LogoUpdatedAt,
+		LogoURL:                     settings.LogoURL,
+		LogoConfigured:              settings.LogoConfigured,
+		LogoUpdatedAt:               settings.LogoUpdatedAt,
+		LogoUploadAvailable:         settings.LogoUploadAvailable,
+		LogoUploadUnavailableReason: settings.LogoUploadUnavailableReason,
 	}
 }

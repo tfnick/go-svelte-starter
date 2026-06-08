@@ -23,13 +23,34 @@
     return settings?.logo_updated_at ? formatLocalDateTime(settings.logo_updated_at) : '--';
   }
 
+  function logoUploadAvailable() {
+    return Boolean(settings?.logo_upload_available);
+  }
+
+  function logoUploadUnavailableReason() {
+    return settings?.logo_upload_unavailable_reason || 'Primary OSS provider is not configured';
+  }
+
   function selectLogo(event) {
+    if (!logoUploadAvailable()) {
+      selectedLogo = null;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      error = logoUploadUnavailableReason();
+      message = '';
+      return;
+    }
     selectedLogo = event.currentTarget.files?.[0] || null;
     error = '';
     message = '';
   }
 
   async function saveLogo() {
+    if (!logoUploadAvailable()) {
+      error = logoUploadUnavailableReason();
+      return;
+    }
     if (!selectedLogo) {
       error = 'Logo file is required';
       return;
@@ -118,12 +139,18 @@
               {/if}
             </div>
 
+            <Notice
+              type="warning"
+              message={logoUploadAvailable() ? '' : logoUploadUnavailableReason()}
+            />
+
             <label class="form-control">
               <span class="label"><span class="label-text">Logo image</span></span>
               <input
                 accept="image/png,image/jpeg,image/webp"
                 bind:this={fileInput}
                 class="file-input file-input-bordered w-full"
+                disabled={saving || !logoUploadAvailable()}
                 onchange={selectLogo}
                 type="file"
               />
@@ -132,7 +159,7 @@
             <div class="flex flex-wrap items-center justify-end gap-2">
               <button
                 class="btn btn-primary"
-                disabled={saving || !selectedLogo}
+                disabled={saving || !selectedLogo || !logoUploadAvailable()}
                 onclick={saveLogo}
                 type="button"
               >

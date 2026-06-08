@@ -497,7 +497,16 @@ test('setting api helpers use relative api paths and multipart upload', async ()
 
   globalThis.fetch = async (path, options) => {
     calls.push({ path, options });
-    return jsonResponse({ success: true, data: { logo_url: '/logo.png', logo_configured: false, logo_updated_at: '' } });
+    return jsonResponse({
+      success: true,
+      data: {
+        logo_url: '/logo.png',
+        logo_configured: false,
+        logo_updated_at: '',
+        logo_upload_available: false,
+        logo_upload_unavailable_reason: 'Primary OSS provider is not configured'
+      }
+    });
   };
 
   const logoBlob = new Blob(['logo'], { type: 'image/png' });

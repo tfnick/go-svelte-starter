@@ -23,7 +23,18 @@
 
   let path = $state(normalizePath());
   let auth = $state({ loading: true, logged_in: false, user: null });
-  let siteSettings = $state({ logo_url: '/logo.png', logo_configured: false, logo_updated_at: '' });
+
+  function defaultSiteSettings() {
+    return {
+      logo_url: '/logo.png',
+      logo_configured: false,
+      logo_updated_at: '',
+      logo_upload_available: false,
+      logo_upload_unavailable_reason: 'Primary OSS provider is not configured'
+    };
+  }
+
+  let siteSettings = $state(defaultSiteSettings());
 
   async function refreshAuth() {
     auth = { ...auth, loading: true };
@@ -54,10 +65,12 @@
       siteSettings = {
         logo_url: settings?.logo_url || '/logo.png',
         logo_configured: Boolean(settings?.logo_configured),
-        logo_updated_at: settings?.logo_updated_at || ''
+        logo_updated_at: settings?.logo_updated_at || '',
+        logo_upload_available: Boolean(settings?.logo_upload_available),
+        logo_upload_unavailable_reason: settings?.logo_upload_unavailable_reason || ''
       };
     } catch {
-      siteSettings = { logo_url: '/logo.png', logo_configured: false, logo_updated_at: '' };
+      siteSettings = defaultSiteSettings();
     }
   }
 

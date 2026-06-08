@@ -1142,10 +1142,11 @@ Header logo:
 
 * `Header.svelte` renders an image in `navbar-start`, not the text `Svelte Go Starter`.
 * The logo renders at `110x25` with object containment and falls back to `/logo.png` on load error.
-* `App.svelte` loads site settings with `getSiteSettings()` and passes them into `Header`.
+* `App.svelte` loads site settings with `getSiteSettings()` and passes them into `Header` and `Settings`.
 * `/settings` is admin-only in `appRoutes`; regular users do not see the menu item and backend upload remains protected by `RequireAdmin()`.
 * `Settings.svelte` uses daisyUI `tabs tabs-lift` and includes `General` and `Retain` tabs.
 * `General` uploads the logo through `uploadSiteLogo(file)` using `FormData`; it must not call `fetch('/api/settings/site/logo')` directly.
+* `General` treats `logo_upload_available` from `GET /api/settings/site` as authoritative. When it is `false`, the file input and upload button are disabled and the page shows `logo_upload_unavailable_reason`.
 * `frontend/public/logo.png` is the default public asset and must be present so Vite copies it to `frontend/dist/logo.png` during build.
 
 ### 4. Validation & Error Matrix
@@ -1156,23 +1157,26 @@ Header logo:
 | no configured logo | header displays `/logo.png` |
 | configured logo URL fails to load | image `onerror` resets to `/logo.png` |
 | regular user opens menu | `/settings` is absent from `visibleAppRoutes()` |
+| `logo_upload_available=false` | file input and upload button are disabled; no upload call is attempted |
 | user selects no file | page shows local `Logo file is required` and does not call upload |
 | upload API fails | page displays API client safe message through `Notice` |
 | upload succeeds | page clears file input, refreshes site settings, and header updates |
 
 ### 5. Good/Base/Bad Cases
 
-Good: Admin opens `/settings`, selects a PNG/WebP/JPEG logo, uploads it, and the header image switches to `/api/settings/public/logo?v=...`.
+Good: Admin configures a primary OSS provider, opens `/settings`, selects a PNG/WebP/JPEG logo, uploads it, and the header image switches to `/api/settings/public/logo?v=...`.
 
-Base: Fresh install has only `frontend/public/logo.png`; header still shows a 110x25 image before any settings API response arrives.
+Base: Fresh install has only `frontend/public/logo.png` and no primary OSS provider; header still shows a 110x25 image, and Settings disables upload with the backend-provided reason.
 
 Bad: Component directly calls `fetch('/api/settings/site/logo')`, or forces `Content-Type: application/json` for `FormData`; this breaks the API helper contract.
 
 Bad: Header stores the configured logo URL in localStorage; the source of truth is the backend settings API.
 
+Bad: Settings enables the upload control based only on admin status; upload availability depends on primary OSS provider configuration returned by the backend.
+
 ### 6. Tests Required
 
-* `frontend/src/api.test.js` covers settings helper paths, `FormData`, auth header, and no forced JSON content type.
+* `frontend/src/api.test.js` covers settings helper paths, upload availability fields, `FormData`, auth header, and no forced JSON content type.
 * `frontend/src/router.test.js` covers `/settings.html`, app-route detection, route title, and admin-only visibility.
 * `cd frontend && npm test`
 * `cd frontend && npm run build` and verify `frontend/dist/logo.png` exists.

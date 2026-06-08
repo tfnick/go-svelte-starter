@@ -1472,9 +1472,11 @@ Usecase:
 
 ```go
 type SiteSettingsCo struct {
-    LogoURL        string
-    LogoConfigured bool
-    LogoUpdatedAt  string
+    LogoURL                     string
+    LogoConfigured              bool
+    LogoUpdatedAt               string
+    LogoUploadAvailable         bool
+    LogoUploadUnavailableReason string
 }
 
 type SaveSiteLogoCmd struct {
@@ -1498,7 +1500,7 @@ app_settings(setting_key TEXT PRIMARY KEY, value_json TEXT, created_at DATETIME,
 Stored `site.logo` JSON:
 
 ```json
-{"object_key":"settings/site-logo.png","content_type":"image/png","size":658,"updated_at":"2026-06-08T12:00:00.123456789Z"}
+{"object_key":"settings/site-logo.png","content_type":"image/png","size":658,"updated_at":"2026-06-08T12:00:00.123456789Z","channel_code":"primary-r2","provider_code":"cloudflare_r2","adapter_key":"oss.cloudflare_r2.s3_compatible"}
 ```
 
 ### 3. Contracts
@@ -1507,26 +1509,29 @@ Stored `site.logo` JSON:
 * Default response when no logo is configured:
 
 ```json
-{"logo_url":"/logo.png","logo_configured":false,"logo_updated_at":""}
+{"logo_url":"/logo.png","logo_configured":false,"logo_updated_at":"","logo_upload_available":false,"logo_upload_unavailable_reason":"Primary OSS provider is not configured"}
 ```
 
 * Configured response uses a cache-busting public image URL:
 
 ```json
-{"logo_url":"/api/settings/public/logo?v=2026-06-08T12%3A00%3A00.123456789Z","logo_configured":true,"logo_updated_at":"2026-06-08T12:00:00.123456789Z"}
+{"logo_url":"/api/settings/public/logo?v=2026-06-08T12%3A00%3A00.123456789Z","logo_configured":true,"logo_updated_at":"2026-06-08T12:00:00.123456789Z","logo_upload_available":true,"logo_upload_unavailable_reason":""}
 ```
 
 * `POST /api/settings/site/logo` is admin-only and accepts multipart form data with a `logo` file field.
 * Logo bytes are stored through `api/usecase/integrations/oss.Adapter`; DB stores only safe metadata, not raw image bytes.
 * `GET /api/settings/public/logo` is unauthenticated because browser `<img>` requests cannot attach the app bearer token. It streams the configured object or redirects to `/logo.png` when no object is configured.
-* Site-logo storage may use a local OSS adapter registered in `index.go` for app-owned public assets. Provider SDK details must remain under `api/integrations/oss/<provider>`, and usecase must depend only on the OSS port.
+* Site-logo upload resolves the enabled primary OSS channel (`scenario=oss`, `enabled=1`, `is_primary=1`) and its enabled credential, then maps channel `config_json` plus credential JSON to `oss.ProviderConfig`.
+* Site-logo storage must not use the local OSS adapter. `index.go` registers provider-backed OSS adapters such as `oss.cloudflare_r2.s3_compatible` and `oss.aliyun_oss.s3_compatible`; provider HTTP/signing details remain under `api/integrations/oss/<provider>`, and usecase depends only on the OSS port.
+* Persisted `site.logo` metadata includes `channel_code`, `provider_code`, and `adapter_key`; public logo read uses that persisted provider/channel metadata. Legacy metadata without channel/adapter fields may fall back to the current primary OSS provider.
 * Accepted logo formats are detected from file magic bytes: PNG, JPEG, and WebP.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Expected behavior |
 | --- | --- |
-| no `site.logo` setting | `GET /api/settings/site` returns `/logo.png` and `logo_configured:false` |
+| no `site.logo` setting | `GET /api/settings/site` returns `/logo.png`, `logo_configured:false`, and current upload availability fields |
+| no enabled primary OSS provider | `GET /api/settings/site` returns `logo_upload_available:false`; `POST /api/settings/site/logo` returns `CodeValidation`, safe message `primary OSS provider is not configured` |
 | no public logo object | `GET /api/settings/public/logo` redirects to `/logo.png` |
 | missing upload file | `CodeValidation`, safe message `logo file is required` |
 | upload over 2 MiB | `CodeValidation`, safe message `logo file is too large` |
@@ -1536,21 +1541,24 @@ Stored `site.logo` JSON:
 
 ### 5. Good/Base/Bad Cases
 
-Good: Settings page uploads `logo` as `FormData`; route builds `SaveSiteLogoCmd`; usecase validates bytes, calls registered OSS adapter, stores `site.logo` metadata, and returns a cache-busted `logo_url`.
+Good: Settings page uploads `logo` as `FormData`; route builds `SaveSiteLogoCmd`; usecase validates bytes, resolves the primary OSS channel, calls the registered provider adapter, stores `site.logo` metadata, and returns a cache-busted `logo_url`.
 
-Base: Fresh install has no `site.logo` row; header displays `/logo.png` from the embedded frontend public assets.
+Base: Fresh install has no `site.logo` row and no primary OSS provider; header displays `/logo.png`, while Settings upload is disabled through `logo_upload_available:false`.
 
 Bad: Route writes uploaded bytes directly under `frontend/dist` or stores raw image bytes in SQLite; this bypasses the OSS port and breaks production/runtime separation.
 
 Bad: The frontend sets `<img src="/api/settings/site/logo">` behind `RequireAuth()`; browser image requests do not include bearer auth headers.
 
+Bad: `index.go` registers a site-logo-only local adapter key and settings usecase hard-codes it; this bypasses Parameter-owned OSS provider configuration.
+
 ### 6. Tests Required
 
 * `api/models/setting_test.go` covers `app_settings` upsert/get and single-row replacement.
-* `api/usecase/setting_test.go` covers default fallback, upload validation, OSS adapter invocation, persisted metadata, and object readback.
-* `api/routes/setting_test.go` covers internal envelope and route-local DTOs for settings read/upload.
-* `api/integrations/oss/local/local_test.go` covers local adapter root confinement and read/write mapping.
-* Frontend API tests cover `getSiteSettings()` and `uploadSiteLogo()` path/method/FormData behavior.
+* `api/models/integration_test.go` covers primary OSS channel config lookup and metadata channel lookup.
+* `api/usecase/setting_test.go` covers default fallback, missing primary validation, primary OSS adapter invocation, persisted metadata, and object readback through persisted provider config.
+* `api/routes/setting_test.go` covers internal envelope, upload availability DTO fields, route-local DTOs for settings read/upload, and missing-primary validation mapping.
+* `api/integrations/oss/s3compatible/s3compatible_test.go` covers S3-compatible request method/path/header signing, key prefix handling, provider request ID, and normalized provider errors.
+* Frontend API tests cover `getSiteSettings()` response fields and `uploadSiteLogo()` path/method/FormData behavior.
 * Run `go test ./...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
 
 ### 7. Wrong vs Correct

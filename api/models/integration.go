@@ -195,6 +195,47 @@ type PaymentConfigQuery struct {
 	ChannelCode string
 }
 
+func GetEnabledPrimaryOSSChannelConfig(ctx context.Context) (IntegrationChannelConfig, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return IntegrationChannelConfig{}, fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(integrationChannelConfigSelectSQL() + `
+		WHERE c.scenario = ? AND c.enabled = 1 AND c.is_primary = 1 AND cred.enabled = 1
+		LIMIT 1
+	`)
+	var channel IntegrationChannelConfig
+	if err := d.Get(&channel, query, IntegrationScenarioOSS); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return IntegrationChannelConfig{}, fmt.Errorf("primary OSS channel not found: %w", modelerror.ErrNotFound)
+		}
+		return IntegrationChannelConfig{}, fmt.Errorf("load primary OSS channel failed: %w", err)
+	}
+	return channel, nil
+}
+
+func GetOSSChannelConfigByCodeAndAdapter(ctx context.Context, channelCode string, adapterKey string) (IntegrationChannelConfig, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return IntegrationChannelConfig{}, fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(integrationChannelConfigSelectSQL() + `
+		WHERE c.scenario = ? AND c.channel_code = ? AND c.adapter_key = ? AND cred.enabled = 1
+		ORDER BY c.created_at DESC, c.id DESC
+		LIMIT 1
+	`)
+	var channel IntegrationChannelConfig
+	if err := d.Get(&channel, query, IntegrationScenarioOSS, channelCode, adapterKey); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return IntegrationChannelConfig{}, fmt.Errorf("OSS channel not found: %w", modelerror.ErrNotFound)
+		}
+		return IntegrationChannelConfig{}, fmt.Errorf("load OSS channel failed: %w", err)
+	}
+	return channel, nil
+}
+
 func GetEnabledLLMConfig(ctx context.Context, qry LLMConfigQuery) (IntegrationLLMConfig, error) {
 	operationConfig, err := findEnabledOperationConfig(ctx, qry.Scenario, qry.Operation)
 	if err != nil {
