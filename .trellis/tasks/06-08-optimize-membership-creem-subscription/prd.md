@@ -62,18 +62,18 @@
 
 ## Acceptance Criteria
 
-- [ ] basic 用户注册后 membership_level='basic', expires_at='2099-12-31 23:59:59'
-- [ ] basic 用户购买 premium 月度产品 → membership_level='premium', expires_at = now + 1 month
-- [ ] premium 用户购买 super 产品 → membership_level='super', expires_at = now + interval
-- [ ] super 未过期用户购买 premium 产品 → 返回错误（禁止降级）
-- [ ] premium 未过期用户购买 premium 产品 → 返回错误（禁止重复购买同等级）
-- [ ] premium 已过期用户重新购买 premium → 成功，expires_at = now + interval
-- [ ] Creem `subscription.paid` webhook（续费）→ 会员有效期更新为 `current_period_end_date`
-- [ ] 首次支付时 `subscription.paid` 与 `checkout.completed` 同时到达 → 不重复延长（`membership_applied_at` 判空跳过）
-- [ ] Creem `subscription.canceled` webhook → 不影响会员有效期（订单 subscription_status 更新）
-- [ ] 过期 premium 用户被视为 basic（`EffectiveMembership` 返回 basic）
-- [ ] 过期 premium 用户可以重新购买 premium（不会被降级检查误拦）
-- [ ] `checkout.completed` 首次购买流程不受影响（已有测试保持通过）
+- [x] basic 用户注册后 membership_level='basic', expires_at='2099-12-31 23:59:59'
+- [x] basic 用户购买 premium 月度产品 → membership_level='premium', expires_at = now + 1 month
+- [x] premium 用户购买 super 产品 → membership_level='super', expires_at = now + interval
+- [x] super 未过期用户购买 premium 产品 → 返回错误（禁止降级）
+- [x] premium 未过期用户购买 premium 产品 → 返回错误（禁止重复购买同等级）
+- [x] premium 已过期用户重新购买 premium → 成功，expires_at = now + interval
+- [x] Creem `subscription.paid` webhook（续费）→ 会员有效期更新为 `current_period_end_date`
+- [x] 首次支付时 `subscription.paid` 与 `checkout.completed` 同时到达 → 不重复延长（`membership_applied_at` 判空跳过）
+- [x] Creem `subscription.canceled` webhook → 不影响会员有效期（订单 subscription_status 更新）
+- [x] 过期 premium 用户被视为 basic（`EffectiveMembership` 返回 basic）
+- [x] 过期 premium 用户可以重新购买 premium（不会被降级检查误拦）
+- [x] `checkout.completed` 首次购买流程不受影响（已有测试保持通过）
 
 ## Technical Approach
 
