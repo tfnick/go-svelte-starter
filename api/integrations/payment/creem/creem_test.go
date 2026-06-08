@@ -101,6 +101,32 @@ func TestNormalizePaymentWebhookVerifiesSignatureAndMapsOrderID(t *testing.T) {
 	}
 }
 
+func TestNormalizePaymentWebhookMapsNestedCreemCheckoutPayload(t *testing.T) {
+	payload := []byte(`{"id":"evt_nested","eventType":"checkout.completed","object":{"id":"ch_nested","object":"checkout","request_id":"order-nested","order":{"id":"ord_provider","product":"prod_from_order","status":"paid"},"product":{"id":"prod_from_product"},"metadata":{"user_id":"user-1"}}}`)
+	signature := signPayload("webhook-secret", payload)
+
+	adapter := NewAdapter(nil)
+	normalized, err := adapter.NormalizePaymentWebhook(context.Background(), payment.ProviderConfig{
+		WebhookSecret: "webhook-secret",
+	}, payment.WebhookRequest{
+		RawPayload:      payload,
+		Signature:       strings.ToUpper(signature[:16]) + " \n " + strings.ToUpper(signature[16:]),
+		VerifySignature: true,
+	})
+	if err != nil {
+		t.Fatalf("normalize webhook: %v", err)
+	}
+	if normalized.OrderID != "order-nested" {
+		t.Fatalf("expected request_id to map to order ID, got %#v", normalized)
+	}
+	if normalized.PaymentStatus != "succeeded" || normalized.BusinessEventType != payment.WebhookEventPaymentSucceeded {
+		t.Fatalf("unexpected payment status mapping: %#v", normalized)
+	}
+	if normalized.SafeSnapshot["product_id"] != "prod_from_product" {
+		t.Fatalf("expected nested product ID in snapshot, got %#v", normalized.SafeSnapshot)
+	}
+}
+
 func TestNormalizePaymentWebhookRejectsInvalidSignature(t *testing.T) {
 	adapter := NewAdapter(nil)
 	_, err := adapter.NormalizePaymentWebhook(context.Background(), payment.ProviderConfig{

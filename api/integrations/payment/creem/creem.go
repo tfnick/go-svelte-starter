@@ -66,7 +66,21 @@ type webhookCheckoutObject struct {
 	RequestID string                 `json:"request_id"`
 	Status    string                 `json:"status"`
 	ProductID string                 `json:"product_id"`
+	Order     webhookOrderObject     `json:"order"`
+	Product   webhookProductObject   `json:"product"`
 	Metadata  map[string]interface{} `json:"metadata"`
+}
+
+type webhookOrderObject struct {
+	ID       string `json:"id"`
+	Product  string `json:"product"`
+	Amount   int64  `json:"amount"`
+	Currency string `json:"currency"`
+	Status   string `json:"status"`
+}
+
+type webhookProductObject struct {
+	ID string `json:"id"`
 }
 
 func (a *Adapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig, req payment.CreatePaymentRequest) (payment.CreatePaymentResult, error) {
@@ -148,13 +162,20 @@ func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.Provide
 	if orderID == "" {
 		orderID = metadataString(event.Object.Metadata, "orderId")
 	}
+	if orderID == "" {
+		orderID = metadataString(event.Object.Metadata, "request_id")
+	}
+	if orderID == "" {
+		orderID = metadataString(event.Object.Metadata, "requestId")
+	}
 
-	paymentStatus := event.Object.Status
+	paymentStatus := firstNonEmpty(event.Object.Status, event.Object.Order.Status)
 	businessEventType := ""
 	if event.EventType == "checkout.completed" {
 		paymentStatus = "succeeded"
 		businessEventType = payment.WebhookEventPaymentSucceeded
 	}
+	productID := firstNonEmpty(event.Object.ProductID, event.Object.Product.ID, event.Object.Order.Product)
 
 	snapshot := map[string]interface{}{
 		"event_type":          event.EventType,
@@ -162,7 +183,7 @@ func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.Provide
 		"provider_payment_id": event.Object.ID,
 		"payment_status":      paymentStatus,
 		"order_id":            orderID,
-		"product_id":          event.Object.ProductID,
+		"product_id":          productID,
 	}
 
 	return payment.NormalizedWebhook{
@@ -202,10 +223,23 @@ func verifySignature(secret string, rawPayload []byte, signature string) error {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(rawPayload)
 	expected := hex.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(strings.ToLower(signature)), []byte(expected)) {
+	if !hmac.Equal([]byte(normalizeSignature(signature)), []byte(expected)) {
 		return providererror.New(providererror.CategoryAuth, false, "payment webhook signature is invalid", nil)
 	}
 	return nil
+}
+
+func normalizeSignature(signature string) string {
+	signature = strings.ToLower(strings.TrimSpace(signature))
+	var b strings.Builder
+	b.Grow(len(signature))
+	for _, ch := range signature {
+		if ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' {
+			continue
+		}
+		b.WriteRune(ch)
+	}
+	return b.String()
 }
 
 func checkoutURL(base string) (string, error) {

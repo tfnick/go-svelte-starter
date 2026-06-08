@@ -108,6 +108,27 @@ func TestCreateOrderPaymentCheckoutUsesDBConfigAndRecordsInvocation(t *testing.T
 	}
 }
 
+func TestCreateOrderPaymentCheckoutFallsBackToSingleEnabledChannelWithoutOperationConfig(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, orderID := seedPayableOrder(t, manager)
+	seedPaymentIntegrationConfig(t, appDB, "payment.creem.usecase-fallback-test")
+	if _, err := appDB.Exec(`DELETE FROM integration_operation_configs WHERE scenario = 'payment'`); err != nil {
+		t.Fatalf("delete payment operation config: %v", err)
+	}
+	if err := usecase.RegisterPaymentAdapter("payment.creem.usecase-fallback-test", fakePaymentAdapter{t: t}); err != nil {
+		t.Fatalf("register payment adapter: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	checkout, err := usecase.CreateOrderPaymentCheckout(ctx, usecase.CreateOrderPaymentCheckoutCmd{OrderID: orderID})
+	if err != nil {
+		t.Fatalf("create payment checkout without operation config: %v", err)
+	}
+	if checkout.CheckoutURL == "" || checkout.ChannelCode != "usecase-creem" {
+		t.Fatalf("unexpected checkout fallback result: %#v", checkout)
+	}
+}
+
 func TestReceivePaymentWebhookPersistsReceiptAndQueuesOnce(t *testing.T) {
 	manager := setupUsecaseOrderTxDB(t)
 	appDB, _ := seedPayableOrder(t, manager)
