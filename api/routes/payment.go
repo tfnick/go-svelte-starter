@@ -58,11 +58,22 @@ func ReceivePaymentWebhook(c echo.Context) error {
 	ctx := fwcontext.InternalUsecaseContext(c)
 	_, err = usecase.ReceivePaymentWebhook(ctx, usecase.ReceivePaymentWebhookCmd{
 		ChannelCode: c.Param("channel_code"),
-		Signature:   c.Request().Header.Get("creem-signature"),
+		Headers:     webhookHeaders(c.Request().Header),
 		RawPayload:  body,
 	})
 	if err != nil {
 		return httpresponse.InternalUsecaseError(c, err)
 	}
 	return c.NoContent(http.StatusOK)
+}
+
+func webhookHeaders(headers http.Header) map[string]string {
+	result := make(map[string]string, len(headers))
+	for key, values := range headers {
+		if len(values) == 0 {
+			continue
+		}
+		result[key] = values[0]
+	}
+	return result
 }

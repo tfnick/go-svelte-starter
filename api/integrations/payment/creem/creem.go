@@ -285,7 +285,7 @@ func (a *Adapter) CancelSubscription(ctx context.Context, cfg payment.ProviderCo
 
 func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.ProviderConfig, req payment.WebhookRequest) (payment.NormalizedWebhook, error) {
 	if req.VerifySignature {
-		if err := verifySignature(cfg.WebhookSecret, req.RawPayload, req.Signature); err != nil {
+		if err := verifySignature(cfg.WebhookSecret, req.RawPayload, webhookSignature(req.Headers)); err != nil {
 			return payment.NormalizedWebhook{}, err
 		}
 	}
@@ -387,6 +387,15 @@ func verifySignature(secret string, rawPayload []byte, signature string) error {
 		return providererror.New(providererror.CategoryAuth, false, "payment webhook signature is invalid", nil)
 	}
 	return nil
+}
+
+func webhookSignature(headers map[string]string) string {
+	for key, value := range headers {
+		if strings.EqualFold(key, "creem-signature") {
+			return value
+		}
+	}
+	return ""
 }
 
 func normalizeSignature(signature string) string {

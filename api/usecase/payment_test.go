@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"sort"
+	"strings"
 	"testing"
 
 	fwevents "github.com/tfnick/go-svelte-starter/api/framework/events"
@@ -43,6 +45,9 @@ func (a fakePaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg pay
 	a.t.Helper()
 	if cfg.WebhookSecret != "payment-webhook-secret" {
 		a.t.Fatalf("unexpected webhook secret: %q", cfg.WebhookSecret)
+	}
+	if req.VerifySignature && webhookHeaderForTest(req.Headers, "creem-signature") != "signature" {
+		a.t.Fatalf("expected signature header to be forwarded, got %#v", req.Headers)
 	}
 	return payment.NormalizedWebhook{
 		ProviderEventID:        "evt_usecase",
@@ -194,7 +199,7 @@ func TestReceivePaymentWebhookPersistsReceiptAndQueuesOnce(t *testing.T) {
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	receipt, err := usecase.ReceivePaymentWebhook(ctx, usecase.ReceivePaymentWebhookCmd{
 		ChannelCode: "usecase-creem",
-		Signature:   "signature",
+		Headers:     map[string]string{"creem-signature": "signature"},
 		RawPayload:  []byte(`{"id":"evt_usecase"}`),
 	})
 	if err != nil {
@@ -209,7 +214,7 @@ func TestReceivePaymentWebhookPersistsReceiptAndQueuesOnce(t *testing.T) {
 
 	duplicate, err := usecase.ReceivePaymentWebhook(ctx, usecase.ReceivePaymentWebhookCmd{
 		ChannelCode: "usecase-creem",
-		Signature:   "signature",
+		Headers:     map[string]string{"creem-signature": "signature"},
 		RawPayload:  []byte(`{"id":"evt_usecase"}`),
 	})
 	if err != nil {
@@ -252,7 +257,7 @@ func TestReceivePaymentWebhookRecordsHeaderHashForInvalidSignature(t *testing.T)
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	_, err := usecase.ReceivePaymentWebhook(ctx, usecase.ReceivePaymentWebhookCmd{
 		ChannelCode: "usecase-creem",
-		Signature:   signature,
+		Headers:     map[string]string{"creem-signature": signature},
 		RawPayload:  payload,
 	})
 	if fwusecase.CodeOf(err) != fwusecase.CodeUnauthorized {
@@ -278,7 +283,7 @@ func TestReceivePaymentWebhookRecordsHeaderHashForInvalidSignature(t *testing.T)
 	if row.PayloadCiphertext == string(payload) {
 		t.Fatal("expected encrypted webhook payload, got plaintext")
 	}
-	if row.HeadersHash != sha256HexForTest([]byte(signature)) {
+	if row.HeadersHash != webhookHeadersHashForTest(map[string]string{"creem-signature": signature}) {
 		t.Fatalf("unexpected headers hash: %#v", row)
 	}
 }
@@ -325,7 +330,7 @@ func TestReceivePaymentWebhookRejectsDisabledWebhookChannel(t *testing.T) {
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	_, err := usecase.ReceivePaymentWebhook(ctx, usecase.ReceivePaymentWebhookCmd{
 		ChannelCode: "usecase-creem",
-		Signature:   "signature",
+		Headers:     map[string]string{"creem-signature": "signature"},
 		RawPayload:  []byte(`{"id":"evt_usecase"}`),
 	})
 	if fwusecase.CodeOf(err) != fwusecase.CodeForbidden {
@@ -341,6 +346,36 @@ func sha256HexForTest(body []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func webhookHeaderForTest(headers map[string]string, name string) string {
+	for key, value := range headers {
+		if strings.EqualFold(key, name) {
+			return value
+		}
+	}
+	return ""
+}
+
+func webhookHeadersHashForTest(headers map[string]string) string {
+	normalized := map[string]string{}
+	for key, value := range headers {
+		normalized[strings.ToLower(strings.TrimSpace(key))] = strings.TrimSpace(value)
+	}
+	keys := make([]string, 0, len(normalized))
+	for key := range normalized {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var builder strings.Builder
+	for _, key := range keys {
+		builder.WriteString(key)
+		builder.WriteByte(':')
+		builder.WriteString(normalized[key])
+		builder.WriteByte('\n')
+	}
+	return sha256HexForTest([]byte(builder.String()))
+}
+
 func TestHandlePaymentWebhookJobCompletesOrderThroughWorker(t *testing.T) {
 	manager := setupUsecaseOrderTxDB(t)
 	appDB, orderID := seedPayableOrder(t, manager)
@@ -353,7 +388,7 @@ func TestHandlePaymentWebhookJobCompletesOrderThroughWorker(t *testing.T) {
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	receipt, err := usecase.ReceivePaymentWebhook(ctx, usecase.ReceivePaymentWebhookCmd{
 		ChannelCode: "usecase-creem",
-		Signature:   "signature",
+		Headers:     map[string]string{"creem-signature": "signature"},
 		RawPayload:  []byte(`{"id":"evt_usecase"}`),
 	})
 	if err != nil {
@@ -424,7 +459,7 @@ func TestHandlePaymentWebhookJobCancelsSubscriptionWithoutChangingMembership(t *
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	receipt, err := usecase.ReceivePaymentWebhook(ctx, usecase.ReceivePaymentWebhookCmd{
 		ChannelCode: "usecase-creem",
-		Signature:   "signature",
+		Headers:     map[string]string{"creem-signature": "signature"},
 		RawPayload:  []byte(`{"id":"evt_cancel"}`),
 	})
 	if err != nil {

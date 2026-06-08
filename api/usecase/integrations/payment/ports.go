@@ -53,7 +53,7 @@ type CreatePaymentResult struct {
 
 type WebhookRequest struct {
 	RawPayload      []byte
-	Signature       string
+	Headers         map[string]string
 	VerifySignature bool
 }
 

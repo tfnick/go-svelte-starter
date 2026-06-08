@@ -63,7 +63,7 @@ fwcontext.OpenAPIUsecaseContext(c)
 
 Open API route 不使用内部 API helper 的成功 envelope，详见 [Open API Guidelines](./open-api-guidelines.md)。
 
-Provider webhook endpoints are also an explicit exception to the internal frontend envelope. Routes such as `/api/integrations/<scenario>/<channel>/webhooks/<provider>` are external provider ingress, so successful ACK may use the provider-required status/body instead of `httpresponse.OK(...)`; Creem payment webhooks must ACK with `c.NoContent(http.StatusOK)`. Provider-specific webhook authentication is endpoint-level behavior, not global middleware: the route reads the raw body and provider signature header, then delegates provider signature verification to usecase/adapter and maps errors through safe response helpers.
+Provider webhook endpoints are also an explicit exception to the internal frontend envelope. Routes such as `/api/integrations/<scenario>/<channel>/webhooks/<provider>` are external provider ingress, so successful ACK may use the provider-required status/body instead of `httpresponse.OK(...)`; Creem payment webhooks must ACK with `c.NoContent(http.StatusOK)`. Provider-specific webhook authentication is endpoint-level behavior, not global middleware: the route reads the raw body and may forward request headers as a generic map, then delegates provider-specific header interpretation and signature verification to usecase/adapter and maps errors through safe response helpers. Do not hard-code provider signature header names such as `creem-signature` into route-to-usecase command contracts.
 
 ---
 

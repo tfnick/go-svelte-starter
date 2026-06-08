@@ -132,7 +132,7 @@ func TestNormalizePaymentWebhookVerifiesSignatureAndMapsOrderID(t *testing.T) {
 		WebhookSecret: "webhook-secret",
 	}, payment.WebhookRequest{
 		RawPayload:      payload,
-		Signature:       signature,
+		Headers:         map[string]string{"creem-signature": signature},
 		VerifySignature: true,
 	})
 	if err != nil {
@@ -155,7 +155,7 @@ func TestNormalizePaymentWebhookMapsNestedCreemCheckoutPayload(t *testing.T) {
 		WebhookSecret: "webhook-secret",
 	}, payment.WebhookRequest{
 		RawPayload:      payload,
-		Signature:       strings.ToUpper(signature[:16]) + " \n " + strings.ToUpper(signature[16:]),
+		Headers:         map[string]string{"Creem-Signature": strings.ToUpper(signature[:16]) + " \n " + strings.ToUpper(signature[16:])},
 		VerifySignature: true,
 	})
 	if err != nil {
@@ -181,7 +181,7 @@ func TestNormalizePaymentWebhookMapsSubscriptionCanceledPayload(t *testing.T) {
 		WebhookSecret: "webhook-secret",
 	}, payment.WebhookRequest{
 		RawPayload:      payload,
-		Signature:       signature,
+		Headers:         map[string]string{"creem-signature": signature},
 		VerifySignature: true,
 	})
 	if err != nil {
@@ -201,7 +201,7 @@ func TestNormalizePaymentWebhookRejectsInvalidSignature(t *testing.T) {
 		WebhookSecret: "webhook-secret",
 	}, payment.WebhookRequest{
 		RawPayload:      []byte(`{"id":"evt_1"}`),
-		Signature:       "bad",
+		Headers:         map[string]string{"creem-signature": "bad"},
 		VerifySignature: true,
 	})
 	if err == nil {

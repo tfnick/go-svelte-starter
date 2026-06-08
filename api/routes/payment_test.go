@@ -32,6 +32,9 @@ func (routeFakePaymentAdapter) CreatePayment(ctx context.Context, cfg payment.Pr
 }
 
 func (routeFakePaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg payment.ProviderConfig, req payment.WebhookRequest) (payment.NormalizedWebhook, error) {
+	if webhookHeaderForRouteTest(req.Headers, "creem-signature") != "signature" {
+		panic("expected route to forward webhook headers")
+	}
 	return payment.NormalizedWebhook{
 		ProviderEventID:   "route-evt",
 		EventType:         "checkout.completed",
@@ -46,6 +49,15 @@ func (routeFakePaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg 
 			"order_id":            "route-order",
 		},
 	}, nil
+}
+
+func webhookHeaderForRouteTest(headers map[string]string, name string) string {
+	for key, value := range headers {
+		if strings.EqualFold(key, name) {
+			return value
+		}
+	}
+	return ""
 }
 
 func (routeFakePaymentAdapter) CancelSubscription(ctx context.Context, cfg payment.ProviderConfig, req payment.CancelSubscriptionRequest) (payment.CancelSubscriptionResult, error) {
