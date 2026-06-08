@@ -26,12 +26,12 @@
 
 ## Acceptance Criteria
 
-* [ ] 打开 Parameter 页面时，Webhook label 旁有问号 help text 图标。
-* [ ] 鼠标移到问号上时，tooltip 显示通用 webhook callback URL 格式。
-* [ ] 修改 Channel code 或 Provider code 后，tooltip 中的对应 segment 使用当前表单值；为空时显示占位。
-* [ ] Payment / Creem 场景的 tooltip 能指示 Creem 应配置到 `/api/integrations/payment/<channel_code>/webhooks/creem`。
-* [ ] `cd frontend && npm test` 通过。
-* [ ] `cd frontend && npm run build` 通过。
+* [x] 打开 Parameter 页面时，Webhook label 旁有问号 help text 图标。
+* [x] 鼠标移到问号上时，tooltip 显示通用 webhook callback URL 格式。
+* [x] 修改 Channel code 或 Provider code 后，tooltip 中的对应 segment 使用当前表单值；为空时显示占位。
+* [x] Payment / Creem 场景的 tooltip 能指示 Creem 应配置到 `/api/integrations/payment/<channel_code>/webhooks/creem`。
+* [x] `cd frontend && npm test` 通过。
+* [x] `cd frontend && npm run build` 通过。
 
 ## Definition of Done
 
