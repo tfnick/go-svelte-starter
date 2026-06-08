@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Backend layering and integration adapter registry boundaries"}
+{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "Internal route handler flow and auth grouping"}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Internal envelope DTO and Settings API contracts"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Migration and model DB access rules"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Typed usecase errors and safe messages"}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Svelte routing, API helper, app shell, and public asset rules"}
