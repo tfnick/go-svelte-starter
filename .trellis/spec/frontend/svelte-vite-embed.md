@@ -895,7 +895,7 @@ PUT   /api/parameters/integration-channels/:id
 PATCH /api/parameters/integration-channels/:id/enabled
 ```
 
-OSS/Cloudflare R2 is a Parameter configuration scenario only: the UI loads `scenario=oss`, captures R2 `endpoint_url` / `bucket` / `region` config and `s3_access_key` credentials, and does not execute upload/download or SDK connection tests.
+OSS providers such as Cloudflare R2 and Aliyun OSS are Parameter configuration scenarios only: the UI loads `scenario=oss`, captures provider `endpoint_url` / `bucket` / `region` config and `s3_access_key` credentials, and does not execute upload/download or SDK connection tests.
 
 ### 3. Contracts
 

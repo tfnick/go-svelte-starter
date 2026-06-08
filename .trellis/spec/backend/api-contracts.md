@@ -882,6 +882,7 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_acce
 | `email.aliyun.smtp` | `email` | `aliyun` | `json_object` | `smtp_host` required text default `smtp.qiye.aliyun.com`, `smtp_port` required number default `465`, `security` required option default `ssl`, `from_email` required text, optional `from_name` text | `username`, `password` with help text reminding admins to use the mailbox client authorization password instead of the account login password |
 | `email.resend.api` | `email` | `resend` | `plain` | `base_url` required URL default `https://api.resend.com`, `from_email` required text, optional `from_name` text | `api_key` |
 | `oss.cloudflare_r2.s3_compatible` | `oss` | `cloudflare_r2` | `json_object` | `endpoint_url` required URL, `bucket` required text, optional `region` default `auto`, optional `public_base_url` URL, optional `key_prefix` text | `access_key_id`, `secret_access_key` |
+| `oss.aliyun_oss.s3_compatible` | `oss` | `aliyun` | `json_object` | `endpoint_url` required URL, `bucket` required text, optional `region`, optional `public_base_url` URL, optional `key_prefix` text | `access_key_id`, `secret_access_key` |
 
 * API only manages `integration_channels + integration_credentials`; it does not manage `integration_operation_configs`, `integration_model_options`, policy, webhook receipts, invocation raw data, provider request/response, prompt, stream chunks, OSS upload/download runtime, presigned URLs, or artifact lifecycle.
 * Parameter APIs are protected internal admin configuration APIs. Routes must run behind `RequireAuth()` and `RequireAdmin()`; admin access is represented by `users.is_admin=1`.
@@ -920,6 +921,8 @@ Good: Create a `payment.creem.hosted_checkout` channel with non-sensitive `base_
 Good: Create an `email.aliyun.smtp` channel with SMTP host/port/security/from fields in `config_json`, and username/password in admin-managed `credential_value`.
 
 Good: Create an `oss.cloudflare_r2.s3_compatible` channel with R2 endpoint/bucket/region in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API.
+
+Good: Create an `oss.aliyun_oss.s3_compatible` channel with Aliyun OSS endpoint/bucket/region in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API.
 
 Base: Edit an LLM channel's `priority` and `metadata_json` with empty `credential_value`; backend preserves the previous credential value.
 

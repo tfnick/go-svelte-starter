@@ -250,17 +250,26 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list OSS schemas: %v", err)
 	}
-	if len(ossSchemas) != 1 {
-		t.Fatalf("expected one OSS schema, got %#v", ossSchemas)
+	if len(ossSchemas) != 2 {
+		t.Fatalf("expected two OSS schemas, got %#v", ossSchemas)
 	}
 	if ossSchemas[0].AdapterKey != "oss.cloudflare_r2.s3_compatible" || ossSchemas[0].ProviderCode != "cloudflare_r2" {
-		t.Fatalf("unexpected OSS schema: %#v", ossSchemas[0])
+		t.Fatalf("unexpected Cloudflare R2 schema: %#v", ossSchemas[0])
 	}
 	if ossSchemas[0].CredentialType != "s3_access_key" || ossSchemas[0].CredentialFormat != usecase.ParameterIntegrationCredentialFormatJSONObject {
-		t.Fatalf("unexpected OSS credential schema: %#v", ossSchemas[0])
+		t.Fatalf("unexpected Cloudflare R2 credential schema: %#v", ossSchemas[0])
 	}
 	if len(ossSchemas[0].ConfigFields) < 3 || ossSchemas[0].ConfigFields[0].Key != "endpoint_url" || ossSchemas[0].ConfigFields[2].DefaultValue != "auto" {
-		t.Fatalf("unexpected OSS config fields: %#v", ossSchemas[0].ConfigFields)
+		t.Fatalf("unexpected Cloudflare R2 config fields: %#v", ossSchemas[0].ConfigFields)
+	}
+	if ossSchemas[1].AdapterKey != "oss.aliyun_oss.s3_compatible" || ossSchemas[1].ProviderCode != "aliyun" {
+		t.Fatalf("unexpected Aliyun OSS schema: %#v", ossSchemas[1])
+	}
+	if ossSchemas[1].CredentialType != "s3_access_key" || ossSchemas[1].CredentialFormat != usecase.ParameterIntegrationCredentialFormatJSONObject {
+		t.Fatalf("unexpected Aliyun OSS credential schema: %#v", ossSchemas[1])
+	}
+	if len(ossSchemas[1].ConfigFields) < 3 || ossSchemas[1].ConfigFields[0].Key != "endpoint_url" || ossSchemas[1].ConfigFields[2].Placeholder != "cn-hangzhou" {
+		t.Fatalf("unexpected Aliyun OSS config fields: %#v", ossSchemas[1].ConfigFields)
 	}
 }
 
@@ -451,6 +460,65 @@ func TestParameterIntegrationChannelAcceptsCloudflareR2CredentialSchema(t *testi
 		MetadataJSON:    "{}",
 		CredentialType:  "s3_access_key",
 		CredentialValue: `{"access_key_id":"r2-access-key"}`,
+	}
+	if _, err := usecase.CreateParameterIntegrationChannel(ctx, missingSecret); fwusecase.CodeOf(err) != fwusecase.CodeValidation {
+		t.Fatalf("expected missing secret validation, got %v", err)
+	}
+}
+
+func TestParameterIntegrationChannelAcceptsAliyunOSSCredentialSchema(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+
+	channel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:       models.IntegrationScenarioOSS,
+		ChannelCode:    "aliyun-assets",
+		ProviderCode:   "aliyun",
+		AdapterKey:     "oss.aliyun_oss.s3_compatible",
+		Environment:    "production",
+		Enabled:        true,
+		ConfigJSON:     `{"endpoint_url":"https://oss-cn-hangzhou.aliyuncs.com","bucket":"assets","region":"cn-hangzhou","key_prefix":"uploads/"}`,
+		MetadataJSON:   "{}",
+		CredentialType: "s3_access_key",
+		CredentialValue: `{
+			"access_key_id":"aliyun-access-key",
+			"secret_access_key":"aliyun-secret-key"
+		}`,
+	})
+	if err != nil {
+		t.Fatalf("create Aliyun OSS channel: %v", err)
+	}
+	if channel.Scenario != models.IntegrationScenarioOSS || channel.ProviderCode != "aliyun" || channel.CredentialType != "s3_access_key" {
+		t.Fatalf("unexpected Aliyun OSS channel: %#v", channel)
+	}
+
+	missingEndpoint := usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioOSS,
+		ChannelCode:     "aliyun-missing-endpoint",
+		ProviderCode:    "aliyun",
+		AdapterKey:      "oss.aliyun_oss.s3_compatible",
+		Environment:     "production",
+		Enabled:         true,
+		ConfigJSON:      `{"bucket":"assets","region":"cn-hangzhou"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "s3_access_key",
+		CredentialValue: `{"access_key_id":"aliyun-access-key","secret_access_key":"aliyun-secret-key"}`,
+	}
+	if _, err := usecase.CreateParameterIntegrationChannel(ctx, missingEndpoint); fwusecase.CodeOf(err) != fwusecase.CodeValidation {
+		t.Fatalf("expected missing endpoint validation, got %v", err)
+	}
+
+	missingSecret := usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioOSS,
+		ChannelCode:     "aliyun-missing-secret",
+		ProviderCode:    "aliyun",
+		AdapterKey:      "oss.aliyun_oss.s3_compatible",
+		Environment:     "production",
+		Enabled:         true,
+		ConfigJSON:      `{"endpoint_url":"https://oss-cn-hangzhou.aliyuncs.com","bucket":"assets","region":"cn-hangzhou"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "s3_access_key",
+		CredentialValue: `{"access_key_id":"aliyun-access-key"}`,
 	}
 	if _, err := usecase.CreateParameterIntegrationChannel(ctx, missingSecret); fwusecase.CodeOf(err) != fwusecase.CodeValidation {
 		t.Fatalf("expected missing secret validation, got %v", err)

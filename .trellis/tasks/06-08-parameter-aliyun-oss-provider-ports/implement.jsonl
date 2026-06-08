@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/directory-structure.md","reason":"External integration boundary and usecase port placement."}
+{"file":".trellis/spec/backend/api-contracts.md","reason":"Parameter integration schema contract for OSS providers."}
+{"file":".trellis/tasks/06-08-parameter-aliyun-oss-provider-ports/research/aliyun-oss-parameter-fields.md","reason":"Aliyun OSS provider field research and OSS port scope."}

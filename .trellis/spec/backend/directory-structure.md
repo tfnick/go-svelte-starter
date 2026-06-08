@@ -140,7 +140,7 @@ integration_invocations
 ### 3. Contracts
 
 * `api/framework/integrations/*` 只能放 provider-agnostic 基础能力，例如 credential encryption、normalized provider error、signing/auth/stream primitive。
-* `api/usecase/integrations/<scenario>` 定义业务稳定 port 和 DTO，例如 LLM `Adapter`、`ProviderConfig`、`GenerateRequest`、`GenerateResult`。
+* `api/usecase/integrations/<scenario>` 定义业务稳定 port 和 DTO，例如 LLM `Adapter`、`ProviderConfig`、`GenerateRequest`、`GenerateResult`，或 OSS `Adapter`、`ProviderConfig`、`PutObjectRequest`、`PresignObjectRequest`。
 * `api/integrations/<scenario>/<provider>` 实现具体 provider adapter，只负责 provider DTO mapping、HTTP/SDK 调用、provider error normalization。
 * `api/usecase` 通过 registry 或 bootstrap 注入 adapter，不导入 `api/integrations`。
 * `index.go` 或启动 bootstrap 负责把 provider adapter 注册到 usecase 可见的 registry。
@@ -162,6 +162,8 @@ integration_invocations
 ### 5. Good/Base/Bad Cases
 
 Good: route calls `usecase.SummarizeTextWithLLM`, usecase resolves `text_summary` config from DB, decrypts credential through `framework/integrations/credentials`, invokes registered DeepSeek adapter through the LLM port, and records `integration_invocations`.
+
+Good: future artifact/PPT usecase resolves an enabled OSS channel from DB, decrypts `s3_access_key`, invokes a registered OSS adapter through `api/usecase/integrations/oss`, and keeps Aliyun/R2 SDK details under `api/integrations/oss/<provider>`.
 
 Base: If `integration_operation_configs` is absent for an operation, resolver may fall back to enabled channel/model priority for MVP compatibility, but production operations should be explicitly configured.
 

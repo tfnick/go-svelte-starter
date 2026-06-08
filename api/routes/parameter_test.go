@@ -140,14 +140,20 @@ func TestListParameterIntegrationSchemasReturnsDTO(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode OSS schema response: %v", err)
 	}
-	if !envelope.Success || len(envelope.Data) != 1 {
+	if !envelope.Success || len(envelope.Data) != 2 {
 		t.Fatalf("unexpected OSS schema envelope: %s", rec.Body.String())
 	}
 	if envelope.Data[0].AdapterKey != "oss.cloudflare_r2.s3_compatible" || envelope.Data[0].CredentialType != "s3_access_key" {
-		t.Fatalf("unexpected OSS schema response: %#v", envelope.Data[0])
+		t.Fatalf("unexpected Cloudflare R2 schema response: %#v", envelope.Data[0])
 	}
 	if len(envelope.Data[0].ConfigFields) == 0 || envelope.Data[0].ConfigFields[0].Key != "endpoint_url" {
-		t.Fatalf("expected OSS endpoint URL field, got %#v", envelope.Data[0].ConfigFields)
+		t.Fatalf("expected R2 endpoint URL field, got %#v", envelope.Data[0].ConfigFields)
+	}
+	if envelope.Data[1].AdapterKey != "oss.aliyun_oss.s3_compatible" || envelope.Data[1].ProviderCode != "aliyun" {
+		t.Fatalf("unexpected Aliyun OSS schema response: %#v", envelope.Data[1])
+	}
+	if len(envelope.Data[1].CredentialFields) != 2 || envelope.Data[1].CredentialFields[1].Key != "secret_access_key" {
+		t.Fatalf("expected Aliyun OSS access key credential fields, got %#v", envelope.Data[1].CredentialFields)
 	}
 }
 
