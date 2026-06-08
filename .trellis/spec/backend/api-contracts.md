@@ -1045,6 +1045,95 @@ return c.NoContent(http.StatusOK)
 
 ---
 
+## Scenario: Payment Subscription Upgrade Cancellation
+
+### 1. Scope / Trigger
+
+修改会员订阅升级、旧订阅取消、Creem subscription cancel adapter、或 `orders.subscription_status` 语义时，遵守本节。这里是外部 provider 出站合同和本地会员订单状态合同，不是普通内部 API DTO。
+
+### 2. Signatures
+
+Usecase port:
+
+```go
+type CancelSubscriptionRequest struct {
+    SubscriptionID string
+    Mode           string // "scheduled" or "immediate"
+    OnExecute      string // "cancel" or "pause" for scheduled mode
+}
+
+type CancelSubscriptionResult struct {
+    Status string
+}
+```
+
+Creem request:
+
+```text
+POST /v1/subscriptions/{subscription_id}/cancel
+Header: x-api-key: <api key>
+Header: Content-Type: application/json
+```
+
+Scheduled cancellation body:
+
+```json
+{"mode":"scheduled","onExecute":"cancel"}
+```
+
+### 3. Contracts
+
+* 升级到更高会员等级时，`ApplyOrderMembership` 查询同一用户旧的 active 订阅订单，不包含当前新订单。
+* 旧订阅筛选条件必须要求 `provider_subscription_id` 非空、`subscription_status='active'`、且商品会员等级属于 `premium` 或 `super`。
+* 本地 DB 事务内更新用户会员、标记旧订单 `subscription_status='canceled'`、标记新订单 `membership_applied_at`。
+* Creem 取消请求必须通过 `RegisterAfterCommit` 在 DB commit 后执行，不能放进 DB 事务。
+* 默认取消策略是 scheduled cancel：发送 `mode:"scheduled"` 和 `onExecute:"cancel"`，不要发送空 body。
+* 本地旧订单标记为 `canceled` 表示它不再参与 active subscription 查询；Creem 返回 `scheduled_cancel` 时仍可保持本地 `canceled`，避免重复扣费路径继续把旧订阅视为 active。
+* provider adapter 返回的 raw provider error 必须先归一化为 `providererror`，不要把 provider response body 泄露到客户端或日志。
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| empty `SubscriptionID` | adapter returns validation provider error |
+| missing payment channel/config/credential | usecase returns internal/safe error where user-facing; after-commit cancellation may fail without rolling back committed membership |
+| Creem cancel endpoint returns non-2xx | adapter returns normalized provider error |
+| old subscription has empty provider subscription id | not sent to provider; it is not selected by active old subscription query |
+| duplicate membership application (`membership_applied_at` already set) | no-op; do not cancel again |
+
+### 5. Good/Base/Bad Cases
+
+Good: Premium active order `sub_old` exists, user pays a Super order, `ApplyOrderMembership` commits Super membership, old order becomes locally `canceled`, and after commit Creem receives scheduled cancel body for `sub_old`.
+
+Base: Creem returns `{"status":"scheduled_cancel"}`; adapter returns that status while local old order remains excluded from future active subscription queries.
+
+Bad: Call Creem cancel with `http.NoBody`; Creem requires the cancellation mode payload and may leave the subscription active.
+
+Bad: Call Creem inside `WithAppTx`; slow or failed provider IO would hold the SQLite transaction and can roll back unrelated local state.
+
+### 6. Tests Required
+
+* `api/integrations/payment/creem/creem_test.go` asserts cancel request method/path, `Content-Type: application/json`, and body `mode:"scheduled"` / `onExecute:"cancel"`.
+* `api/usecase/product_membership_checkout_test.go` asserts upgrading from old active premium subscription to super calls `CancelSubscription` with the old provider subscription id and marks only the old order canceled.
+* `go test ./...` after changing the payment adapter port because every fake adapter must implement the full interface.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```go
+http.NewRequestWithContext(ctx, http.MethodPost, cancelURL, http.NoBody)
+```
+
+#### Correct
+
+```go
+body := strings.NewReader(`{"mode":"scheduled","onExecute":"cancel"}`)
+http.NewRequestWithContext(ctx, http.MethodPost, cancelURL, body)
+```
+
+---
+
 ## Scenario: Variable Management API
 
 ### 1. Scope / Trigger

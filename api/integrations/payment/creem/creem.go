@@ -53,6 +53,16 @@ type createCheckoutResponse struct {
 	Status      string `json:"status"`
 }
 
+type cancelSubscriptionRequest struct {
+	Mode      string `json:"mode"`
+	OnExecute string `json:"onExecute,omitempty"`
+}
+
+type cancelSubscriptionResponse struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+}
+
 type webhookEvent struct {
 	ID        string                 `json:"id"`
 	EventType string                 `json:"eventType"`
@@ -214,6 +224,63 @@ func (a *Adapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig,
 		Status:            parsed.Status,
 		ProviderRequestID: parsed.ID,
 	}, nil
+}
+
+func (a *Adapter) CancelSubscription(ctx context.Context, cfg payment.ProviderConfig, req payment.CancelSubscriptionRequest) (payment.CancelSubscriptionResult, error) {
+	subscriptionID := strings.TrimSpace(req.SubscriptionID)
+	if subscriptionID == "" {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryValidation, false, "subscription ID is required", nil)
+	}
+	if strings.TrimSpace(cfg.BaseURL) == "" {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryValidation, false, "payment base URL is required", nil)
+	}
+	if strings.TrimSpace(cfg.APIKey) == "" {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryAuth, false, "payment credential is required", nil)
+	}
+
+	cancelURL, err := url.JoinPath(cfg.BaseURL, "subscriptions", subscriptionID, "cancel")
+	if err != nil {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryValidation, false, "payment base URL is invalid", err)
+	}
+
+	body, err := json.Marshal(cancelSubscriptionRequest{
+		Mode:      firstNonEmpty(req.Mode, payment.CancelSubscriptionModeScheduled),
+		OnExecute: firstNonEmpty(req.OnExecute, payment.CancelSubscriptionOnExecuteCancel),
+	})
+	if err != nil {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryValidation, false, "cancel subscription request is invalid", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cancelURL, bytes.NewReader(body))
+	if err != nil {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryTemporary, true, "failed to create cancel request", err)
+	}
+	httpReq.Header.Set("x-api-key", cfg.APIKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+
+	resp, err := a.client.Do(httpReq)
+	if err != nil {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryTemporary, true, "cancel subscription request failed", err)
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryTemporary, true, "failed to read cancel subscription response", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return payment.CancelSubscriptionResult{}, providerErrorFromStatus(resp.StatusCode)
+	}
+	if len(strings.TrimSpace(string(responseBody))) == 0 {
+		return payment.CancelSubscriptionResult{Status: "canceled"}, nil
+	}
+
+	var parsed cancelSubscriptionResponse
+	if err := json.Unmarshal(responseBody, &parsed); err != nil {
+		return payment.CancelSubscriptionResult{}, providererror.New(providererror.CategoryProviderInternal, true, "cancel subscription response is invalid", err)
+	}
+	return payment.CancelSubscriptionResult{Status: firstNonEmpty(parsed.Status, "canceled")}, nil
 }
 
 func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.ProviderConfig, req payment.WebhookRequest) (payment.NormalizedWebhook, error) {

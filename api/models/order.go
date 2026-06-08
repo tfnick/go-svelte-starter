@@ -316,3 +316,26 @@ func GetOrderByProviderSubscriptionID(ctx context.Context, subscriptionID string
 	}
 	return &order, nil
 }
+
+func GetActiveSubscriptionOrdersByUserID(ctx context.Context, userID string, excludeOrderID string) ([]Order, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
+
+	var orders []Order
+	query := d.Rebind(`
+		SELECT o.* FROM orders o
+		JOIN products p ON o.product_id = p.id
+		WHERE o.user_id = ?
+		  AND o.provider_subscription_id IS NOT NULL AND o.provider_subscription_id != ''
+		  AND o.subscription_status = 'active'
+		  AND o.id != ?
+		  AND p.membership_level IN ('premium', 'super')
+	`)
+	err = d.Select(&orders, query, userID, excludeOrderID)
+	if err != nil {
+		return nil, fmt.Errorf("get active subscription orders failed: %w", err)
+	}
+	return orders, nil
+}

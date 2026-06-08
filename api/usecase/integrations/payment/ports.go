@@ -9,6 +9,11 @@ const (
 	WebhookEventPaymentSucceeded     = "payment.succeeded"
 	WebhookEventSubscriptionCanceled = "subscription.canceled"
 	WebhookEventSubscriptionRenewed  = "subscription.renewed"
+
+	CancelSubscriptionModeImmediate   = "immediate"
+	CancelSubscriptionModeScheduled   = "scheduled"
+	CancelSubscriptionOnExecuteCancel = "cancel"
+	CancelSubscriptionOnExecutePause  = "pause"
 )
 
 type ProviderConfig struct {
@@ -52,6 +57,16 @@ type WebhookRequest struct {
 	VerifySignature bool
 }
 
+type CancelSubscriptionRequest struct {
+	SubscriptionID string
+	Mode           string
+	OnExecute      string
+}
+
+type CancelSubscriptionResult struct {
+	Status string
+}
+
 type NormalizedWebhook struct {
 	ProviderEventID        string
 	EventType              string
@@ -70,4 +85,5 @@ type NormalizedWebhook struct {
 type Adapter interface {
 	CreatePayment(ctx context.Context, cfg ProviderConfig, req CreatePaymentRequest) (CreatePaymentResult, error)
 	NormalizePaymentWebhook(ctx context.Context, cfg ProviderConfig, req WebhookRequest) (NormalizedWebhook, error)
+	CancelSubscription(ctx context.Context, cfg ProviderConfig, req CancelSubscriptionRequest) (CancelSubscriptionResult, error)
 }

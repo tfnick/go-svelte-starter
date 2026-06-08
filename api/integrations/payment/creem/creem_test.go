@@ -78,6 +78,51 @@ func TestCreatePaymentBuildsCreemCheckoutRequest(t *testing.T) {
 	}
 }
 
+func TestCancelSubscriptionBuildsCreemScheduledCancelRequest(t *testing.T) {
+	adapter := NewAdapter(fakeHTTPDoer{
+		t: t,
+		do: func(req *http.Request) (*http.Response, error) {
+			if req.Method != http.MethodPost || req.URL.String() != "https://test-api.creem.io/v1/subscriptions/sub_123/cancel" {
+				t.Fatalf("unexpected request target: %s %s", req.Method, req.URL.String())
+			}
+			if req.Header.Get("x-api-key") != "test-api-key" || req.Header.Get("Content-Type") != "application/json" {
+				t.Fatalf("unexpected request headers: %#v", req.Header)
+			}
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("read body: %v", err)
+			}
+			text := string(body)
+			for _, expected := range []string{
+				`"mode":"scheduled"`,
+				`"onExecute":"cancel"`,
+			} {
+				if !strings.Contains(text, expected) {
+					t.Fatalf("expected body to contain %s, got %s", expected, text)
+				}
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"sub_123","status":"scheduled_cancel"}`)),
+				Header:     http.Header{},
+			}, nil
+		},
+	})
+
+	result, err := adapter.CancelSubscription(context.Background(), payment.ProviderConfig{
+		BaseURL: "https://test-api.creem.io/v1",
+		APIKey:  "test-api-key",
+	}, payment.CancelSubscriptionRequest{
+		SubscriptionID: "sub_123",
+	})
+	if err != nil {
+		t.Fatalf("cancel subscription: %v", err)
+	}
+	if result.Status != "scheduled_cancel" {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+}
+
 func TestNormalizePaymentWebhookVerifiesSignatureAndMapsOrderID(t *testing.T) {
 	payload := []byte(`{"id":"evt_1","eventType":"checkout.completed","object":{"id":"ch_1","request_id":"order-1","status":"completed","product_id":"prod_1","metadata":{"order_id":"order-1"}}}`)
 	signature := signPayload("webhook-secret", payload)

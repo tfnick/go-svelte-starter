@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -358,6 +359,27 @@ func ApplyOrderMembership(ctx fwusecase.Context, cmd ApplyOrderMembershipCmd) (A
 		}
 		if err := models.UpdateUserMembership(txCtx.Std(), order.UserID, product.MembershipLevel, expiresAt); err != nil {
 			return fwusecase.E(fwusecase.CodeInternal, "failed to update user membership", err)
+		}
+
+		if product.MembershipLevel != "" && product.MembershipLevel != MembershipLevelBasic {
+			oldSubscriptions, err := models.GetActiveSubscriptionOrdersByUserID(txCtx.Std(), order.UserID, order.ID)
+			if err != nil {
+				return fwusecase.E(fwusecase.CodeInternal, "failed to find old subscriptions", err)
+			}
+			for i := range oldSubscriptions {
+				sub := &oldSubscriptions[i]
+				if err := models.UpdateOrderSubscriptionStatus(txCtx.Std(), sub.ID, OrderSubscriptionStatusCanceled); err != nil {
+					return fwusecase.E(fwusecase.CodeInternal, "failed to cancel old subscription", err)
+				}
+				if sub.ProviderSubscriptionID != "" {
+					subID := sub.ProviderSubscriptionID
+					if err := fwusecase.RegisterAfterCommit(txCtx, func(runCtx context.Context) {
+						_ = cancelCreemSubscriptionByID(runCtx, subID)
+					}); err != nil {
+						return fwusecase.E(fwusecase.CodeInternal, "failed to register subscription cancellation", err)
+					}
+				}
+			}
 		}
 
 		appliedAt := timefmt.NowSQLiteDateTime()

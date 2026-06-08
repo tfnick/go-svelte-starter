@@ -64,6 +64,11 @@ func (a fakePaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg pay
 	}, nil
 }
 
+func (a fakePaymentAdapter) CancelSubscription(ctx context.Context, cfg payment.ProviderConfig, req payment.CancelSubscriptionRequest) (payment.CancelSubscriptionResult, error) {
+	a.t.Helper()
+	return payment.CancelSubscriptionResult{Status: "canceled"}, nil
+}
+
 type authFailingPaymentAdapter struct{}
 
 func (authFailingPaymentAdapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig, req payment.CreatePaymentRequest) (payment.CreatePaymentResult, error) {
@@ -72,6 +77,10 @@ func (authFailingPaymentAdapter) CreatePayment(ctx context.Context, cfg payment.
 
 func (authFailingPaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg payment.ProviderConfig, req payment.WebhookRequest) (payment.NormalizedWebhook, error) {
 	return payment.NormalizedWebhook{}, providererror.New(providererror.CategoryAuth, false, "payment webhook signature is invalid", nil)
+}
+
+func (authFailingPaymentAdapter) CancelSubscription(ctx context.Context, cfg payment.ProviderConfig, req payment.CancelSubscriptionRequest) (payment.CancelSubscriptionResult, error) {
+	return payment.CancelSubscriptionResult{}, nil
 }
 
 type subscriptionCanceledPaymentAdapter struct {
@@ -100,6 +109,11 @@ func (a subscriptionCanceledPaymentAdapter) NormalizePaymentWebhook(ctx context.
 			"order_id":                 "o1",
 		},
 	}, nil
+}
+
+func (a subscriptionCanceledPaymentAdapter) CancelSubscription(ctx context.Context, cfg payment.ProviderConfig, req payment.CancelSubscriptionRequest) (payment.CancelSubscriptionResult, error) {
+	a.t.Helper()
+	return payment.CancelSubscriptionResult{Status: "canceled"}, nil
 }
 
 func TestCreateOrderPaymentCheckoutUsesDBConfigAndRecordsInvocation(t *testing.T) {

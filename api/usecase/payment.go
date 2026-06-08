@@ -587,3 +587,27 @@ func orderLoadError(err error) error {
 	}
 	return fwusecase.E(fwusecase.CodeInternal, "failed to load order", err)
 }
+
+func cancelCreemSubscriptionByID(ctx context.Context, subscriptionID string) error {
+	config, err := models.GetEnabledPaymentConfig(ctx, models.PaymentConfigQuery{
+		Scenario:  models.IntegrationScenarioPayment,
+		Operation: payment.OperationCreatePayment,
+	})
+	if err != nil {
+		return err
+	}
+	providerCfg, err := paymentProviderConfig(config)
+	if err != nil {
+		return err
+	}
+	adapter, ok := registeredPaymentAdapter(config.Channel.AdapterKey)
+	if !ok {
+		return fmt.Errorf("payment adapter not registered: %s", config.Channel.AdapterKey)
+	}
+	_, err = adapter.CancelSubscription(ctx, providerCfg, payment.CancelSubscriptionRequest{
+		SubscriptionID: subscriptionID,
+		Mode:           payment.CancelSubscriptionModeScheduled,
+		OnExecute:      payment.CancelSubscriptionOnExecuteCancel,
+	})
+	return err
+}

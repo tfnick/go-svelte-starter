@@ -1,13 +1,39 @@
 package usecase_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
+	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/payment"
 )
+
+type recordingCancelPaymentAdapter struct {
+	t        *testing.T
+	requests []payment.CancelSubscriptionRequest
+}
+
+func (a *recordingCancelPaymentAdapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig, req payment.CreatePaymentRequest) (payment.CreatePaymentResult, error) {
+	a.t.Helper()
+	return payment.CreatePaymentResult{}, nil
+}
+
+func (a *recordingCancelPaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg payment.ProviderConfig, req payment.WebhookRequest) (payment.NormalizedWebhook, error) {
+	a.t.Helper()
+	return payment.NormalizedWebhook{}, nil
+}
+
+func (a *recordingCancelPaymentAdapter) CancelSubscription(ctx context.Context, cfg payment.ProviderConfig, req payment.CancelSubscriptionRequest) (payment.CancelSubscriptionResult, error) {
+	a.t.Helper()
+	if cfg.ChannelCode != "usecase-creem" || cfg.APIKey != "payment-api-key" {
+		a.t.Fatalf("unexpected provider config: %#v", cfg)
+	}
+	a.requests = append(a.requests, req)
+	return payment.CancelSubscriptionResult{Status: "scheduled_cancel"}, nil
+}
 
 func TestProductCRUDStoresCreemAndMembershipSettings(t *testing.T) {
 	setupUsecaseOrderTxDB(t)
@@ -233,6 +259,75 @@ func TestApplyOrderMembershipUpgradesMembershipLevel(t *testing.T) {
 	}
 	if user.MembershipLevel != usecase.MembershipLevelSuper {
 		t.Fatalf("expected user membership_level=super, got %s", user.MembershipLevel)
+	}
+}
+
+func TestApplyOrderMembershipCancelsOldActiveSubscriptionOnUpgrade(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	if _, err := appDB.Exec(`INSERT INTO users (id, name, email, password_hash, email_verified, is_active, membership_level, membership_expires_at) VALUES ('upgrade-sub-user', 'Bob', 'bob@example.com', '', 1, 1, 'premium', '2099-12-31 23:59:59')`); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO products (
+			id, name, description, price, currency, stock, enabled, creem_product_id, billing_type,
+			membership_level, subscription_interval, created_at, updated_at
+		) VALUES (?, 'Premium Month', 'Premium membership', 1000, 'USD', 0, 1, 'prod_premium_month', 'subscription', 'premium', 'month', '2026-01-01 00:00:00', '2026-01-01 00:00:00')
+	`), "premium-sub-product"); err != nil {
+		t.Fatalf("insert premium product: %v", err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO products (
+			id, name, description, price, currency, stock, enabled, creem_product_id, billing_type,
+			membership_level, subscription_interval, created_at, updated_at
+		) VALUES (?, 'Super Month', 'Super membership', 5000, 'USD', 0, 1, 'prod_super_month', 'subscription', 'super', 'month', '2026-01-01 00:00:00', '2026-01-01 00:00:00')
+	`), "super-sub-product"); err != nil {
+		t.Fatalf("insert super product: %v", err)
+	}
+	if _, err := appDB.Exec(`INSERT INTO orders (id, user_id, product_id, amount, status, provider_subscription_id, subscription_status, membership_applied_at) VALUES ('old-sub-order', 'upgrade-sub-user', 'premium-sub-product', 0, 'paid', 'sub_old_premium', 'active', '2026-01-01 00:00:00')`); err != nil {
+		t.Fatalf("insert old subscription order: %v", err)
+	}
+	if _, err := appDB.Exec(`INSERT INTO orders (id, user_id, product_id, amount, status, provider_subscription_id, subscription_status) VALUES ('new-super-order', 'upgrade-sub-user', 'super-sub-product', 0, 'paid', 'sub_new_super', 'active')`); err != nil {
+		t.Fatalf("insert new subscription order: %v", err)
+	}
+	seedPaymentIntegrationConfig(t, appDB, "payment.creem.upgrade-cancel-test")
+	adapter := &recordingCancelPaymentAdapter{t: t}
+	if err := usecase.RegisterPaymentAdapter("payment.creem.upgrade-cancel-test", adapter); err != nil {
+		t.Fatalf("register payment adapter: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	membership, applied, err := usecase.ApplyOrderMembership(ctx, usecase.ApplyOrderMembershipCmd{OrderID: "new-super-order"})
+	if err != nil {
+		t.Fatalf("apply membership: %v", err)
+	}
+	if !applied || membership.MembershipLevel != usecase.MembershipLevelSuper {
+		t.Fatalf("expected super membership to be applied, got applied=%v membership=%#v", applied, membership)
+	}
+	if len(adapter.requests) != 1 {
+		t.Fatalf("expected one Creem cancellation request, got %#v", adapter.requests)
+	}
+	cancelReq := adapter.requests[0]
+	if cancelReq.SubscriptionID != "sub_old_premium" || cancelReq.Mode != payment.CancelSubscriptionModeScheduled || cancelReq.OnExecute != payment.CancelSubscriptionOnExecuteCancel {
+		t.Fatalf("unexpected cancellation request: %#v", cancelReq)
+	}
+
+	var oldStatus string
+	if err := appDB.Get(&oldStatus, `SELECT subscription_status FROM orders WHERE id = 'old-sub-order'`); err != nil {
+		t.Fatalf("load old order status: %v", err)
+	}
+	if oldStatus != usecase.OrderSubscriptionStatusCanceled {
+		t.Fatalf("expected old subscription status canceled, got %q", oldStatus)
+	}
+	var newStatus string
+	if err := appDB.Get(&newStatus, `SELECT subscription_status FROM orders WHERE id = 'new-super-order'`); err != nil {
+		t.Fatalf("load new order status: %v", err)
+	}
+	if newStatus != usecase.OrderSubscriptionStatusActive {
+		t.Fatalf("expected new subscription to stay active, got %q", newStatus)
 	}
 }
 

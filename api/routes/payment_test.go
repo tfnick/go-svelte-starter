@@ -48,6 +48,10 @@ func (routeFakePaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg 
 	}, nil
 }
 
+func (routeFakePaymentAdapter) CancelSubscription(ctx context.Context, cfg payment.ProviderConfig, req payment.CancelSubscriptionRequest) (payment.CancelSubscriptionResult, error) {
+	return payment.CancelSubscriptionResult{Status: "canceled"}, nil
+}
+
 func TestCreateOrderPaymentCheckoutUsesInternalEnvelope(t *testing.T) {
 	setupRouteTestDBs(t)
 	appDB, err := db.DefaultManager.GetDB("app")
