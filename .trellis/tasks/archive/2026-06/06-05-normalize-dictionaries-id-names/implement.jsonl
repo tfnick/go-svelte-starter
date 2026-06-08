@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend API, DTO, route, and database guideline entry point for dictionary and VO implementation"}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Internal /api response DTO and frontend boundary rules, including explicit route response DTOs"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Batch IN query and sqlx database access conventions needed to prevent N+1"}
+{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "Internal route handler flow and safe response helpers for dictionary endpoints"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend Svelte/Vite guideline entry point for enum/store/API changes"}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Frontend API client and Svelte build contracts for dictionary store consumption"}

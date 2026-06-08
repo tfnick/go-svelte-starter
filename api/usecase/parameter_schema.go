@@ -1,0 +1,485 @@
+package usecase
+
+import (
+	"encoding/json"
+	"net/url"
+	"strconv"
+	"strings"
+
+	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
+	"github.com/tfnick/go-svelte-starter/api/models"
+)
+
+const (
+	ParameterIntegrationCredentialFormatPlain      = "plain"
+	ParameterIntegrationCredentialFormatJSONObject = "json_object"
+
+	ParameterIntegrationSchemaFieldText    = "text"
+	ParameterIntegrationSchemaFieldURL     = "url"
+	ParameterIntegrationSchemaFieldNumber  = "number"
+	ParameterIntegrationSchemaFieldBoolean = "boolean"
+	ParameterIntegrationSchemaFieldSecret  = "secret"
+)
+
+type ListParameterIntegrationSchemasQry struct {
+	Scenario string
+}
+
+type ParameterIntegrationAdapterSchemaCo struct {
+	Scenario         string
+	AdapterKey       string
+	Label            string
+	Description      string
+	ProviderCode     string
+	CredentialType   string
+	CredentialFormat string
+	AdvancedJSON     bool
+	ConfigFields     []ParameterIntegrationSchemaFieldCo
+	CredentialFields []ParameterIntegrationSchemaFieldCo
+}
+
+type ParameterIntegrationSchemaFieldCo struct {
+	Key            string
+	Label          string
+	Kind           string
+	Required       bool
+	Placeholder    string
+	HelpText       string
+	DefaultValue   string
+	DictionaryType string
+	Sensitive      bool
+	Options        []ParameterIntegrationSchemaOptionCo
+}
+
+type ParameterIntegrationSchemaOptionCo struct {
+	Value string
+	Label string
+}
+
+var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
+	{
+		Scenario:         models.IntegrationScenarioPayment,
+		AdapterKey:       "payment.creem.hosted_checkout",
+		Label:            "Creem Hosted Checkout",
+		Description:      "Hosted checkout channel for Creem payment integration.",
+		ProviderCode:     "creem",
+		CredentialType:   "payment_bundle",
+		CredentialFormat: ParameterIntegrationCredentialFormatJSONObject,
+		AdvancedJSON:     true,
+		ConfigFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:          "base_url",
+				Label:        "API URL",
+				Kind:         ParameterIntegrationSchemaFieldURL,
+				Required:     true,
+				DefaultValue: "https://test-api.creem.io/v1",
+				HelpText:     "Use the Creem test or production API base URL.",
+			},
+			{
+				Key:         "product_id",
+				Label:       "Product ID",
+				Kind:        ParameterIntegrationSchemaFieldText,
+				Required:    true,
+				Placeholder: "prod_...",
+			},
+			{
+				Key:         "success_url",
+				Label:       "Success URL",
+				Kind:        ParameterIntegrationSchemaFieldURL,
+				Required:    false,
+				Placeholder: "https://example.com/orders/success",
+			},
+			{
+				Key:          "units",
+				Label:        "Units",
+				Kind:         ParameterIntegrationSchemaFieldNumber,
+				Required:     false,
+				DefaultValue: "1",
+			},
+		},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "api_key",
+				Label:       "API Key",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "sk_...",
+			},
+			{
+				Key:         "webhook_secret",
+				Label:       "Webhook Secret",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "whsec_...",
+			},
+		},
+	},
+	{
+		Scenario:         models.IntegrationScenarioLLM,
+		AdapterKey:       "llm.deepseek.openai_compatible",
+		Label:            "DeepSeek OpenAI Compatible",
+		Description:      "OpenAI-compatible LLM channel for DeepSeek.",
+		ProviderCode:     "deepseek",
+		CredentialType:   "api_key",
+		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
+		AdvancedJSON:     true,
+		ConfigFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:          "base_url",
+				Label:        "API URL",
+				Kind:         ParameterIntegrationSchemaFieldURL,
+				Required:     true,
+				DefaultValue: "https://api.deepseek.com",
+			},
+		},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "api_key",
+				Label:       "API Key",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "sk_...",
+			},
+		},
+	},
+	{
+		Scenario:         models.IntegrationScenarioSMS,
+		AdapterKey:       "sms.aliyun.adapter",
+		Label:            "Aliyun SMS",
+		Description:      "Reserved SMS channel parameter schema; provider adapter implementation is out of scope.",
+		ProviderCode:     "aliyun",
+		CredentialType:   "api_key",
+		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
+		AdvancedJSON:     true,
+		ConfigFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "base_url",
+				Label:       "API URL",
+				Kind:        ParameterIntegrationSchemaFieldURL,
+				Required:    false,
+				Placeholder: "https://dysmsapi.aliyuncs.com",
+			},
+			{
+				Key:         "sign_name",
+				Label:       "Sign Name",
+				Kind:        ParameterIntegrationSchemaFieldText,
+				Required:    false,
+				Placeholder: "Acme",
+			},
+			{
+				Key:         "template_code",
+				Label:       "Template Code",
+				Kind:        ParameterIntegrationSchemaFieldText,
+				Required:    false,
+				Placeholder: "SMS_123456789",
+			},
+		},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "api_key",
+				Label:       "API Key",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "sms credential",
+			},
+		},
+	},
+	{
+		Scenario:         models.IntegrationScenarioEmail,
+		AdapterKey:       "email.aliyun.smtp",
+		Label:            "Aliyun SMTP",
+		Description:      "SMTP channel for Aliyun enterprise mailbox.",
+		ProviderCode:     "aliyun",
+		CredentialType:   "smtp_password",
+		CredentialFormat: ParameterIntegrationCredentialFormatJSONObject,
+		AdvancedJSON:     true,
+		ConfigFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:          "smtp_host",
+				Label:        "SMTP Host",
+				Kind:         ParameterIntegrationSchemaFieldText,
+				Required:     true,
+				DefaultValue: "smtp.qiye.aliyun.com",
+				HelpText:     "Aliyun enterprise mailbox SMTP server.",
+			},
+			{
+				Key:          "smtp_port",
+				Label:        "SMTP Port",
+				Kind:         ParameterIntegrationSchemaFieldNumber,
+				Required:     true,
+				DefaultValue: "465",
+				HelpText:     "Port 465 is recommended for SSL SMTP.",
+			},
+			{
+				Key:          "security",
+				Label:        "Security",
+				Kind:         ParameterIntegrationSchemaFieldText,
+				Required:     true,
+				DefaultValue: "ssl",
+				Options: []ParameterIntegrationSchemaOptionCo{
+					{Value: "ssl", Label: "SSL"},
+					{Value: "starttls", Label: "STARTTLS"},
+					{Value: "none", Label: "None"},
+				},
+			},
+			{
+				Key:         "from_email",
+				Label:       "From Email",
+				Kind:        ParameterIntegrationSchemaFieldText,
+				Required:    true,
+				Placeholder: "noreply@example.com",
+			},
+			{
+				Key:         "from_name",
+				Label:       "From Name",
+				Kind:        ParameterIntegrationSchemaFieldText,
+				Required:    false,
+				Placeholder: "Acme",
+			},
+		},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "username",
+				Label:       "SMTP Username",
+				Kind:        ParameterIntegrationSchemaFieldText,
+				Required:    true,
+				Placeholder: "noreply@example.com",
+			},
+			{
+				Key:         "password",
+				Label:       "SMTP Password",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "client authorization password",
+				HelpText:    "Use the mailbox client authorization password, not the account login password.",
+			},
+		},
+	},
+	{
+		Scenario:         models.IntegrationScenarioEmail,
+		AdapterKey:       "email.resend.api",
+		Label:            "Resend API",
+		Description:      "API key channel for Resend email integration.",
+		ProviderCode:     "resend",
+		CredentialType:   "api_key",
+		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
+		AdvancedJSON:     true,
+		ConfigFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:          "base_url",
+				Label:        "API URL",
+				Kind:         ParameterIntegrationSchemaFieldURL,
+				Required:     true,
+				DefaultValue: "https://api.resend.com",
+			},
+			{
+				Key:         "from_email",
+				Label:       "From Email",
+				Kind:        ParameterIntegrationSchemaFieldText,
+				Required:    true,
+				Placeholder: "noreply@example.com",
+			},
+			{
+				Key:         "from_name",
+				Label:       "From Name",
+				Kind:        ParameterIntegrationSchemaFieldText,
+				Required:    false,
+				Placeholder: "Acme",
+			},
+		},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "api_key",
+				Label:       "API Key",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "re_...",
+			},
+		},
+	},
+}
+
+func ListParameterIntegrationSchemas(_ fwusecase.Context, qry ListParameterIntegrationSchemasQry) ([]ParameterIntegrationAdapterSchemaCo, error) {
+	scenario := strings.TrimSpace(qry.Scenario)
+	if scenario != "" {
+		normalized, err := normalizeIntegrationScenario(scenario)
+		if err != nil {
+			return nil, err
+		}
+		scenario = normalized
+	}
+
+	result := make([]ParameterIntegrationAdapterSchemaCo, 0, len(parameterIntegrationAdapterSchemas))
+	for i := range parameterIntegrationAdapterSchemas {
+		schema := parameterIntegrationAdapterSchemas[i]
+		if scenario == "" || schema.Scenario == scenario {
+			result = append(result, schema)
+		}
+	}
+	return result, nil
+}
+
+func parameterIntegrationSchemaByAdapterKey(adapterKey string) (ParameterIntegrationAdapterSchemaCo, bool) {
+	normalized := strings.TrimSpace(adapterKey)
+	for i := range parameterIntegrationAdapterSchemas {
+		if parameterIntegrationAdapterSchemas[i].AdapterKey == normalized {
+			return parameterIntegrationAdapterSchemas[i], true
+		}
+	}
+	return ParameterIntegrationAdapterSchemaCo{}, false
+}
+
+func validateParameterIntegrationSchema(input parameterIntegrationChannelInputData, create bool) error {
+	schema, ok := parameterIntegrationSchemaByAdapterKey(input.AdapterKey)
+	if !ok {
+		return nil
+	}
+	if input.Scenario != schema.Scenario {
+		return fwusecase.E(fwusecase.CodeValidation, "adapter schema does not match integration scenario", nil)
+	}
+	if schema.ProviderCode != "" && input.ProviderCode != schema.ProviderCode {
+		return fwusecase.E(fwusecase.CodeValidation, "provider code does not match adapter schema", nil)
+	}
+	if schema.CredentialType != "" && input.CredentialType != schema.CredentialType {
+		return fwusecase.E(fwusecase.CodeValidation, "credential type does not match adapter schema", nil)
+	}
+
+	config, err := decodeJSONObject(input.ConfigJSON, "config JSON")
+	if err != nil {
+		return err
+	}
+	if err := validateParameterSchemaObjectFields(config, schema.ConfigFields, "config"); err != nil {
+		return err
+	}
+
+	if create || strings.TrimSpace(input.CredentialValue) != "" {
+		if err := validateParameterSchemaCredential(input.CredentialValue, schema); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateParameterSchemaCredential(value string, schema ParameterIntegrationAdapterSchemaCo) error {
+	raw := strings.TrimSpace(value)
+	if raw == "" {
+		return fwusecase.E(fwusecase.CodeValidation, "credential value is required", nil)
+	}
+
+	switch schema.CredentialFormat {
+	case ParameterIntegrationCredentialFormatPlain:
+		for _, field := range schema.CredentialFields {
+			if field.Required && raw == "" {
+				return fwusecase.E(fwusecase.CodeValidation, field.Label+" is required", nil)
+			}
+		}
+		return nil
+	case ParameterIntegrationCredentialFormatJSONObject:
+		credential, err := decodeJSONObject(raw, "credential value")
+		if err != nil {
+			return err
+		}
+		return validateParameterSchemaObjectFields(credential, schema.CredentialFields, "credential")
+	default:
+		return fwusecase.E(fwusecase.CodeValidation, "invalid credential schema format", nil)
+	}
+}
+
+func validateParameterSchemaObjectFields(value map[string]interface{}, fields []ParameterIntegrationSchemaFieldCo, scope string) error {
+	for _, field := range fields {
+		item, exists := value[field.Key]
+		empty := !exists || parameterSchemaValueIsEmpty(item)
+		if field.Required && empty {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" is required", nil)
+		}
+		if empty {
+			continue
+		}
+		if err := validateParameterSchemaFieldValue(item, field, scope); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateParameterSchemaFieldValue(value interface{}, field ParameterIntegrationSchemaFieldCo, scope string) error {
+	if len(field.Options) > 0 {
+		raw, ok := parameterSchemaValueAsString(value)
+		if !ok || !parameterSchemaOptionAllows(raw, field.Options) {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" must be one of the allowed options", nil)
+		}
+	}
+
+	switch field.Kind {
+	case ParameterIntegrationSchemaFieldURL:
+		raw, ok := parameterSchemaValueAsString(value)
+		if !ok {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" must be a URL", nil)
+		}
+		parsed, err := url.Parse(raw)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" must be a URL", err)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" must be an HTTP URL", nil)
+		}
+	case ParameterIntegrationSchemaFieldNumber:
+		if _, ok := value.(float64); ok {
+			return nil
+		}
+		raw, ok := parameterSchemaValueAsString(value)
+		if !ok {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" must be a number", nil)
+		}
+		if _, err := strconv.ParseFloat(raw, 64); err != nil {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" must be a number", err)
+		}
+	case ParameterIntegrationSchemaFieldBoolean:
+		if _, ok := value.(bool); !ok {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" must be a boolean", nil)
+		}
+	case ParameterIntegrationSchemaFieldText, ParameterIntegrationSchemaFieldSecret:
+		if _, ok := parameterSchemaValueAsString(value); !ok {
+			return fwusecase.E(fwusecase.CodeValidation, field.Label+" must be text", nil)
+		}
+	default:
+		return fwusecase.E(fwusecase.CodeValidation, scope+" field schema is invalid", nil)
+	}
+	return nil
+}
+
+func parameterSchemaOptionAllows(value string, options []ParameterIntegrationSchemaOptionCo) bool {
+	for _, option := range options {
+		if option.Value == value {
+			return true
+		}
+	}
+	return false
+}
+
+func parameterSchemaValueIsEmpty(value interface{}) bool {
+	if value == nil {
+		return true
+	}
+	if raw, ok := value.(string); ok {
+		return strings.TrimSpace(raw) == ""
+	}
+	return false
+}
+
+func parameterSchemaValueAsString(value interface{}) (string, bool) {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed), true
+	case json.Number:
+		return strings.TrimSpace(typed.String()), true
+	default:
+		return "", false
+	}
+}

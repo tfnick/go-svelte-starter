@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend spec index for verifying the implementation stays within the expected backend layer conventions."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Check that new open-api files are added in the correct route, middleware, and models locations."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check that open-api errors are partner-safe and do not expose internal error details."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check that the implementation keeps auth in middleware, DTOs in routes, and business/data access logic in models."}
+{"file":".trellis/tasks/06-04-diagnose-architecture-open-api-upgrade/prd.md","reason":"Check the implementation against the approved architecture, endpoint contract, and code skeleton blueprint."}

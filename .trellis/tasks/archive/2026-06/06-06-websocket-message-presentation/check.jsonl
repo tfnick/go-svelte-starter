@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/eventing-guidelines.md", "reason": "Verify event subscriber placement, transaction and after-commit behavior."}
+{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "Verify route layer stays HTTP-only and WebSocket auth remains adapter-owned."}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Verify WebSocket message envelope contract and DTO boundaries."}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Verify frontend realtime handling, tests, and build requirements."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "General backend quality, architecture boundary, and test checklist."}

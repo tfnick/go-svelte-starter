@@ -1,0 +1,2 @@
+﻿{"file":".trellis/spec/frontend/svelte-vite-embed.md","reason":"Frontend Svelte/Vite routing, UI conventions, build/test requirements."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Menu routes and labels should avoid duplicated ad hoc definitions where possible."}

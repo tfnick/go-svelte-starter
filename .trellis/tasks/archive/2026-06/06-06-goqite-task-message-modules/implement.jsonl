@@ -1,0 +1,9 @@
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Layer ownership, framework boundaries, and raw dependency import isolation."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"App DB migrations, transaction-aware executors, and app-only transaction rules."}
+{"file":".trellis/spec/backend/eventing-guidelines.md","reason":"Existing DDD event facade and semantics that goqite-backed durable events must evolve from."}
+{"file":".trellis/spec/backend/api-contracts.md","reason":"Internal API envelope, route DTO, and usecase Co mapping conventions."}
+{"file":".trellis/spec/backend/route-handler-guidelines.md","reason":"Internal authenticated route handler flow for scheduler and message APIs."}
+{"file":".trellis/spec/frontend/svelte-vite-embed.md","reason":"Svelte app shell, API client, daisyUI, and build/test conventions for Scheduler UI."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Task spans DB, models, usecase, routes, frontend, and app lifecycle."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Queue/event/scheduler framework abstractions should avoid case-by-case duplication."}
+{"file":".trellis/tasks/06-06-goqite-task-message-modules/research/goqite-capabilities.md","reason":"goqite API, schema, transaction support, jobs runner behavior, and repo fit notes."}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend spec index for locating the relevant database-related guidance."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Primary spec file being updated for sqlx v1.4.2 DB, Engine, transaction, migration, and DBManager contracts."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Error wrapping and DB-related error examples must stay aligned with the updated Engine API."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Dynamic SQL and transaction usage examples must remain consistent with the updated database conventions."}

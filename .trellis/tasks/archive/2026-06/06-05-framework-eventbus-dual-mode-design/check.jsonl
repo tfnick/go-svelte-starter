@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify transaction and model executor contracts"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify framework placement and import boundaries"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify event logging behavior"}
+{"file": ".trellis/tasks/06-05-framework-eventbus-dual-mode-design/prd.md", "reason": "Check implementation against EventBus dual-mode requirements"}
+{"file": ".trellis/tasks/06-05-framework-eventbus-dual-mode-design/info.md", "reason": "Check implementation against detailed EventBus design"}

@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend quality gate entry point"}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Verify DTO boundary and xxx_id/xxx_name response contract"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify batch IN query implementation and no N+1 behavior"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend test and quality expectations"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend quality gate entry point"}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Verify frontend API client, build, and Svelte conventions"}

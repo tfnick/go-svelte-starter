@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB patterns: Engine vs DB, migration conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required patterns"}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/eventing-guidelines.md", "reason": "Event subscriber ownership, transaction and after-commit rules for points event refactor."}
+{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "WebSocket endpoint remains route/HTTP adapter code and JWT query token auth behavior."}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Internal API and WebSocket payload contract conventions."}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Frontend WebSocket helper, realtime UI behavior, Svelte build/test requirements."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Change spans backend framework, routes, usecase events, frontend dispatcher, and UI."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "New realtime envelope/dispatcher should avoid repeated ad hoc message handling."}

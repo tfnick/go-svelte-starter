@@ -1,0 +1,529 @@
+import assert from 'node:assert/strict';
+import { afterEach, test } from 'node:test';
+
+import {
+  createDictionaryType,
+  createDictionaryValue,
+  createVariable,
+  createOrder,
+  createOrderPaymentCheckout,
+  createParameterIntegrationChannel,
+  createScheduledTask,
+  getAccessToken,
+  getDictionaries,
+  getMyPoints,
+  getProducts,
+  getUserOrders,
+  listUsers,
+  listEventDeliveries,
+  listEvents,
+  listMessages,
+  listNotifications,
+  listDictionaryTypes,
+  listDictionaryValues,
+  listParameterIntegrationChannels,
+  listParameterIntegrationSchemas,
+  listScheduledTaskHistory,
+  listScheduledTasks,
+  listVariables,
+  login,
+  logout,
+  payOrder,
+  pointsSSEURL,
+  request,
+  setAccessToken,
+  setDictionaryTypeEnabled,
+  setDictionaryValueEnabled,
+  setParameterIntegrationChannelEnabled,
+  setScheduledTaskEnabled,
+  setUserActive,
+  setVariableEnabled,
+  triggerExportToast,
+  updateDictionaryType,
+  updateDictionaryValue,
+  updateParameterIntegrationChannel,
+  updateScheduledTask,
+  updateVariable
+} from './api.js';
+
+const originalFetch = globalThis.fetch;
+const originalLocalStorage = globalThis.localStorage;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  setAccessToken('');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: originalLocalStorage
+  });
+});
+
+function installMemoryStorage() {
+  const values = new Map();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      }
+    }
+  });
+}
+
+function jsonResponse(body, init = {}) {
+  return new Response(JSON.stringify(body), {
+    status: init.status || 200,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers || {})
+    }
+  });
+}
+
+test('request encodes plain object bodies as JSON', async () => {
+  let fetchPath;
+  let fetchOptions;
+
+  globalThis.fetch = async (path, options) => {
+    fetchPath = path;
+    fetchOptions = options;
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  const body = await request('/api/example', {
+    method: 'POST',
+    body: { name: 'Ada' }
+  });
+
+  assert.deepEqual(body, { ok: true });
+  assert.equal(fetchPath, '/api/example');
+  assert.equal(fetchOptions.method, 'POST');
+  assert.equal(fetchOptions.headers.get('content-type'), 'application/json');
+  assert.equal(fetchOptions.body, '{"name":"Ada"}');
+});
+
+test('request adds bearer token when one is stored', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-123');
+  let fetchOptions;
+
+  globalThis.fetch = async (_path, options) => {
+    fetchOptions = options;
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  await request('/api/example');
+
+  assert.equal(fetchOptions.headers.get('authorization'), 'Bearer jwt-123');
+});
+
+test('request preserves caller authorization header', async () => {
+  installMemoryStorage();
+  setAccessToken('stored-token');
+  let fetchOptions;
+
+  globalThis.fetch = async (_path, options) => {
+    fetchOptions = options;
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  await request('/api/example', {
+    headers: {
+      authorization: 'Bearer caller-token'
+    }
+  });
+
+  assert.equal(fetchOptions.headers.get('authorization'), 'Bearer caller-token');
+});
+
+test('request preserves caller content type headers', async () => {
+  let fetchOptions;
+
+  globalThis.fetch = async (_path, options) => {
+    fetchOptions = options;
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  await request('/api/example', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/custom+json'
+    },
+    body: { name: 'Ada' }
+  });
+
+  assert.equal(fetchOptions.headers.get('content-type'), 'application/custom+json');
+  assert.equal(fetchOptions.body, '{"name":"Ada"}');
+});
+
+test('request does not force JSON headers for FormData bodies', async () => {
+  let fetchOptions;
+  const form = new FormData();
+  form.set('name', 'Ada');
+
+  globalThis.fetch = async (_path, options) => {
+    fetchOptions = options;
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  await request('/api/example', {
+    method: 'POST',
+    body: form
+  });
+
+  assert.equal(fetchOptions.headers.has('content-type'), false);
+  assert.equal(fetchOptions.body, form);
+});
+
+test('request returns null for empty success responses', async () => {
+  globalThis.fetch = async () => new Response(null, { status: 204 });
+
+  const body = await request('/api/example', { method: 'DELETE' });
+
+  assert.equal(body, null);
+});
+
+test('request unwraps internal api success envelope data', async () => {
+  globalThis.fetch = async () => jsonResponse({
+    success: true,
+    data: { id: 'u1', name: 'Ada' }
+  });
+
+  const body = await request('/api/example');
+
+  assert.deepEqual(body, { id: 'u1', name: 'Ada' });
+});
+
+test('request throws safe server-provided envelope error messages', async () => {
+  globalThis.fetch = async () => jsonResponse({
+    success: false,
+    error: {
+      code: 'unauthorized',
+      message: 'not logged in'
+    }
+  }, { status: 401 });
+
+  await assert.rejects(
+    () => request('/api/example'),
+    (error) => {
+      assert.equal(error.message, 'not logged in');
+      return true;
+    }
+  );
+});
+
+test('request preserves legacy flat error messages while callers migrate', async () => {
+  globalThis.fetch = async () => jsonResponse({ error: 'not logged in' }, { status: 401 });
+
+  await assert.rejects(
+    () => request('/api/example'),
+    (error) => {
+      assert.equal(error.message, 'not logged in');
+      return true;
+    }
+  );
+});
+
+test('api helpers use relative api paths and shared request behavior', async () => {
+  installMemoryStorage();
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    if (path === '/api/auth/login') {
+      return jsonResponse({ success: true, data: { access_token: 'jwt-login', user: { id: 'u1', name: 'Ada' } } });
+    }
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  await login({ email: 'ada@example.com', password: 'secret' });
+  await logout();
+
+  assert.equal(calls[0].path, '/api/auth/login');
+  assert.equal(calls[0].options.body, '{"email":"ada@example.com","password":"secret"}');
+  assert.equal(getAccessToken(), '');
+  assert.equal(calls[1].path, '/api/auth/logout');
+  assert.equal(calls[1].options.method, 'POST');
+  assert.equal(calls[1].options.headers.get('authorization'), 'Bearer jwt-login');
+});
+
+test('dictionary and order api helpers use relative api paths', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  await getDictionaries(['product_category', 'product_category', 'region']);
+  await getUserOrders('019ea0c1-0001-7000-8000-000000000001', { page: 2, pageSize: 10 });
+  await createOrder({
+    user_id: '019ea0c1-0001-7000-8000-000000000001',
+    items: [{ product_id: '019ea0c1-0004-7000-8000-000000000001', quantity: 1 }]
+  });
+  await createOrderPaymentCheckout('o001');
+  await payOrder('o001');
+  await getMyPoints();
+  await getProducts();
+  await triggerExportToast();
+  await listNotifications({
+    page: 2,
+    pageSize: 10,
+    type: 'sms',
+    email: 'ada@example.com',
+    phone: '13800000000'
+  });
+
+  assert.equal(calls[0].path, '/api/dictionaries?types=product_category,region');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[1].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
+  assert.equal(calls[2].path, '/api/orders');
+  assert.equal(calls[2].options.method, 'POST');
+  assert.equal(calls[3].path, '/api/orders/o001/payment-checkout');
+  assert.equal(calls[3].options.method, 'POST');
+  assert.equal(calls[4].path, '/api/orders/o001/pay');
+  assert.equal(calls[4].options.method, 'POST');
+  assert.equal(calls[5].path, '/api/points/me');
+  assert.equal(calls[6].path, '/api/products');
+  assert.equal(calls[7].path, '/api/notifications/test-export-toast');
+  assert.equal(calls[7].options.method, 'POST');
+  assert.equal(calls[8].path, '/api/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
+});
+
+test('dictionary management api helpers use relative api paths', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  const typePayload = {
+    type_key: 'order_status',
+    name: 'Order status',
+    enabled: true,
+    description: 'Order lifecycle'
+  };
+  const valuePayload = {
+    dictionary_type_id: 'type 1',
+    value_code: 'pending',
+    label: 'Pending',
+    sort_order: 10,
+    enabled: true,
+    description: 'Waiting'
+  };
+
+  await listDictionaryTypes();
+  await createDictionaryType(typePayload);
+  await updateDictionaryType('type 1', typePayload);
+  await setDictionaryTypeEnabled('type 1', false);
+  await listDictionaryValues('type 1');
+  await createDictionaryValue('type 1', valuePayload);
+  await updateDictionaryValue('type 1', 'value 1', valuePayload);
+  await setDictionaryValueEnabled('value 1', false);
+
+  assert.equal(calls[0].path, '/api/dictionary/types');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[1].path, '/api/dictionary/types');
+  assert.equal(calls[1].options.method, 'POST');
+  assert.equal(calls[1].options.body, JSON.stringify(typePayload));
+  assert.equal(calls[2].path, '/api/dictionary/types/type%201');
+  assert.equal(calls[2].options.method, 'PUT');
+  assert.equal(calls[3].path, '/api/dictionary/types/type%201/enabled');
+  assert.equal(calls[3].options.method, 'PATCH');
+  assert.equal(calls[3].options.body, '{"enabled":false}');
+  assert.equal(calls[4].path, '/api/dictionary/types/type%201/values');
+  assert.equal(calls[5].path, '/api/dictionary/types/type%201/values');
+  assert.equal(calls[5].options.method, 'POST');
+  assert.equal(calls[5].options.body, JSON.stringify(valuePayload));
+  assert.equal(calls[6].path, '/api/dictionary/types/type%201/values/value%201');
+  assert.equal(calls[6].options.method, 'PUT');
+  assert.equal(calls[7].path, '/api/dictionary/values/value%201/enabled');
+  assert.equal(calls[7].options.method, 'PATCH');
+  assert.equal(calls[7].options.body, '{"enabled":false}');
+});
+
+test('user management api helpers use relative api paths', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  await listUsers({ page: 2, pageSize: 10 });
+  await setUserActive('user 1', false);
+  await setUserActive('user 2', true);
+
+  assert.equal(calls[0].path, '/api/users?page=2&page_size=10');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[1].path, '/api/users/user%201/active');
+  assert.equal(calls[1].options.method, 'PATCH');
+  assert.equal(calls[1].options.body, '{"active":false}');
+  assert.equal(calls[2].path, '/api/users/user%202/active');
+  assert.equal(calls[2].options.method, 'PATCH');
+  assert.equal(calls[2].options.body, '{"active":true}');
+});
+
+test('scheduler and message api helpers use relative api paths', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  const payload = {
+    name: 'Nightly export',
+    job_name: 'scheduler.noop',
+    schedule_type: 'cron',
+    schedule_value: '*/5 * * * *',
+    payload_json: '{}',
+    enabled: true
+  };
+
+  await listScheduledTasks();
+  await createScheduledTask(payload);
+  await updateScheduledTask('task 1', payload);
+  await setScheduledTaskEnabled('task 1', false);
+  await listScheduledTaskHistory('task 1');
+  await listEvents({ page: 3, pageSize: 10 });
+  await listEventDeliveries('event 1');
+  await listMessages();
+  await listMessages('domain-events');
+
+  assert.equal(calls[0].path, '/api/scheduler/tasks');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[1].path, '/api/scheduler/tasks');
+  assert.equal(calls[1].options.method, 'POST');
+  assert.equal(calls[1].options.body, JSON.stringify(payload));
+  assert.equal(calls[2].path, '/api/scheduler/tasks/task%201');
+  assert.equal(calls[2].options.method, 'PUT');
+  assert.equal(calls[3].path, '/api/scheduler/tasks/task%201/enabled');
+  assert.equal(calls[3].options.method, 'PATCH');
+  assert.equal(calls[3].options.body, '{"enabled":false}');
+  assert.equal(calls[4].path, '/api/scheduler/tasks/task%201/history');
+  assert.equal(calls[5].path, '/api/events?page=3&page_size=10');
+  assert.equal(calls[6].path, '/api/events/event%201/deliveries');
+  assert.equal(calls[7].path, '/api/messages');
+  assert.equal(calls[8].path, '/api/messages?queue=domain-events');
+});
+
+test('parameter integration api helpers use relative api paths', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  const payload = {
+    scenario: 'payment',
+    channel_code: 'creem',
+    provider_code: 'creem',
+    adapter_key: 'payment.creem.hosted_checkout',
+    environment: 'test',
+    enabled: true,
+    priority: 10,
+    webhook_enabled: true,
+    config_json: '{}',
+    metadata_json: '{}',
+    credential_type: 'payment_bundle',
+    credential_value: 'secret'
+  };
+
+  await listParameterIntegrationChannels('payment');
+  await listParameterIntegrationSchemas('payment');
+  await listParameterIntegrationChannels('email');
+  await listParameterIntegrationSchemas('email');
+  await createParameterIntegrationChannel(payload);
+  await updateParameterIntegrationChannel('channel 1', payload);
+  await setParameterIntegrationChannelEnabled('channel 1', false);
+
+  assert.equal(calls[0].path, '/api/parameters/integration-channels?scenario=payment');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[1].path, '/api/parameters/integration-schemas?scenario=payment');
+  assert.equal(calls[2].path, '/api/parameters/integration-channels?scenario=email');
+  assert.equal(calls[3].path, '/api/parameters/integration-schemas?scenario=email');
+  assert.equal(calls[4].path, '/api/parameters/integration-channels');
+  assert.equal(calls[4].options.method, 'POST');
+  assert.equal(calls[4].options.body, JSON.stringify(payload));
+  assert.equal(calls[5].path, '/api/parameters/integration-channels/channel%201');
+  assert.equal(calls[5].options.method, 'PUT');
+  assert.equal(calls[6].path, '/api/parameters/integration-channels/channel%201/enabled');
+  assert.equal(calls[6].options.method, 'PATCH');
+  assert.equal(calls[6].options.body, '{"enabled":false}');
+});
+
+test('variable api helpers use relative api paths', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { ok: true } });
+  };
+
+  const payload = {
+    key: 'feature.new_checkout',
+    name: 'New checkout',
+    value_type: 'boolean',
+    value_json: 'true',
+    enabled: true,
+    description: 'Feature switch'
+  };
+
+  await listVariables();
+  await createVariable(payload);
+  await updateVariable('variable 1', payload);
+  await setVariableEnabled('variable 1', false);
+
+  assert.equal(calls[0].path, '/api/variables');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[1].path, '/api/variables');
+  assert.equal(calls[1].options.method, 'POST');
+  assert.equal(calls[1].options.body, JSON.stringify(payload));
+  assert.equal(calls[2].path, '/api/variables/variable%201');
+  assert.equal(calls[2].options.method, 'PUT');
+  assert.equal(calls[3].path, '/api/variables/variable%201/enabled');
+  assert.equal(calls[3].options.method, 'PATCH');
+  assert.equal(calls[3].options.body, '{"enabled":false}');
+});
+
+test('points SSE helper uses the current host and HTTP scheme', () => {
+  assert.equal(
+    pointsSSEURL({ protocol: 'http:', host: '127.0.0.1:5173' }),
+    'http://127.0.0.1:5173/api/points/sse'
+  );
+  assert.equal(
+    pointsSSEURL({ protocol: 'https:', host: 'example.com' }),
+    'https://example.com/api/points/sse'
+  );
+});
+
+test('points SSE helper includes stored access token', () => {
+  installMemoryStorage();
+  setAccessToken('jwt socket');
+
+  assert.equal(
+    pointsSSEURL({ protocol: 'http:', host: '127.0.0.1:5173' }),
+    'http://127.0.0.1:5173/api/points/sse?access_token=jwt+socket'
+  );
+});

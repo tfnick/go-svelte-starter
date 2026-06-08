@@ -1,0 +1,605 @@
+# Journal - mac (Part 1)
+
+> AI development session journal
+> Started: 2026-05-25
+
+---
+
+
+
+## Session 1: Upgrade sqlx to v1.4.2 and refresh Trellis specs
+
+**Date**: 2026-05-31
+**Task**: Upgrade sqlx to v1.4.2 and refresh Trellis specs
+**Branch**: `main`
+
+### Summary
+
+Upgraded tfnick/sqlx to v1.4.2, simplified DBManager and Engine usage, then updated backend Trellis specs and task artifacts to match the new database conventions.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8f52944` | (see git log) |
+| `dafc38f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 2: Introduce Zerolog and standardize internal logging
+
+**Date**: 2026-05-31
+**Task**: Introduce Zerolog and standardize internal logging
+**Branch**: `main`
+
+### Summary
+
+Added a shared Zerolog-based logging package, migrated startup, database, and auth development logs to structured JSON output, and updated backend logging specs plus task artifacts to match the new conventions.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c63f12e` | (see git log) |
+| `bcd42b1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 3: Implement open-api account me endpoint
+
+**Date**: 2026-06-04
+**Task**: Implement open-api account me endpoint
+**Branch**: `main`
+
+### Summary
+
+Implemented the first /open-api/v1/account/me endpoint with dedicated API key middleware, open-api model files, DTO-based external response shaping, and supporting architecture/task documentation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0fff73b` | (see git log) |
+| `65461fc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 4: Diagnose architecture and plan open-api upgrade
+
+**Date**: 2026-06-04
+**Task**: Diagnose architecture and plan open-api upgrade
+**Branch**: `main`
+
+### Summary
+
+Completed the architecture diagnosis for separating internal and external APIs, documented the staged open-api upgrade path, defined the /open-api/v1/account/me contract, and prepared the implementation blueprint used by the follow-up endpoint task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `37aa2bb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 5: File-backed API request logging
+
+**Date**: 2026-06-05
+**Task**: File-backed API request logging
+**Branch**: `main`
+
+### Summary
+
+Implemented single-file JSON log persistence with API surface request logging, request IDs, safe Open API log fields, tests, and updated logging guidelines.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ce66449` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 6: Standardize internal API errors
+
+**Date**: 2026-06-05
+**Task**: Standardize internal API errors
+**Branch**: `main`
+
+### Summary
+
+Added route-level safe internal API error helpers, replaced raw err.Error responses in user/order/admin routes, added regression tests, and documented the route error logging contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ca1b5d7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 7: Standardize route handler responses
+
+**Date**: 2026-06-05
+**Task**: Standardize route handler responses
+**Branch**: `main`
+
+### Summary
+
+Added package-private internal API response helpers, refactored internal route simple error/message responses to use them, added helper tests, and documented the standard route handler flow.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5528544` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 8: Standardize Open API contract
+
+**Date**: 2026-06-05
+**Task**: Standardize Open API contract
+**Branch**: `main`
+
+### Summary
+
+Moved Open API error envelopes into shared typed API types, updated route and API key middleware errors to use the shared helper, added auth envelope tests, and documented public Open API contract rules.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8afdc77` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 9: Standardize internal API DTO boundary
+
+**Date**: 2026-06-05
+**Task**: Standardize internal API DTO boundary
+**Branch**: `main`
+
+### Summary
+
+Introduced explicit internal user/auth response DTOs, mapped user route responses through helpers, documented API DTO boundary rules, and added focused DTO tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7249e40` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 10: Standardize frontend API client usage
+
+**Date**: 2026-06-05
+**Task**: Standardize frontend API client usage
+**Branch**: `main`
+
+### Summary
+
+Strengthened the frontend API request helper, added Node test runner coverage, and documented API client conventions and split thresholds.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ce3b63` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 11: Standardize user request DTO boundary
+
+**Date**: 2026-06-05
+**Task**: Standardize user request DTO boundary
+**Branch**: `main`
+
+### Summary
+
+Added explicit user create/update request DTOs, mapped request input into models after validation, documented request DTO boundary rules, and covered internal field exclusion with tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ffc99bf` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 12: Standardize order DTO boundary
+
+**Date**: 2026-06-05
+**Task**: Standardize order DTO boundary
+**Branch**: `main`
+
+### Summary
+
+Added explicit internal order response DTOs and mapping helpers, kept product/admin DTO decisions scoped, updated backend API contract docs, and verified focused route DTO tests plus go test ./....
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a670bab` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 13: Enforce frontend API DTO boundary
+
+**Date**: 2026-06-05
+**Task**: Enforce frontend API DTO boundary
+**Branch**: `main`
+
+### Summary
+
+Made internal frontend API resource responses DTO-only, added an AST guard test against direct model JSON returns, tightened backend API/route specs, and verified focused route tests plus go test ./....
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `42d5c6d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 14: Use UUID v7 for project UUID generation
+
+**Date**: 2026-06-07
+**Task**: Use UUID v7 for project UUID generation
+**Branch**: `main`
+
+### Summary
+
+Created and completed the UUID v7 task: replaced project UUID generation with uuid.NewV7, added backend UUID generation spec, verified no uuid.New/uuid.NewString call sites remain, and ran go test ./....
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `60c4e3c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 15: Notification Center Ledger and SSE Slice
+
+**Date**: 2026-06-07
+**Task**: Notification Center Ledger and SSE Slice
+**Branch**: `main`
+
+### Summary
+
+Implemented notification center ledger, dictionary-managed notification types, admin paginated query page, SSE notification delivery slice, tests, and durable specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f325690` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 16: Rename app menu labels
+
+**Date**: 2026-06-07
+**Task**: Rename app menu labels
+**Branch**: `main`
+
+### Summary
+
+Renamed logged-in app menu labels: Order Manage to Order and Notification Center to Notification; updated router tests and frontend spec.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fa0ab00` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 17: Parameter email channel and webhook naming
+
+**Date**: 2026-06-07
+**Task**: Parameter email channel and webhook naming
+**Branch**: `main`
+
+### Summary
+
+Added email parameter channel support, refined credential hints, and unified external integration callback naming to webhook across DB/API/UI/spec.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `08ffa44` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 18: Creem webhook ingress hardening
+
+**Date**: 2026-06-07
+**Task**: Creem webhook ingress hardening
+**Branch**: `main`
+
+### Summary
+
+Implemented Creem webhook ingress contract hardening: provider-level signature verification remains endpoint/usecase/adapter scoped, successful Creem ACK now returns 200 OK, missing signature regression coverage was added, backend specs were updated, and route group annotations clarified public webhook placement.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3bf9ce0` | (see git log) |
+| `86ea2e7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Transaction and model executor contracts for EventBus sync_tx handler writes"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Framework package placement and import boundary rules"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Structured logging expectations for async and sync event handler failures"}
+{"file": ".trellis/tasks/06-05-framework-eventbus-dual-mode-design/prd.md", "reason": "EventBus dual-mode module decoupling requirements"}
+{"file": ".trellis/tasks/06-05-framework-eventbus-dual-mode-design/info.md", "reason": "Detailed EventBus dual-mode implementation design"}
+{"file": ".trellis/tasks/06-05-framework-eventbus-dual-mode-design/research/eventbus-library-notes.md", "reason": "EventBus library capabilities and constraints"}

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Verify route DTO and dictionary API contract"}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Verify Dictionary route, helper, and page contract"}

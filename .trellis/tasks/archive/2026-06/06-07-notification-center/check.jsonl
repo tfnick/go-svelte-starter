@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend quality checklist for route/usecase/model/database changes."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify migrations, seed data, indexes, and app/shared DB ownership."}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Verify internal API envelope, DTO boundary, pagination, and error behavior."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "General backend quality checklist and required test commands."}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Verify Svelte route/menu/page/API helper behavior and build requirements."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer data flow from filters through storage and UI."}

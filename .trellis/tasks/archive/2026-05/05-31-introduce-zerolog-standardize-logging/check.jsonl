@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend spec index for verifying the updated logging changes stay in the right layer and follow project guidance."}
+{"file":".trellis/spec/backend/logging-guidelines.md","reason":"Primary verification target for Zerolog conventions, levels, output mode, and sensitive logging rules."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check that logging additions do not leak internal or sensitive error details."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check that logging changes preserve backend layering and code consistency."}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend spec index for verifying the updated database guidance is placed and described consistently."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Primary verification target for sqlx v1.4.2 contract accuracy and example correctness."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check DB-related examples for consistency with the updated Engine signature and error-handling rules."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check dynamic SQL and transaction examples for consistency with current database conventions."}

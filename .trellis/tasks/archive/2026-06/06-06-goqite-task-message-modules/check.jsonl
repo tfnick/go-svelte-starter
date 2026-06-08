@@ -1,0 +1,9 @@
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Verify layer boundaries, framework placement, and raw dependency import isolation."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Verify app DB migrations, transaction behavior, and shared DB exclusion."}
+{"file":".trellis/spec/backend/eventing-guidelines.md","reason":"Verify durable event semantics remain compatible with DDD event facade."}
+{"file":".trellis/spec/backend/api-contracts.md","reason":"Verify internal API response shape and route DTO mapping."}
+{"file":".trellis/spec/backend/route-handler-guidelines.md","reason":"Verify authenticated route handler flow and no direct model/db calls."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Backend test and maintainability checklist."}
+{"file":".trellis/spec/frontend/svelte-vite-embed.md","reason":"Verify Svelte scheduler/message UI, API client, tests, and production build."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review cross-layer data flow from UI through DB and worker lifecycle."}
+{"file":".trellis/tasks/06-06-goqite-task-message-modules/research/goqite-capabilities.md","reason":"Verify implementation matches goqite API and operational constraints."}

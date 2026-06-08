@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend layer entry point for route/usecase/model/database changes."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Notification records require app DB schema, seed SQL, UUID v7 IDs, indexes, and migration rules."}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Internal notification list API must use route-local DTOs, envelope responses, pagination, and safe errors."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Usecase validation for notification type filters must return typed safe errors."}
+{"file": ".trellis/spec/backend/uuid-generation.md", "reason": "Notification record IDs and seed dictionary IDs should follow UUID v7 convention."}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Notification center page should follow existing Svelte routing, API helper, filter, pagination, and build conventions."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature spans DB, model, usecase, route, frontend API, and Svelte page."}

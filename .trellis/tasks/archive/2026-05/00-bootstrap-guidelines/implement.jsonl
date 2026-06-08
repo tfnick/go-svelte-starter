@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index — lists all guideline files and their status"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Where code lives: api/db/, models/, routes/, middleware/, types/ layout and conventions"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite with tfnick/sqlx — two access patterns (DB vs Engine), migration system, naming conventions, transaction helper"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "fmt.Errorf wrapping, sql.ErrNoRows handling, API error response format, HTTP status code conventions"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "fmt.Println/echo.Logger.Fatal logging, emoji prefixes, dev-only debug gating"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Code standards: required patterns (dual JSON/form input, validation in routes, Engine dynamic SQL), forbidden patterns, review checklist"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer data flow thinking guide — relevant for route→model→db flow"}

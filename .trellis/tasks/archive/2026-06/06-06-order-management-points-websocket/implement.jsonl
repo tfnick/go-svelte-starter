@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/api-contracts.md","reason":"新增订单支付、积分、商品列表和 WebSocket API/DTO 契约。"}
+{"file":".trellis/spec/backend/eventing-guidelines.md","reason":"记录 order.paid sync_tx 支付送积分与 after-commit 推送模式。"}
+{"file":".trellis/spec/frontend/svelte-vite-embed.md","reason":"记录订单管理 API helper、pointsWebSocketURL 与 Vite ws proxy 契约。"}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend route/usecase/model/db boundary and API contract index for parameter management APIs."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend Svelte/Vite/menu/API helper contract index for Parameter page."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature crosses frontend, routes, usecase, models, and DB."}
+{"file": ".trellis/tasks/06-06-external-integration-anticorruption-layer/prd.md", "reason": "Defines DB-managed channel configuration and credential safety requirements."}

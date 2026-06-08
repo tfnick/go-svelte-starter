@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index — all guidelines"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Directory layout conventions"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB patterns: Engine vs DB, migration conventions, transaction helper"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error wrapping, API error format, status codes"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required patterns, forbidden patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer data flow thinking"}

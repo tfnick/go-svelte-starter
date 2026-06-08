@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend guideline index for Go/Echo changes related to static serving and API boundaries."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Current project layout and ownership conventions; migration changes index.go and frontend/static layout."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality expectations for backend route and middleware changes."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend Svelte/Vite/daisyUI and Go embed implementation conventions."}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Executable contracts for dev HMR, production embed, scripts, API calls, and verification."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Migration spans frontend build, Go static serving, and API behavior."}
+{"file": ".trellis/tasks/06-04-migrate-frontend-to-svelte/research/svelte-vite-static-embed.md", "reason": "Chosen Svelte/Vite development and Go embed production approach."}

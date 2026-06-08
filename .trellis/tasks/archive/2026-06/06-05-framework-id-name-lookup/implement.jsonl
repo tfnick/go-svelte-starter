@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Defines the DTO id/name pairing contract that this task must update from helper-based assembly to framework resolver usage."}
+{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "Confirms routes should stay focused on HTTP and response mapping while usecases provide client objects."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Covers sqlx/model access patterns needed for batch IN name lookups and N+1 avoidance."}
+{"file": ".trellis/tasks/06-05-framework-id-name-lookup/research/current-id-name-state.md", "reason": "Summarizes current case-by-case order display name lookup and migration constraints."}

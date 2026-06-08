@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend quality checklist and required test commands."}
+{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "Verify provider webhook route exception and ACK behavior."}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Verify public webhook contract and parameter schema remain consistent."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify invalid signature and validation errors return safe messages."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Final quality and regression test expectations."}

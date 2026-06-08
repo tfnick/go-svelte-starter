@@ -1,0 +1,1 @@
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Verify payment success no longer performs an implicit points HTTP refresh and tests/build commands match frontend spec."}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify against all backend guidelines"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify correct DB access pattern, migration conventions"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify errors wrapped, correct status codes"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify required patterns, no forbidden patterns"}

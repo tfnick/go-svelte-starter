@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index — lists all guideline files to verify against"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify new code follows directory layout conventions"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify correct DB access pattern (DB vs Engine), migration conventions, naming"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify errors are wrapped, API responses use correct status codes and format"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify logging follows conventions, no sensitive data leaked"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify required patterns followed, no forbidden patterns used, review checklist passed"}

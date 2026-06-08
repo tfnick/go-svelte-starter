@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend spec index for locating the relevant implementation guidance."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"The implementation adds new open-api route, middleware, and model files and must follow the project's file-organization conventions."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"The open-api endpoint must use partner-safe error responses without leaking internal details."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"The implementation must preserve the route -> models -> db style without adding a service layer and should keep DTOs in the route layer."}
+{"file":".trellis/tasks/06-04-diagnose-architecture-open-api-upgrade/prd.md","reason":"Architecture diagnosis, upgrade path, endpoint contract draft, and code skeleton blueprint are the direct design input for this implementation task."}

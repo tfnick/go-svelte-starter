@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for API route, DTO, error, and database guidance."}
+{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "Provider webhook routes are external ingress and may use provider ACK responses instead of internal JSON envelope."}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Payment Parameter and webhook configuration contracts include webhook_enabled and webhook_secret."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Invalid signature and missing configuration must map to safe typed errors."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Webhook receipt and queue persistence must keep DB and transaction conventions."}

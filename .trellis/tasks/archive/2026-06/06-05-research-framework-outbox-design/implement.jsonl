@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB transaction and migration contracts for EventBus transaction event design"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Framework package placement and layer boundary rules"}
+{"file": ".trellis/tasks/06-05-research-framework-outbox-design/research/eventbus-transaction-design.md", "reason": "EventBus-only dual-mode async best-effort and sync transaction event design"}

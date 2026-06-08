@@ -1,0 +1,225 @@
+package routes_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/labstack/echo/v4"
+	"github.com/tfnick/sqlx"
+	"github.com/tfnick/go-svelte-starter/api/db"
+	"github.com/tfnick/go-svelte-starter/api/routes"
+)
+
+func TestListParameterIntegrationChannelsReturnsAdminDTO(t *testing.T) {
+	setupRouteTestDBs(t)
+	appDB, err := db.DefaultManager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	seedRouteParameterChannel(t, appDB)
+
+	router := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/parameters/integration-channels?scenario=sms", nil)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+
+	if err := routes.ListParameterIntegrationChannels(c); err != nil {
+		t.Fatalf("list channels: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var envelope struct {
+		Success bool                                         `json:"success"`
+		Data    []routes.ParameterIntegrationChannelResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !envelope.Success || len(envelope.Data) != 1 {
+		t.Fatalf("unexpected envelope: %s", rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "ciphertext") || strings.Contains(body, "credential_plaintext") || strings.Contains(body, "credential_masked_value") {
+		t.Fatalf("response leaked legacy credential fields: %s", body)
+	}
+	if envelope.Data[0].CredentialValue != "route-sms-secret" {
+		t.Fatalf("unexpected response DTO: %#v", envelope.Data[0])
+	}
+}
+
+func TestListParameterIntegrationSchemasReturnsDTO(t *testing.T) {
+	setupRouteTestDBs(t)
+
+	router := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/parameters/integration-schemas?scenario=payment", nil)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+
+	if err := routes.ListParameterIntegrationSchemas(c); err != nil {
+		t.Fatalf("list schemas: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var envelope struct {
+		Success bool                                               `json:"success"`
+		Data    []routes.ParameterIntegrationAdapterSchemaResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !envelope.Success || len(envelope.Data) != 1 {
+		t.Fatalf("unexpected envelope: %s", rec.Body.String())
+	}
+	if envelope.Data[0].AdapterKey != "payment.creem.hosted_checkout" {
+		t.Fatalf("unexpected schema response: %#v", envelope.Data[0])
+	}
+	if envelope.Data[0].CredentialFormat != "json_object" {
+		t.Fatalf("unexpected credential format: %#v", envelope.Data[0])
+	}
+	if len(envelope.Data[0].ConfigFields) == 0 || len(envelope.Data[0].CredentialFields) == 0 {
+		t.Fatalf("expected fields in schema response: %#v", envelope.Data[0])
+	}
+	baseURLField := envelope.Data[0].ConfigFields[0]
+	if baseURLField.Key != "base_url" || baseURLField.Kind != "url" {
+		t.Fatalf("expected payment API URL DTO field, got %#v", baseURLField)
+	}
+	if baseURLField.DictionaryType != "" || len(baseURLField.Options) != 0 {
+		t.Fatalf("payment API URL DTO must be a free URL input, got %#v", baseURLField)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/parameters/integration-schemas?scenario=email", nil)
+	rec = httptest.NewRecorder()
+	c = router.NewContext(req, rec)
+	if err := routes.ListParameterIntegrationSchemas(c); err != nil {
+		t.Fatalf("list Email schemas: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	envelope = struct {
+		Success bool                                               `json:"success"`
+		Data    []routes.ParameterIntegrationAdapterSchemaResponse `json:"data"`
+	}{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode Email schema response: %v", err)
+	}
+	if !envelope.Success || len(envelope.Data) != 2 {
+		t.Fatalf("unexpected Email schema envelope: %s", rec.Body.String())
+	}
+	if envelope.Data[0].AdapterKey != "email.aliyun.smtp" || envelope.Data[0].CredentialType != "smtp_password" {
+		t.Fatalf("unexpected Aliyun Email schema response: %#v", envelope.Data[0])
+	}
+	if len(envelope.Data[0].ConfigFields) < 3 || envelope.Data[0].ConfigFields[2].Key != "security" || len(envelope.Data[0].ConfigFields[2].Options) == 0 {
+		t.Fatalf("expected Aliyun SMTP security options, got %#v", envelope.Data[0].ConfigFields)
+	}
+	if envelope.Data[1].AdapterKey != "email.resend.api" || envelope.Data[1].CredentialFormat != "plain" {
+		t.Fatalf("unexpected Resend Email schema response: %#v", envelope.Data[1])
+	}
+}
+
+func TestCreateParameterIntegrationChannelReturnsCreatedDTO(t *testing.T) {
+	setupRouteTestDBs(t)
+
+	router := echo.New()
+	body := bytes.NewBufferString(`{
+		"scenario":"payment",
+		"channel_code":"route-creem",
+		"provider_code":"creem",
+		"adapter_key":"payment.creem.hosted_checkout",
+		"environment":"test",
+		"enabled":true,
+		"priority":10,
+		"webhook_enabled":true,
+		"config_json":"{\"base_url\":\"https://api.creem.io\",\"product_id\":\"prod_route\"}",
+		"metadata_json":"{\"owner\":\"finance\"}",
+		"credential_type":"payment_bundle",
+		"credential_value":"{\"api_key\":\"route-key\",\"webhook_secret\":\"route-secret\"}"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/parameters/integration-channels", body)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+
+	if err := routes.CreateParameterIntegrationChannel(c); err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "ciphertext") || strings.Contains(rec.Body.String(), "credential_masked_value") {
+		t.Fatalf("response leaked legacy credential fields: %s", rec.Body.String())
+	}
+	var envelope struct {
+		Success bool                                       `json:"success"`
+		Data    routes.ParameterIntegrationChannelResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Data.CredentialValue != `{"api_key":"route-key","webhook_secret":"route-secret"}` {
+		t.Fatalf("expected credential value in admin DTO, got %s", rec.Body.String())
+	}
+}
+
+func TestSetParameterIntegrationChannelEnabledReturnsUpdatedDTO(t *testing.T) {
+	setupRouteTestDBs(t)
+	appDB, err := db.DefaultManager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	seedRouteParameterChannel(t, appDB)
+
+	router := echo.New()
+	req := httptest.NewRequest(http.MethodPatch, "/api/parameters/integration-channels/route-sms-channel/enabled", bytes.NewBufferString(`{"enabled":false}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("route-sms-channel")
+
+	if err := routes.SetParameterIntegrationChannelEnabled(c); err != nil {
+		t.Fatalf("set enabled: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var envelope struct {
+		Success bool                                       `json:"success"`
+		Data    routes.ParameterIntegrationChannelResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !envelope.Success || envelope.Data.Enabled {
+		t.Fatalf("expected disabled channel response, got %s", rec.Body.String())
+	}
+}
+
+func seedRouteParameterChannel(t *testing.T, appDB *sqlx.DB) {
+	t.Helper()
+
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO integration_credentials (id, credential_type, ciphertext, key_version, masked_value, value_text, enabled)
+		VALUES (?, 'api_key', 'route-sms-secret', '', '', 'route-sms-secret', 1)
+	`), "route-sms-credential"); err != nil {
+		t.Fatalf("insert credential: %v", err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO integration_channels (
+			id, scenario, channel_code, provider_code, adapter_key, environment, enabled,
+			priority, credential_id, webhook_enabled, config_json, metadata_json
+		) VALUES (?, 'sms', 'route-sms', 'aliyun', 'sms.aliyun.adapter', 'test', 1,
+			30, ?, 0, '{"base_url":"https://sms.example.com"}', '{"owner":"ops"}')
+	`), "route-sms-channel", "route-sms-credential"); err != nil {
+		t.Fatalf("insert channel: %v", err)
+	}
+}

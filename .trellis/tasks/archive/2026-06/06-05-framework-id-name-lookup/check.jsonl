@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Check that final implementation and spec both enforce explicit id/name pairing through the framework resolver."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Check that name lookup remains batch-based and does not introduce N+1 queries."}
+{"file": ".trellis/tasks/06-05-framework-id-name-lookup/research/current-id-name-state.md", "reason": "Check that the original orderdisplay case-by-case usage has been addressed."}
