@@ -133,25 +133,16 @@ func ToUserOrdersResponse(orders usecase.UserOrdersCo) UserOrdersResponse {
 	}
 }
 
-// CreateOrder creates an order and reserves product inventory.
+// CreateOrder creates a pending local order ledger for provider checkout.
 func CreateOrder(c echo.Context) error {
 	var req CreateOrderRequest
 	if err := c.Bind(&req); err != nil {
 		return httpresponse.BadRequest(c, "invalid request data")
 	}
 
-	orderItems := make([]usecase.CreateOrderItemCmd, 0, len(req.Items))
-	for _, item := range req.Items {
-		orderItems = append(orderItems, usecase.CreateOrderItemCmd{
-			ProductID: item.ProductID,
-			Quantity:  item.Quantity,
-		})
-	}
-
 	ctx := fwcontext.InternalUsecaseContext(c)
 	order, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{
 		UserID: req.UserID,
-		Items:  orderItems,
 	})
 	if err != nil {
 		return httpresponse.InternalUsecaseError(c, err)

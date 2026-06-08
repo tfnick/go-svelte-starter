@@ -29,6 +29,28 @@ type OrderItem struct {
 	Price     int64  `json:"price" db:"price"`
 }
 
+func InsertOrder(ctx context.Context, userID string, amount int64) (*Order, error) {
+	order := &Order{
+		ID:        uuid.Must(uuid.NewV7()).String(),
+		UserID:    userID,
+		Amount:    amount,
+		Status:    "pending",
+		CreatedAt: timefmt.NowSQLiteDateTime(),
+	}
+
+	appDB, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
+
+	insertOrderSQL := `INSERT INTO orders (id, user_id, amount, status, created_at) VALUES (:id, :user_id, :amount, :status, :created_at)`
+	if _, err := appDB.NamedExec(insertOrderSQL, order); err != nil {
+		return nil, fmt.Errorf("create order failed: %w", err)
+	}
+
+	return order, nil
+}
+
 func ReserveProductsForOrder(ctx context.Context, items []OrderItem) error {
 	appDB, err := db.ExecutorFor(ctx, "app")
 	if err != nil {

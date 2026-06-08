@@ -10,7 +10,7 @@ import (
 )
 
 func TestOrderUsecaseResolvesDisplayNamesWithFrameworkLookup(t *testing.T) {
-	setupUsecaseOrderTxDB(t)
+	manager := setupUsecaseOrderTxDB(t)
 
 	const seedUserID = "019ea0c1-0001-7000-8000-000000000001"
 	const seedProductID = "019ea0c1-0004-7000-8000-000000000001"
@@ -27,9 +27,6 @@ func TestOrderUsecaseResolvesDisplayNamesWithFrameworkLookup(t *testing.T) {
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	created, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{
 		UserID: seedUserID,
-		Items: []usecase.CreateOrderItemCmd{
-			{ProductID: seedProductID, Quantity: 1},
-		},
 	})
 	if err != nil {
 		t.Fatalf("create order: %v", err)
@@ -45,10 +42,38 @@ func TestOrderUsecaseResolvesDisplayNamesWithFrameworkLookup(t *testing.T) {
 	if detail.Order.UserName != expectedUser.Name {
 		t.Fatalf("expected detail order user name %q, got %q", expectedUser.Name, detail.Order.UserName)
 	}
-	if len(detail.Items) != 1 {
-		t.Fatalf("expected one detail item, got %d", len(detail.Items))
+	if len(detail.Items) != 0 {
+		t.Fatalf("expected new Creem checkout ledger to have no local items, got %d", len(detail.Items))
 	}
-	if detail.Items[0].ProductName != expectedProduct.Name {
-		t.Fatalf("expected detail item product name %q, got %q", expectedProduct.Name, detail.Items[0].ProductName)
+
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO orders (id, user_id, amount, status, created_at)
+		VALUES (?, ?, ?, 'pending', '2026-01-01 00:00:00')
+	`), "lookup-order-with-item", seedUserID, int64(699900)); err != nil {
+		t.Fatalf("insert legacy order: %v", err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO order_items (id, order_id, product_id, quantity, price)
+		VALUES (?, ?, ?, 1, ?)
+	`), "lookup-order-item", "lookup-order-with-item", seedProductID, int64(699900)); err != nil {
+		t.Fatalf("insert legacy order item: %v", err)
+	}
+
+	legacyDetail, err := usecase.GetOrderDetail(ctx, usecase.OrderDetailQry{OrderID: "lookup-order-with-item"})
+	if err != nil {
+		t.Fatalf("get legacy order detail: %v", err)
+	}
+	if legacyDetail.Order.UserName != expectedUser.Name {
+		t.Fatalf("expected legacy detail order user name %q, got %q", expectedUser.Name, legacyDetail.Order.UserName)
+	}
+	if len(legacyDetail.Items) != 1 {
+		t.Fatalf("expected one legacy detail item, got %d", len(legacyDetail.Items))
+	}
+	if legacyDetail.Items[0].ProductName != expectedProduct.Name {
+		t.Fatalf("expected legacy detail item product name %q, got %q", expectedProduct.Name, legacyDetail.Items[0].ProductName)
 	}
 }

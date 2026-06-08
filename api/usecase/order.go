@@ -75,9 +75,6 @@ func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error) {
 	if cmd.UserID == "" {
 		return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "user ID is required", nil)
 	}
-	if len(cmd.Items) == 0 {
-		return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "order items are required", nil)
-	}
 	if _, err := GetUser(ctx, UserDetailQry{ID: cmd.UserID}); err != nil {
 		if fwusecase.CodeOf(err) == fwusecase.CodeNotFound {
 			return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "user not found", err)
@@ -85,53 +82,21 @@ func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error) {
 		return OrderCo{}, err
 	}
 
-	orderItems := make([]models.OrderItem, 0, len(cmd.Items))
-	for _, item := range cmd.Items {
-		if item.Quantity <= 0 {
-			return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "product quantity must be greater than 0", nil)
-		}
-		if item.ProductID == "" {
-			return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "product ID is required", nil)
-		}
-
-		product, err := models.GetProductByID(ctx.Std(), item.ProductID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "product not found: "+item.ProductID, err)
-			}
-			return OrderCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load product", err)
-		}
-
-		orderItems = append(orderItems, models.OrderItem{
-			ProductID: item.ProductID,
-			Quantity:  item.Quantity,
-			Price:     product.Price,
-		})
-	}
-
 	var order *models.Order
-	var persistedItems []models.OrderItem
 
 	err := fwusecase.WithAppTx(ctx, func(txCtx fwusecase.Context) error {
-		if err := models.ReserveProductsForOrder(txCtx.Std(), orderItems); err != nil {
-			return err
-		}
-		createdOrder, createdItems, err := models.InsertOrderWithItems(txCtx.Std(), cmd.UserID, orderItems)
+		createdOrder, err := models.InsertOrder(txCtx.Std(), cmd.UserID, 0)
 		if err != nil {
 			return err
 		}
 		order = createdOrder
-		persistedItems = createdItems
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, models.ErrInsufficientStock) {
-			return OrderCo{}, fwusecase.E(fwusecase.CodeConflict, "insufficient stock", err)
-		}
 		return OrderCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to create order", err)
 	}
 
-	names, err := resolveOrderNames(ctx, []models.Order{*order}, persistedItems)
+	names, err := resolveOrderNames(ctx, []models.Order{*order}, nil)
 	if err != nil {
 		return OrderCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load order display names", err)
 	}

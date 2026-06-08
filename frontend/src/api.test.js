@@ -266,8 +266,7 @@ test('dictionary and order api helpers use relative api paths', async () => {
   await getDictionaries(['product_category', 'product_category', 'region']);
   await getUserOrders('019ea0c1-0001-7000-8000-000000000001', { page: 2, pageSize: 10 });
   await createOrder({
-    user_id: '019ea0c1-0001-7000-8000-000000000001',
-    items: [{ product_id: '019ea0c1-0004-7000-8000-000000000001', quantity: 1 }]
+    user_id: '019ea0c1-0001-7000-8000-000000000001'
   });
   await createOrderPaymentCheckout('o001');
   await payOrder('o001');
@@ -287,6 +286,7 @@ test('dictionary and order api helpers use relative api paths', async () => {
   assert.equal(calls[1].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
   assert.equal(calls[2].path, '/api/orders');
   assert.equal(calls[2].options.method, 'POST');
+  assert.equal(calls[2].options.body, '{"user_id":"019ea0c1-0001-7000-8000-000000000001"}');
   assert.equal(calls[3].path, '/api/orders/o001/payment-checkout');
   assert.equal(calls[3].options.method, 'POST');
   assert.equal(calls[4].path, '/api/orders/o001/pay');

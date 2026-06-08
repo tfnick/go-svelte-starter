@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	"github.com/tfnick/go-svelte-starter/api/routes"
+	"github.com/tfnick/sqlx"
 )
 
 func TestGetUserOrdersReturnsPaginatedEnvelope(t *testing.T) {
@@ -80,6 +80,42 @@ func TestGetUserOrdersRejectsInvalidPageQuery(t *testing.T) {
 	body := strings.TrimSpace(rec.Body.String())
 	if !strings.Contains(body, `"success":false`) || !strings.Contains(body, `"code":"validation"`) {
 		t.Fatalf("expected validation envelope, got %s", body)
+	}
+}
+
+func TestCreateOrderAcceptsCreemLedgerRequestWithoutItems(t *testing.T) {
+	setupRouteTestDBs(t)
+
+	const seedUserID = "019ea0c1-0001-7000-8000-000000000001"
+	router := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/orders", strings.NewReader(`{"user_id":"`+seedUserID+`"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+
+	if err := routes.CreateOrder(c); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, rec.Code, rec.Body.String())
+	}
+
+	var envelope struct {
+		Success bool                       `json:"success"`
+		Data    routes.CreateOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !envelope.Success {
+		t.Fatalf("expected success envelope, got %s", rec.Body.String())
+	}
+	if envelope.Data.Order.ID == "" {
+		t.Fatalf("expected created order id")
+	}
+	if envelope.Data.Order.Amount != 0 || envelope.Data.Order.Status != "pending" {
+		t.Fatalf("unexpected created order: %#v", envelope.Data.Order)
 	}
 }
 

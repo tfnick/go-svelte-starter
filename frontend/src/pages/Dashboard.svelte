@@ -5,7 +5,6 @@
     createOrder,
     createOrderPaymentCheckout,
     getMyPoints,
-    getProducts,
     getUserOrders,
     pointsSSEURL
   } from '../api.js';
@@ -27,18 +26,14 @@
 
   let orders = $state([]);
   let orderPagination = $state({ ...emptyOrderPagination });
-  let products = $state([]);
-  let selectedProductId = $state('');
-  let quantity = $state(1);
   let points = $state(null);
   let loadingOrders = $state(false);
-  let loadingProducts = $state(false);
   let creatingOrder = $state(false);
   let payingOrderId = $state('');
   let error = $state('');
   let message = $state('');
   let realtimeToasts = $state([]);
-  let streamStatus = $state('未连接');
+  let streamStatus = $state('Disconnected');
   let loadedUserId = $state('');
   let pointsStream;
 
@@ -65,11 +60,9 @@
     loadedUserId = '';
     orders = [];
     orderPagination = { ...emptyOrderPagination };
-    products = [];
-    selectedProductId = '';
     points = null;
     realtimeToasts = [];
-    closePointsStream('未连接');
+    closePointsStream('Disconnected');
   }
 
   function activeUserId() {
@@ -78,25 +71,9 @@
 
   async function loadOrderManagement() {
     await Promise.all([
-      loadProducts(),
       loadOrders(orderPagination.page),
       loadPoints()
     ]);
-  }
-
-  async function loadProducts() {
-    loadingProducts = true;
-    error = '';
-    try {
-      products = await getProducts();
-      if (!selectedProductId && products.length > 0) {
-        selectedProductId = products[0].id;
-      }
-    } catch (err) {
-      error = err.message || '加载商品失败';
-    } finally {
-      loadingProducts = false;
-    }
   }
 
   async function loadOrders(page = orderPagination.page) {
@@ -116,7 +93,7 @@
         ...(result?.pagination || {})
       };
     } catch (err) {
-      error = err.message || '加载订单失败';
+      error = err.message || 'Failed to load orders';
     } finally {
       loadingOrders = false;
     }
@@ -128,15 +105,14 @@
       const result = await getMyPoints();
       points = result.balance;
     } catch (err) {
-      error = err.message || '加载积分失败';
+      error = err.message || 'Failed to load points';
     }
   }
 
   async function submitOrder() {
     const userId = activeUserId();
-    const parsedQuantity = Number(quantity);
-    if (!userId || !selectedProductId || parsedQuantity <= 0) {
-      error = '请选择商品并填写有效数量';
+    if (!userId) {
+      error = 'Please sign in before creating an order';
       return;
     }
 
@@ -144,33 +120,36 @@
     error = '';
     message = '';
     try {
-      const result = await createOrder({
-        user_id: userId,
-        items: [{ product_id: selectedProductId, quantity: parsedQuantity }]
-      });
-      message = `订单 ${result.order.id} 已创建`;
-      quantity = 1;
-      await Promise.all([loadOrders(1), loadProducts()]);
+      const result = await createOrder({ user_id: userId });
+      const order = result?.order;
+      if (!order?.id) {
+        throw new Error('Order was created without an id');
+      }
+      await startPaymentCheckout(order, { refreshPage: 1 });
     } catch (err) {
-      error = err.message || '创建订单失败';
+      error = err.message || 'Failed to create order';
     } finally {
       creatingOrder = false;
     }
   }
 
-  async function startPaymentCheckout(order) {
+  async function startPaymentCheckout(order, options = {}) {
+    const refreshPage = options.refreshPage || orderPagination.page;
+
     payingOrderId = order.id;
     error = '';
     message = '';
     try {
       const result = await createOrderPaymentCheckout(order.id);
-      message = `订单 ${result.order.id} 已创建 Creem 支付，等待回调确认。`;
+      message = `Order ${result.order.id} is waiting for Creem confirmation`;
       if (result.checkout_url) {
         globalThis.location.assign(result.checkout_url);
+        return;
       }
-      await loadOrders(orderPagination.page);
+      await loadOrders(refreshPage);
     } catch (err) {
-      error = err.message || '创建支付链接失败';
+      error = err.message || 'Failed to create checkout';
+      await loadOrders(refreshPage);
     } finally {
       payingOrderId = '';
     }
@@ -202,11 +181,11 @@
 
   function connectPointsStream() {
     closePointsStream();
-    streamStatus = '连接中';
+    streamStatus = 'Connecting';
 
     pointsStream = new EventSource(pointsSSEURL());
     pointsStream.onopen = () => {
-      streamStatus = '已连接';
+      streamStatus = 'Connected';
     };
     pointsStream.onmessage = (event) => {
       try {
@@ -224,11 +203,11 @@
       }
     };
     pointsStream.onerror = () => {
-      streamStatus = '连接异常';
+      streamStatus = 'Error';
     };
   }
 
-  function closePointsStream(nextStatus = '已断开') {
+  function closePointsStream(nextStatus = 'Disconnected') {
     if (pointsStream) {
       pointsStream.close();
       pointsStream = undefined;
@@ -258,11 +237,12 @@
   }
 
   function money(value) {
-    return `¥${(Number(value || 0) / 100).toFixed(2)}`;
+    return `$${(Number(value || 0) / 100).toFixed(2)}`;
   }
 
-  function selectedProduct() {
-    return products.find((product) => product.id === selectedProductId);
+  function orderAmountLabel(order) {
+    const amount = Number(order.amount || 0);
+    return amount > 0 ? money(amount) : 'Creem';
   }
 </script>
 
@@ -282,68 +262,41 @@
       <div class="card-body gap-4">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-sm text-base-content/60">当前用户</p>
-            <h1 class="text-2xl font-bold leading-tight">{auth.user?.name || '未登录'}</h1>
-            <p class="mt-1 text-sm text-base-content/60">{auth.user?.id || '请先登录'}</p>
+            <p class="text-sm text-base-content/60">Current user</p>
+            <h1 class="text-2xl font-bold leading-tight">{auth.user?.name || 'Not signed in'}</h1>
+            <p class="mt-1 text-sm text-base-content/60">{auth.user?.id || 'Sign in to continue'}</p>
           </div>
-          <span class="badge {streamStatus === '已连接' ? 'badge-success' : 'badge-outline'}">{streamStatus}</span>
+          <span class="badge {streamStatus === 'Connected' ? 'badge-success' : 'badge-outline'}">{streamStatus}</span>
         </div>
 
         <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
-          <div class="text-sm text-base-content/60">积分余额</div>
+          <div class="text-sm text-base-content/60">Points balance</div>
           <div class="mt-2 text-4xl font-bold">{points === null ? '--' : points}</div>
         </div>
 
         {#if !auth.logged_in}
-          <Notice type="warning" message="请先登录后再管理订单。" />
+          <Notice type="warning" message="Please sign in before managing orders" />
         {/if}
       </div>
     </div>
 
     <div class="card border border-base-300 bg-base-100 shadow-lg">
       <div class="card-body gap-4">
-        <div class="flex items-center justify-between gap-4">
-          <h2 class="card-title text-xl">下订单</h2>
-          {#if loadingProducts}
-            <span class="loading loading-spinner loading-sm"></span>
-          {/if}
+        <div>
+          <h2 class="card-title text-xl">Creem Checkout</h2>
+          <p class="text-sm text-base-content/60">Test product</p>
         </div>
 
-        <label class="form-control">
-          <span class="label">
-            <span class="label-text">商品</span>
-          </span>
-          <select class="select select-bordered" bind:value={selectedProductId} disabled={!auth.logged_in || products.length === 0}>
-            {#each products as product}
-              <option value={product.id}>{product.name} · {money(product.price)} · 库存 {product.stock}</option>
-            {/each}
-          </select>
-        </label>
+        <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
+          <div class="text-sm text-base-content/60">Amount</div>
+          <div class="mt-1 text-lg font-semibold">Creem checkout price</div>
+        </div>
 
-        <label class="form-control">
-          <span class="label">
-            <span class="label-text">数量</span>
-          </span>
-          <input
-            class="input input-bordered"
-            type="number"
-            min="1"
-            bind:value={quantity}
-            disabled={!auth.logged_in}
-          />
-        </label>
-
-        {#if selectedProduct()}
-          <div class="rounded-lg bg-base-200/60 p-3 text-sm text-base-content/70">
-            小计：{money(selectedProduct().price * Number(quantity || 0))}
-          </div>
-        {/if}
-
-        <button class="btn btn-primary" type="button" onclick={submitOrder} disabled={!auth.logged_in || creatingOrder || products.length === 0}>
-          {#if creatingOrder}
+        <button class="btn btn-primary" type="button" onclick={submitOrder} disabled={!auth.logged_in || creatingOrder || Boolean(payingOrderId)}>
+          {#if creatingOrder || payingOrderId}
             <span class="loading loading-spinner loading-sm"></span>
           {/if}
-          创建订单
+          Create and Pay
         </button>
       </div>
     </div>
@@ -353,14 +306,14 @@
     <div class="card-body gap-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="card-title text-xl">订单列表</h2>
-          <p class="text-sm text-base-content/60">Creem 回调确认支付后才会赠送 {10} 积分。</p>
+          <h2 class="card-title text-xl">Orders</h2>
+          <p class="text-sm text-base-content/60">Webhook-confirmed payments receive 10 points</p>
         </div>
         <button class="btn btn-outline btn-sm" type="button" onclick={loadOrderManagement} disabled={!auth.logged_in || loadingOrders}>
           {#if loadingOrders}
             <span class="loading loading-spinner loading-xs"></span>
           {/if}
-          刷新
+          Refresh
         </button>
       </div>
 
@@ -369,18 +322,18 @@
 
       {#if orders.length === 0}
         <div class="rounded-lg border border-dashed border-base-300 p-8 text-center text-base-content/60">
-          {loadingOrders ? '正在加载订单...' : '暂无订单'}
+          {loadingOrders ? 'Loading orders...' : 'No orders yet'}
         </div>
       {:else}
         <div class="overflow-x-auto">
           <table class="table table-sm">
             <thead>
               <tr>
-                <th>订单</th>
-                <th>用户</th>
-                <th>状态</th>
-                <th class="text-right">金额</th>
-                <th class="text-right">操作</th>
+                <th>Order</th>
+                <th>User</th>
+                <th>Status</th>
+                <th class="text-right">Amount</th>
+                <th class="text-right">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -393,14 +346,14 @@
                       {orderStatusLabel(order.status)}
                     </span>
                   </td>
-                  <td class="text-right">{money(order.amount)}</td>
+                  <td class="text-right">{orderAmountLabel(order)}</td>
                   <td class="text-right">
                     {#if order.status === 'pending'}
-                      <button class="btn btn-primary btn-xs" type="button" onclick={() => startPaymentCheckout(order)} disabled={payingOrderId === order.id}>
+                      <button class="btn btn-primary btn-xs" type="button" onclick={() => startPaymentCheckout(order)} disabled={payingOrderId === order.id || creatingOrder}>
                         {#if payingOrderId === order.id}
                           <span class="loading loading-spinner loading-xs"></span>
                         {/if}
-                        去支付
+                        Pay
                       </button>
                     {:else}
                       <span class="text-sm text-base-content/50">--</span>
@@ -414,7 +367,7 @@
 
         <div class="flex flex-col gap-3 border-t border-base-300 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div class="text-sm text-base-content/60">
-            {orderPagination.total_items} orders · Page {orderPagination.page} / {Math.max(orderPagination.total_pages, 1)}
+            {orderPagination.total_items} orders - Page {orderPagination.page} / {Math.max(orderPagination.total_pages, 1)}
           </div>
           {#if orderPagination.total_pages > 1}
             <div class="max-w-full overflow-x-auto">
