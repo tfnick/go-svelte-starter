@@ -96,6 +96,12 @@
   function formatDate(value) {
     return formatLocalDateTime(value);
   }
+
+  function membershipLabel(value) {
+    if (value === 'premium') return 'Premium';
+    if (value === 'super') return 'Super';
+    return 'Basic';
+  }
 </script>
 
 <section class="space-y-6">
@@ -133,6 +139,7 @@
               <tr>
                 <th>User</th>
                 <th>Email</th>
+                <th>Membership</th>
                 <th>Verified</th>
                 <th>Status</th>
                 <th>Created</th>
@@ -152,6 +159,10 @@
                     </div>
                   </td>
                   <td class="max-w-60 truncate">{user.email}</td>
+                  <td>
+                    <div class="badge badge-outline">{membershipLabel(user.membership_level)}</div>
+                    <div class="mt-1 whitespace-nowrap text-xs text-base-content/50">{formatDate(user.membership_expires_at)}</div>
+                  </td>
                   <td>
                     <span class="badge {user.email_verified ? 'badge-success' : 'badge-outline'}">
                       {user.email_verified ? 'verified' : 'unverified'}

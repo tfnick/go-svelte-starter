@@ -1,10 +1,9 @@
 <script>
-  import { logout, triggerExportToast } from '../api.js';
+  import { logout } from '../api.js';
   import { navigate } from '../router.js';
 
   let { auth, onAuthChanged } = $props();
   let busy = $state(false);
-  let triggeringExportToast = $state(false);
   let error = $state('');
 
   async function handleLogout() {
@@ -21,17 +20,6 @@
     }
   }
 
-  async function handleTriggerExportToast() {
-    triggeringExportToast = true;
-    error = '';
-    try {
-      await triggerExportToast();
-    } catch (err) {
-      error = err.message || '触发导出通知失败';
-    } finally {
-      triggeringExportToast = false;
-    }
-  }
 </script>
 
 <header class="border-b border-base-300 bg-base-100/90 shadow-sm">
@@ -52,12 +40,6 @@
             <span class="loading loading-spinner loading-xs"></span>
           {/if}
           登出
-        </button>
-        <button class="btn btn-secondary btn-sm" type="button" onclick={handleTriggerExportToast} disabled={triggeringExportToast}>
-          {#if triggeringExportToast}
-            <span class="loading loading-spinner loading-xs"></span>
-          {/if}
-          触发导出完成
         </button>
       {:else}
         <button class="btn btn-ghost btn-sm" type="button" onclick={() => navigate('/login')}>登录</button>

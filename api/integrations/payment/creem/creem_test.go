@@ -127,6 +127,29 @@ func TestNormalizePaymentWebhookMapsNestedCreemCheckoutPayload(t *testing.T) {
 	}
 }
 
+func TestNormalizePaymentWebhookMapsSubscriptionCanceledPayload(t *testing.T) {
+	payload := []byte(`{"id":"evt_cancel","eventType":"subscription.canceled","object":{"id":"sub_123","object":"subscription","status":"canceled","customer":"cust_123","product":"prod_123","metadata":{"order_id":"order-1"}}}`)
+	signature := signPayload("webhook-secret", payload)
+
+	adapter := NewAdapter(nil)
+	normalized, err := adapter.NormalizePaymentWebhook(context.Background(), payment.ProviderConfig{
+		WebhookSecret: "webhook-secret",
+	}, payment.WebhookRequest{
+		RawPayload:      payload,
+		Signature:       signature,
+		VerifySignature: true,
+	})
+	if err != nil {
+		t.Fatalf("normalize webhook: %v", err)
+	}
+	if normalized.BusinessEventType != payment.WebhookEventSubscriptionCanceled || normalized.ProviderSubscriptionID != "sub_123" {
+		t.Fatalf("unexpected cancellation mapping: %#v", normalized)
+	}
+	if normalized.ProviderCustomerID != "cust_123" || normalized.ProviderProductID != "prod_123" || normalized.OrderID != "order-1" {
+		t.Fatalf("unexpected provider refs: %#v", normalized)
+	}
+}
+
 func TestNormalizePaymentWebhookRejectsInvalidSignature(t *testing.T) {
 	adapter := NewAdapter(nil)
 	_, err := adapter.NormalizePaymentWebhook(context.Background(), payment.ProviderConfig{

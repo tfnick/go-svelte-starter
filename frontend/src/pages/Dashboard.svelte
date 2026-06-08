@@ -5,11 +5,13 @@
     createOrder,
     createOrderPaymentCheckout,
     getMyPoints,
+    getProducts,
     getUserOrders,
     pointsSSEURL
   } from '../api.js';
   import Notice from '../components/Notice.svelte';
   import { orderStatusLabel } from '../enums/orderStatus.ts';
+  import { formatLocalDateTime } from '../helpers/dateTime.js';
   import { dispatchRealtimeMessage } from '../helpers/realtimeMessages.js';
 
   let { auth } = $props();
@@ -25,6 +27,8 @@
   };
 
   let orders = $state([]);
+  let products = $state([]);
+  let selectedProductId = $state('');
   let orderPagination = $state({ ...emptyOrderPagination });
   let points = $state(null);
   let loadingOrders = $state(false);
@@ -59,6 +63,8 @@
   function resetOrderManagement() {
     loadedUserId = '';
     orders = [];
+    products = [];
+    selectedProductId = '';
     orderPagination = { ...emptyOrderPagination };
     points = null;
     realtimeToasts = [];
@@ -72,8 +78,22 @@
   async function loadOrderManagement() {
     await Promise.all([
       loadOrders(orderPagination.page),
+      loadProducts(),
       loadPoints()
     ]);
+  }
+
+  async function loadProducts() {
+    error = '';
+    try {
+      const result = await getProducts();
+      products = Array.isArray(result) ? result : [];
+      if (!selectedProductId || !checkoutProducts().some((product) => product.id === selectedProductId)) {
+        selectedProductId = checkoutProducts()[0]?.id || '';
+      }
+    } catch (err) {
+      error = err.message || 'Failed to load products';
+    }
   }
 
   async function loadOrders(page = orderPagination.page) {
@@ -115,12 +135,16 @@
       error = 'Please sign in before creating an order';
       return;
     }
+    if (!selectedProductId) {
+      error = 'Select an enabled product before creating an order';
+      return;
+    }
 
     creatingOrder = true;
     error = '';
     message = '';
     try {
-      const result = await createOrder({ user_id: userId });
+      const result = await createOrder({ user_id: userId, product_id: selectedProductId });
       const order = result?.order;
       if (!order?.id) {
         throw new Error('Order was created without an id');
@@ -240,6 +264,37 @@
     return `$${(Number(value || 0) / 100).toFixed(2)}`;
   }
 
+  function checkoutProducts() {
+    return products.filter((product) => product.enabled && product.creem_product_id);
+  }
+
+  function selectedProduct() {
+    return products.find((product) => product.id === selectedProductId) || null;
+  }
+
+  function productPriceLabel(product) {
+    if (!product) return 'Creem checkout price';
+    const price = Number(product.price || 0);
+    if (price <= 0) return 'Creem checkout price';
+    return `${product.currency || 'USD'} ${(price / 100).toFixed(2)}`;
+  }
+
+  function membershipLabel(value) {
+    if (value === 'premium') return 'Premium';
+    if (value === 'super') return 'Super';
+    return 'Basic';
+  }
+
+  function subscriptionLabel(value) {
+    if (value === 'active') return 'active';
+    if (value === 'canceled') return 'canceled';
+    return '--';
+  }
+
+  function formatDate(value) {
+    return formatLocalDateTime(value);
+  }
+
   function orderAmountLabel(order) {
     const amount = Number(order.amount || 0);
     return amount > 0 ? money(amount) : 'Creem';
@@ -274,6 +329,12 @@
           <div class="mt-2 text-4xl font-bold">{points === null ? '--' : points}</div>
         </div>
 
+        <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
+          <div class="text-sm text-base-content/60">Membership</div>
+          <div class="mt-2 text-2xl font-bold">{membershipLabel(auth.user?.membership_level)}</div>
+          <div class="mt-1 text-sm text-base-content/60">{formatDate(auth.user?.membership_expires_at)}</div>
+        </div>
+
         {#if !auth.logged_in}
           <Notice type="warning" message="Please sign in before managing orders" />
         {/if}
@@ -284,15 +345,33 @@
       <div class="card-body gap-4">
         <div>
           <h2 class="card-title text-xl">Creem Checkout</h2>
-          <p class="text-sm text-base-content/60">Test product</p>
+          <p class="text-sm text-base-content/60">Selected local product maps to Creem.</p>
         </div>
+
+        <label class="form-control">
+          <span class="label"><span class="label-text">Product</span></span>
+          <select class="select select-bordered" bind:value={selectedProductId} disabled={checkoutProducts().length === 0}>
+            {#if checkoutProducts().length === 0}
+              <option value="">No enabled Creem products</option>
+            {:else}
+              {#each checkoutProducts() as product}
+                <option value={product.id}>{product.name}</option>
+              {/each}
+            {/if}
+          </select>
+        </label>
 
         <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
           <div class="text-sm text-base-content/60">Amount</div>
-          <div class="mt-1 text-lg font-semibold">Creem checkout price</div>
+          <div class="mt-1 text-lg font-semibold">{productPriceLabel(selectedProduct())}</div>
+          {#if selectedProduct()}
+            <div class="mt-1 text-sm text-base-content/60">
+              {membershipLabel(selectedProduct().membership_level)} - {selectedProduct().billing_type === 'subscription' ? selectedProduct().subscription_interval : 'permanent'}
+            </div>
+          {/if}
         </div>
 
-        <button class="btn btn-primary" type="button" onclick={submitOrder} disabled={!auth.logged_in || creatingOrder || Boolean(payingOrderId)}>
+        <button class="btn btn-primary" type="button" onclick={submitOrder} disabled={!auth.logged_in || !selectedProductId || creatingOrder || Boolean(payingOrderId)}>
           {#if creatingOrder || payingOrderId}
             <span class="loading loading-spinner loading-sm"></span>
           {/if}
@@ -330,8 +409,10 @@
             <thead>
               <tr>
                 <th>Order</th>
+                <th>Product</th>
                 <th>User</th>
                 <th>Status</th>
+                <th>Subscription</th>
                 <th class="text-right">Amount</th>
                 <th class="text-right">Action</th>
               </tr>
@@ -340,10 +421,21 @@
               {#each orders as order}
                 <tr>
                   <td class="max-w-48 truncate font-mono text-xs">{order.id}</td>
+                  <td>
+                    <div>{order.product_name || order.product_id || '--'}</div>
+                    {#if order.provider_subscription_id}
+                      <div class="max-w-44 truncate font-mono text-xs text-base-content/50">{order.provider_subscription_id}</div>
+                    {/if}
+                  </td>
                   <td>{order.user_name || order.user_id}</td>
                   <td>
                     <span class="badge {order.status === 'paid' ? 'badge-success' : 'badge-neutral'}">
                       {orderStatusLabel(order.status)}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge {order.subscription_status === 'canceled' ? 'badge-outline' : order.subscription_status === 'active' ? 'badge-info' : 'badge-ghost'}">
+                      {subscriptionLabel(order.subscription_status)}
                     </span>
                   </td>
                   <td class="text-right">{orderAmountLabel(order)}</td>

@@ -14,11 +14,28 @@ import (
 var ErrInsufficientStock = errors.New("insufficient stock")
 
 type Order struct {
-	ID        string `json:"id" db:"id"`
-	UserID    string `json:"user_id" db:"user_id"`
-	Amount    int64  `json:"amount" db:"amount"`
-	Status    string `json:"status" db:"status"`
-	CreatedAt string `json:"created_at,omitempty" db:"created_at"`
+	ID                     string `json:"id" db:"id"`
+	UserID                 string `json:"user_id" db:"user_id"`
+	ProductID              string `json:"product_id" db:"product_id"`
+	Amount                 int64  `json:"amount" db:"amount"`
+	Status                 string `json:"status" db:"status"`
+	ProviderCheckoutID     string `json:"provider_checkout_id" db:"provider_checkout_id"`
+	ProviderOrderID        string `json:"provider_order_id" db:"provider_order_id"`
+	ProviderCustomerID     string `json:"provider_customer_id" db:"provider_customer_id"`
+	ProviderSubscriptionID string `json:"provider_subscription_id" db:"provider_subscription_id"`
+	ProviderProductID      string `json:"provider_product_id" db:"provider_product_id"`
+	SubscriptionStatus     string `json:"subscription_status" db:"subscription_status"`
+	MembershipAppliedAt    string `json:"membership_applied_at,omitempty" db:"membership_applied_at"`
+	CreatedAt              string `json:"created_at,omitempty" db:"created_at"`
+}
+
+type OrderProviderRefs struct {
+	ProviderCheckoutID     string
+	ProviderOrderID        string
+	ProviderCustomerID     string
+	ProviderSubscriptionID string
+	ProviderProductID      string
+	SubscriptionStatus     string
 }
 
 type OrderItem struct {
@@ -30,9 +47,14 @@ type OrderItem struct {
 }
 
 func InsertOrder(ctx context.Context, userID string, amount int64) (*Order, error) {
+	return InsertOrderWithProduct(ctx, userID, "", amount)
+}
+
+func InsertOrderWithProduct(ctx context.Context, userID string, productID string, amount int64) (*Order, error) {
 	order := &Order{
 		ID:        uuid.Must(uuid.NewV7()).String(),
 		UserID:    userID,
+		ProductID: productID,
 		Amount:    amount,
 		Status:    "pending",
 		CreatedAt: timefmt.NowSQLiteDateTime(),
@@ -43,7 +65,10 @@ func InsertOrder(ctx context.Context, userID string, amount int64) (*Order, erro
 		return nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
-	insertOrderSQL := `INSERT INTO orders (id, user_id, amount, status, created_at) VALUES (:id, :user_id, :amount, :status, :created_at)`
+	insertOrderSQL := `
+		INSERT INTO orders (id, user_id, product_id, amount, status, created_at)
+		VALUES (:id, :user_id, :product_id, :amount, :status, :created_at)
+	`
 	if _, err := appDB.NamedExec(insertOrderSQL, order); err != nil {
 		return nil, fmt.Errorf("create order failed: %w", err)
 	}
@@ -54,7 +79,7 @@ func InsertOrder(ctx context.Context, userID string, amount int64) (*Order, erro
 func ReserveProductsForOrder(ctx context.Context, items []OrderItem) error {
 	appDB, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return fmt.Errorf("数据库不可用: %w", err)
+		return fmt.Errorf("database unavailable: %w", err)
 	}
 
 	reserveSQL := appDB.Rebind(`UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`)
@@ -62,7 +87,7 @@ func ReserveProductsForOrder(ctx context.Context, items []OrderItem) error {
 	for _, item := range items {
 		result, err := appDB.Exec(reserveSQL, item.Quantity, item.ProductID, item.Quantity)
 		if err != nil {
-			return fmt.Errorf("扣减库存失败: %w", err)
+			return fmt.Errorf("reserve product stock failed: %w", err)
 		}
 		rowsAffected, _ := result.RowsAffected()
 		if rowsAffected == 0 {
@@ -94,17 +119,17 @@ func InsertOrderWithItems(ctx context.Context, userID string, items []OrderItem)
 
 	appDB, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return nil, nil, fmt.Errorf("数据库不可用: %w", err)
+		return nil, nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
 	insertOrderSQL := `INSERT INTO orders (id, user_id, amount, status, created_at) VALUES (:id, :user_id, :amount, :status, :created_at)`
 	if _, err := appDB.NamedExec(insertOrderSQL, order); err != nil {
-		return nil, nil, fmt.Errorf("创建订单失败: %w", err)
+		return nil, nil, fmt.Errorf("create order failed: %w", err)
 	}
 
 	insertItemSQL := `INSERT INTO order_items (id, order_id, product_id, quantity, price) VALUES (:id, :order_id, :product_id, :quantity, :price)`
 	if _, err := appDB.NamedExec(insertItemSQL, persistedItems); err != nil {
-		return nil, nil, fmt.Errorf("创建订单项失败: %w", err)
+		return nil, nil, fmt.Errorf("create order items failed: %w", err)
 	}
 
 	return order, persistedItems, nil
@@ -113,14 +138,14 @@ func InsertOrderWithItems(ctx context.Context, userID string, items []OrderItem)
 func GetOrderByID(ctx context.Context, orderID string) (*Order, error) {
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return nil, fmt.Errorf("数据库不可用: %w", err)
+		return nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
 	var order Order
 	query := d.Rebind(`SELECT * FROM orders WHERE id = ?`)
 	err = d.Get(&order, query, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("获取订单失败: %w", err)
+		return nil, fmt.Errorf("get order failed: %w", err)
 	}
 	return &order, nil
 }
@@ -143,14 +168,14 @@ func CountOrdersByUserID(ctx context.Context, userID string) (int, error) {
 func GetOrdersByUserID(ctx context.Context, userID string, limit int, offset int) ([]Order, error) {
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return nil, fmt.Errorf("数据库不可用: %w", err)
+		return nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
 	var orders []Order
 	query := d.Rebind(`SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
 	err = d.Select(&orders, query, userID, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("获取订单列表失败: %w", err)
+		return nil, fmt.Errorf("list orders failed: %w", err)
 	}
 	return orders, nil
 }
@@ -158,14 +183,14 @@ func GetOrdersByUserID(ctx context.Context, userID string, limit int, offset int
 func GetOrderItems(ctx context.Context, orderID string) ([]OrderItem, error) {
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return nil, fmt.Errorf("数据库不可用: %w", err)
+		return nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
 	var items []OrderItem
 	query := d.Rebind(`SELECT * FROM order_items WHERE order_id = ?`)
 	err = d.Select(&items, query, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("获取订单项失败: %w", err)
+		return nil, fmt.Errorf("get order items failed: %w", err)
 	}
 	return items, nil
 }
@@ -173,13 +198,102 @@ func GetOrderItems(ctx context.Context, orderID string) ([]OrderItem, error) {
 func UpdateOrderStatus(ctx context.Context, orderID string, status string) error {
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return fmt.Errorf("数据库不可用: %w", err)
+		return fmt.Errorf("database unavailable: %w", err)
 	}
 
 	query := d.Rebind(`UPDATE orders SET status = ? WHERE id = ?`)
 	result, err := d.Exec(query, status, orderID)
 	if err != nil {
-		return fmt.Errorf("更新订单状态失败: %w", err)
+		return fmt.Errorf("update order status failed: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("order not found: %w", modelerror.ErrNotFound)
+	}
+	return nil
+}
+
+func UpdateOrderProviderRefs(ctx context.Context, orderID string, refs OrderProviderRefs) error {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(`
+		UPDATE orders SET
+			provider_checkout_id = CASE WHEN ? <> '' THEN ? ELSE provider_checkout_id END,
+			provider_order_id = CASE WHEN ? <> '' THEN ? ELSE provider_order_id END,
+			provider_customer_id = CASE WHEN ? <> '' THEN ? ELSE provider_customer_id END,
+			provider_subscription_id = CASE WHEN ? <> '' THEN ? ELSE provider_subscription_id END,
+			provider_product_id = CASE WHEN ? <> '' THEN ? ELSE provider_product_id END,
+			subscription_status = CASE WHEN ? <> '' THEN ? ELSE subscription_status END
+		WHERE id = ?
+	`)
+	result, err := d.Exec(query,
+		refs.ProviderCheckoutID, refs.ProviderCheckoutID,
+		refs.ProviderOrderID, refs.ProviderOrderID,
+		refs.ProviderCustomerID, refs.ProviderCustomerID,
+		refs.ProviderSubscriptionID, refs.ProviderSubscriptionID,
+		refs.ProviderProductID, refs.ProviderProductID,
+		refs.SubscriptionStatus, refs.SubscriptionStatus,
+		orderID,
+	)
+	if err != nil {
+		return fmt.Errorf("update order provider refs failed: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("order not found: %w", modelerror.ErrNotFound)
+	}
+	return nil
+}
+
+func UpdateOrderSubscriptionStatus(ctx context.Context, orderID string, status string) error {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(`UPDATE orders SET subscription_status = ? WHERE id = ?`)
+	result, err := d.Exec(query, status, orderID)
+	if err != nil {
+		return fmt.Errorf("update order subscription status failed: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("order not found: %w", modelerror.ErrNotFound)
+	}
+	return nil
+}
+
+func UpdateOrderSubscriptionStatusByProviderSubscriptionID(ctx context.Context, providerSubscriptionID string, status string) error {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(`UPDATE orders SET subscription_status = ? WHERE provider_subscription_id = ?`)
+	result, err := d.Exec(query, status, providerSubscriptionID)
+	if err != nil {
+		return fmt.Errorf("update order subscription status failed: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("order not found: %w", modelerror.ErrNotFound)
+	}
+	return nil
+}
+
+func MarkOrderMembershipApplied(ctx context.Context, orderID string, appliedAt string) error {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(`UPDATE orders SET membership_applied_at = ? WHERE id = ?`)
+	result, err := d.Exec(query, appliedAt, orderID)
+	if err != nil {
+		return fmt.Errorf("mark order membership applied failed: %w", err)
 	}
 	rows, _ := result.RowsAffected()
 	if rows == 0 {

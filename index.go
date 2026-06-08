@@ -103,6 +103,18 @@ func main() {
 	}); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register event handlers")
 	}
+	if err := usecaseevents.RegisterMembershipEventHandlers(func(ctx fwusecase.Context, cmd usecaseevents.ApplyOrderMembershipCmd) (usecaseevents.MembershipResult, bool, error) {
+		membership, applied, err := appusecase.ApplyOrderMembership(ctx, appusecase.ApplyOrderMembershipCmd{
+			OrderID: cmd.OrderID,
+		})
+		return usecaseevents.MembershipResult{
+			UserID:              membership.UserID,
+			MembershipLevel:     membership.MembershipLevel,
+			MembershipExpiresAt: membership.MembershipExpiresAt,
+		}, applied, err
+	}); err != nil {
+		logger.Fatal().Err(err).Msg("failed to register membership event handlers")
+	}
 
 	if err := startQueueRunners(appCtx, queueManager, logger); err != nil {
 		logger.Fatal().Err(err).Msg("failed to start queue runners")
@@ -157,6 +169,8 @@ func main() {
 			protected.POST("/notifications/test-export-toast", user.TriggerExportToast)
 
 			protected.GET("/products", user.ListProducts)
+			protected.POST("/products", user.CreateProduct)
+			protected.PUT("/products/:id", user.UpdateProduct)
 
 			protected.POST("/admin/reload-shared-db", user.ReloadSharedDB)
 

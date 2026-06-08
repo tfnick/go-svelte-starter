@@ -25,13 +25,15 @@ type SetUserActiveRequest struct {
 }
 
 type UserResponse struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
-	IsActive      bool   `json:"is_active"`
-	CreatedAt     string `json:"created_at,omitempty"`
-	UpdatedAt     string `json:"updated_at,omitempty"`
+	ID                  string `json:"id"`
+	Name                string `json:"name"`
+	Email               string `json:"email"`
+	EmailVerified       bool   `json:"email_verified"`
+	IsActive            bool   `json:"is_active"`
+	MembershipLevel     string `json:"membership_level"`
+	MembershipExpiresAt string `json:"membership_expires_at"`
+	CreatedAt           string `json:"created_at,omitempty"`
+	UpdatedAt           string `json:"updated_at,omitempty"`
 }
 
 type UsersResponse struct {
@@ -41,13 +43,15 @@ type UsersResponse struct {
 
 func ToUserResponse(user usecase.UserCo) UserResponse {
 	return UserResponse{
-		ID:            user.ID,
-		Name:          user.Name,
-		Email:         user.Email,
-		EmailVerified: user.EmailVerified,
-		IsActive:      user.IsActive,
-		CreatedAt:     user.CreatedAt,
-		UpdatedAt:     user.UpdatedAt,
+		ID:                  user.ID,
+		Name:                user.Name,
+		Email:               user.Email,
+		EmailVerified:       user.EmailVerified,
+		IsActive:            user.IsActive,
+		MembershipLevel:     user.MembershipLevel,
+		MembershipExpiresAt: user.MembershipExpiresAt,
+		CreatedAt:           user.CreatedAt,
+		UpdatedAt:           user.UpdatedAt,
 	}
 }
 

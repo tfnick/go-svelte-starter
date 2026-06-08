@@ -15,12 +15,14 @@ import (
 )
 
 const (
-	maxSummaryTextChars  = 20000
-	maxSummaryDimensions = 8
+	maxSummaryTextChars   = 20000
+	maxSummaryPromptChars = 4000
+	maxSummaryDimensions  = 8
 )
 
 type SummarizeTextWithLLMCmd struct {
 	Text       string
+	Prompt     string
 	Dimensions []string
 }
 
@@ -46,6 +48,10 @@ func SummarizeTextWithLLM(ctx fwusecase.Context, cmd SummarizeTextWithLLMCmd) (L
 	}
 	if len([]rune(text)) > maxSummaryTextChars {
 		return LLMSummaryCo{}, fwusecase.E(fwusecase.CodeValidation, "text is too long", nil)
+	}
+	prompt := strings.TrimSpace(cmd.Prompt)
+	if len([]rune(prompt)) > maxSummaryPromptChars {
+		return LLMSummaryCo{}, fwusecase.E(fwusecase.CodeValidation, "prompt is too long", nil)
 	}
 
 	config, err := models.GetEnabledLLMConfig(ctx.Std(), models.LLMConfigQuery{
@@ -83,7 +89,7 @@ func SummarizeTextWithLLM(ctx fwusecase.Context, cmd SummarizeTextWithLLMCmd) (L
 		return LLMSummaryCo{}, failLLMInvocation(ctx, invocation.ID, startedAt, providererror.CategoryPermanent, false, fwusecase.E(fwusecase.CodeInternal, "LLM adapter is not configured", cause))
 	}
 
-	request := buildSummaryGenerateRequest(text, dimensions)
+	request := buildSummaryGenerateRequest(text, prompt, dimensions)
 	result, err := adapter.Generate(ctx.Std(), providerCfg, request)
 	if err != nil {
 		category, retryable, providerRequestID := providerFailureMetadata(err)
@@ -186,8 +192,13 @@ func llmProviderConfig(config models.IntegrationLLMConfig) (llm.ProviderConfig, 
 	}, nil
 }
 
-func buildSummaryGenerateRequest(text string, dimensions []string) llm.GenerateRequest {
+func buildSummaryGenerateRequest(text string, prompt string, dimensions []string) llm.GenerateRequest {
 	dimensionsJSON, _ := json.Marshal(dimensions)
+	userContent := fmt.Sprintf("Dimensions: %s\n\nText:\n%s", string(dimensionsJSON), text)
+	if strings.TrimSpace(prompt) != "" {
+		userContent = fmt.Sprintf("Dimensions: %s\n\nRequirement prompt:\n%s\n\nText:\n%s", string(dimensionsJSON), prompt, text)
+	}
+
 	return llm.GenerateRequest{
 		Operation:      llm.OperationTextSummary,
 		ResponseFormat: llm.ResponseFormatJSON,
@@ -198,7 +209,7 @@ func buildSummaryGenerateRequest(text string, dimensions []string) llm.GenerateR
 			},
 			{
 				Role:    "user",
-				Content: fmt.Sprintf("Dimensions: %s\n\nText:\n%s", string(dimensionsJSON), text),
+				Content: userContent,
 			},
 		},
 	}

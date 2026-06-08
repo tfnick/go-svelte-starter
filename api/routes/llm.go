@@ -9,6 +9,7 @@ import (
 
 type SummarizeTextRequest struct {
 	Text       string   `json:"text"`
+	Prompt     string   `json:"prompt"`
 	Dimensions []string `json:"dimensions"`
 }
 
@@ -37,6 +38,7 @@ func SummarizeTextWithLLM(c echo.Context) error {
 	ctx := fwcontext.InternalUsecaseContext(c)
 	summary, err := usecase.SummarizeTextWithLLM(ctx, usecase.SummarizeTextWithLLMCmd{
 		Text:       req.Text,
+		Prompt:     req.Prompt,
 		Dimensions: req.Dimensions,
 	})
 	if err != nil {

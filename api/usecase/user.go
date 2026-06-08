@@ -16,6 +16,8 @@ type UserCo struct {
 	EmailVerified bool
 	IsActive      bool
 	IsAdmin       bool
+	MembershipLevel     string
+	MembershipExpiresAt string
 	CreatedAt     string
 	UpdatedAt     string
 }
@@ -188,6 +190,8 @@ func userCoFromModel(user *models.User) UserCo {
 		EmailVerified: user.EmailVerified == 1,
 		IsActive:      user.IsActive == 1,
 		IsAdmin:       user.IsAdmin == 1,
+		MembershipLevel:     user.MembershipLevel,
+		MembershipExpiresAt: user.MembershipExpiresAt,
 		CreatedAt:     user.CreatedAt,
 		UpdatedAt:     user.UpdatedAt,
 	}

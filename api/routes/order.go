@@ -10,8 +10,9 @@ import (
 )
 
 type CreateOrderRequest struct {
-	UserID string                   `json:"user_id"`
-	Items  []CreateOrderItemRequest `json:"items"`
+	UserID    string                   `json:"user_id"`
+	ProductID string                   `json:"product_id"`
+	Items     []CreateOrderItemRequest `json:"items"`
 }
 
 type CreateOrderItemRequest struct {
@@ -24,12 +25,21 @@ type UpdateOrderStatusRequest struct {
 }
 
 type OrderResponse struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	UserName  string `json:"user_name"`
-	Amount    int64  `json:"amount"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"created_at,omitempty"`
+	ID                     string `json:"id"`
+	UserID                 string `json:"user_id"`
+	UserName               string `json:"user_name"`
+	ProductID              string `json:"product_id"`
+	ProductName            string `json:"product_name"`
+	Amount                 int64  `json:"amount"`
+	Status                 string `json:"status"`
+	ProviderCheckoutID     string `json:"provider_checkout_id,omitempty"`
+	ProviderOrderID        string `json:"provider_order_id,omitempty"`
+	ProviderCustomerID     string `json:"provider_customer_id,omitempty"`
+	ProviderSubscriptionID string `json:"provider_subscription_id,omitempty"`
+	ProviderProductID      string `json:"provider_product_id,omitempty"`
+	SubscriptionStatus     string `json:"subscription_status,omitempty"`
+	MembershipAppliedAt    string `json:"membership_applied_at,omitempty"`
+	CreatedAt              string `json:"created_at,omitempty"`
 }
 
 type OrderItemResponse struct {
@@ -72,12 +82,21 @@ type UserOrdersResponse struct {
 
 func ToOrderResponse(order usecase.OrderCo) OrderResponse {
 	return OrderResponse{
-		ID:        order.ID,
-		UserID:    order.UserID,
-		UserName:  order.UserName,
-		Amount:    order.Amount,
-		Status:    order.Status,
-		CreatedAt: order.CreatedAt,
+		ID:                     order.ID,
+		UserID:                 order.UserID,
+		UserName:               order.UserName,
+		ProductID:              order.ProductID,
+		ProductName:            order.ProductName,
+		Amount:                 order.Amount,
+		Status:                 order.Status,
+		ProviderCheckoutID:     order.ProviderCheckoutID,
+		ProviderOrderID:        order.ProviderOrderID,
+		ProviderCustomerID:     order.ProviderCustomerID,
+		ProviderSubscriptionID: order.ProviderSubscriptionID,
+		ProviderProductID:      order.ProviderProductID,
+		SubscriptionStatus:     order.SubscriptionStatus,
+		MembershipAppliedAt:    order.MembershipAppliedAt,
+		CreatedAt:              order.CreatedAt,
 	}
 }
 
@@ -142,7 +161,8 @@ func CreateOrder(c echo.Context) error {
 
 	ctx := fwcontext.InternalUsecaseContext(c)
 	order, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{
-		UserID: req.UserID,
+		UserID:    req.UserID,
+		ProductID: req.ProductID,
 	})
 	if err != nil {
 		return httpresponse.InternalUsecaseError(c, err)

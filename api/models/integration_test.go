@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	"github.com/tfnick/go-svelte-starter/api/models"
+	"github.com/tfnick/sqlx"
 )
 
 func TestGetEnabledLLMConfigLoadsChannelCredentialAndModel(t *testing.T) {
@@ -33,6 +33,52 @@ func TestGetEnabledLLMConfigLoadsChannelCredentialAndModel(t *testing.T) {
 		t.Fatalf("unexpected model option: %#v", config.Model)
 	}
 	if config.Credential.ValueText != "models-api-key" {
+		t.Fatalf("unexpected credential value: %q", config.Credential.ValueText)
+	}
+}
+
+func TestGetEnabledLLMConfigFallsBackToDefaultDeepSeekModelForChannelOnlyConfig(t *testing.T) {
+	setupModelsTestDB(t)
+
+	credential, err := models.CreateIntegrationCredential(t.Context(), models.CreateIntegrationCredentialCmd{
+		CredentialType: "api_key",
+		ValueText:      "models-default-api-key",
+		Enabled:        true,
+	})
+	if err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	channel, err := models.CreateIntegrationChannel(t.Context(), models.CreateIntegrationChannelCmd{
+		Scenario:     models.IntegrationScenarioLLM,
+		ChannelCode:  "models-deepseek-channel-only",
+		ProviderCode: "deepseek",
+		AdapterKey:   "llm.deepseek.openai_compatible",
+		Environment:  "test",
+		Enabled:      true,
+		Priority:     1,
+		CredentialID: credential.ID,
+		ConfigJSON:   `{"base_url":"https://api.deepseek.com"}`,
+		MetadataJSON: "{}",
+	})
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+
+	config, err := models.GetEnabledLLMConfig(t.Context(), models.LLMConfigQuery{
+		Scenario:  models.IntegrationScenarioLLM,
+		Operation: "text_summary",
+	})
+	if err != nil {
+		t.Fatalf("get enabled llm config: %v", err)
+	}
+
+	if config.Channel.ID != channel.ID {
+		t.Fatalf("unexpected channel: %#v", config.Channel)
+	}
+	if config.Model.ModelCode != "deepseek-chat" || config.Model.ProviderModelID != "deepseek-chat" {
+		t.Fatalf("unexpected fallback model option: %#v", config.Model)
+	}
+	if config.Credential.ValueText != "models-default-api-key" {
 		t.Fatalf("unexpected credential value: %q", config.Credential.ValueText)
 	}
 }

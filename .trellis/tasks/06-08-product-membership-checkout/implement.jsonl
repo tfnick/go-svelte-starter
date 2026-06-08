@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/api-contracts.md","reason":"Kept internal API DTOs explicit at route boundaries while adding product/order/user membership contracts."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Added app migration with additive columns, indexes, and defaults for product membership checkout data."}
+{"file":".trellis/spec/backend/eventing-guidelines.md","reason":"Implemented membership fulfillment as a domain-event subscriber and preserved webhook retry idempotency."}
+{"file":".trellis/spec/frontend/svelte-vite-embed.md","reason":"Extended Svelte routes/pages with existing embedded app patterns and API helper usage."}
+{"file":".trellis/tasks/06-08-product-membership-checkout/research/creem-product-webhook-notes.md","reason":"Used Creem billing mode, interval, and webhook event findings to shape product mapping and cancellation handling."}

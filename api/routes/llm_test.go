@@ -3,28 +3,34 @@ package routes_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	"github.com/tfnick/go-svelte-starter/api/routes"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/llm"
+	"github.com/tfnick/sqlx"
 )
 
 type routeFakeLLMAdapter struct{}
 
 func (routeFakeLLMAdapter) Generate(ctx context.Context, cfg llm.ProviderConfig, req llm.GenerateRequest) (llm.GenerateResult, error) {
+	if len(req.Messages) < 2 || !strings.Contains(req.Messages[1].Content, "Requirement prompt:\nFocus on action items") {
+		return llm.GenerateResult{}, errRouteMissingPrompt
+	}
 	return llm.GenerateResult{
 		Content:           `{"actions":"follow up"}`,
 		ProviderRequestID: "route-provider-request",
 		Usage:             llm.Usage{TotalTokens: 3},
 	}, nil
 }
+
+var errRouteMissingPrompt = errors.New("missing prompt in LLM request")
 
 func TestSummarizeTextWithLLMUsesInternalEnvelope(t *testing.T) {
 	setupRouteTestDBs(t)
@@ -38,7 +44,7 @@ func TestSummarizeTextWithLLMUsesInternalEnvelope(t *testing.T) {
 	}
 
 	router := echo.New()
-	body := strings.NewReader(`{"text":"please summarize","dimensions":["actions"]}`)
+	body := strings.NewReader(`{"text":"please summarize","prompt":"Focus on action items","dimensions":["actions"]}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/llm/summaries", body)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()

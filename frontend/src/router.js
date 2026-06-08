@@ -6,9 +6,11 @@ const aliases = new Map([
   ['/forgot-password.html', '/forgot-password'],
   ['/reset-password.html', '/reset-password'],
   ['/orders.html', '/orders'],
+  ['/products.html', '/products'],
   ['/users.html', '/users'],
   ['/scheduler.html', '/scheduler'],
   ['/events.html', '/events'],
+  ['/experiments.html', '/experiments'],
   ['/dictionary.html', '/dictionary'],
   ['/parameters.html', '/parameters'],
   ['/notifications.html', '/notifications'],
@@ -27,6 +29,11 @@ export const appRoutes = Object.freeze([
     description: 'Orders and points'
   },
   {
+    path: '/products',
+    label: 'Product',
+    description: 'Checkout catalog'
+  },
+  {
     path: '/users',
     label: 'User',
     description: 'Accounts'
@@ -40,6 +47,11 @@ export const appRoutes = Object.freeze([
     path: '/events',
     label: 'Event',
     description: 'Domain deliveries'
+  },
+  {
+    path: '/experiments',
+    label: 'Experiment',
+    description: 'LLM and SSE'
   },
   {
     path: '/dictionary',
@@ -112,12 +124,16 @@ export function routeTitle(path) {
       return 'Reset Password';
     case '/orders':
       return 'Order';
+    case '/products':
+      return 'Product';
     case '/users':
       return 'User';
     case '/scheduler':
       return 'Scheduler';
     case '/events':
       return 'Event';
+    case '/experiments':
+      return 'Experiment';
     case '/dictionary':
       return 'Dictionary';
     case '/parameters':

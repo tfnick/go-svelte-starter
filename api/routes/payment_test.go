@@ -9,17 +9,20 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
 	"github.com/tfnick/go-svelte-starter/api/routes"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/payment"
+	"github.com/tfnick/sqlx"
 )
 
 type routeFakePaymentAdapter struct{}
 
 func (routeFakePaymentAdapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig, req payment.CreatePaymentRequest) (payment.CreatePaymentResult, error) {
+	if req.ProductID != "prod_route" {
+		panic("unexpected route payment product id: " + req.ProductID)
+	}
 	return payment.CreatePaymentResult{
 		ProviderPaymentID: "route-ch",
 		CheckoutURL:       "https://checkout.creem.io/route-ch",
@@ -124,7 +127,8 @@ func seedRoutePaymentOrder(t *testing.T, appDB *sqlx.DB) {
 	if _, err := appDB.Exec(`INSERT INTO users (id, name, email, password_hash, email_verified, is_active) VALUES ('route-user', 'Ada', 'ada@example.com', '', 1, 1)`); err != nil {
 		t.Fatalf("insert route user: %v", err)
 	}
-	if _, err := appDB.Exec(`INSERT INTO orders (id, user_id, amount, status) VALUES ('route-order', 'route-user', 1000, 'pending')`); err != nil {
+	seedRouteCheckoutProduct(t, appDB, "route-product", "prod_route")
+	if _, err := appDB.Exec(`INSERT INTO orders (id, user_id, product_id, amount, status) VALUES ('route-order', 'route-user', 'route-product', 1000, 'pending')`); err != nil {
 		t.Fatalf("insert route order: %v", err)
 	}
 }

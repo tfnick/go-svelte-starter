@@ -88,6 +88,7 @@ payOrder(orderId)
 getMyPoints()
 getProducts()
 triggerExportToast()
+summarizeTextWithLLM({ text, prompt, dimensions })
 listNotifications({ page, pageSize, type, email, phone })
 listScheduledTasks()
 createScheduledTask(payload)
@@ -238,6 +239,91 @@ const events = new EventSource('http://localhost:3000/api/points/sse');
 
 ```js
 const events = new EventSource(pointsSSEURL());
+```
+
+---
+
+## Scenario: Experiment LLM and SSE UI
+
+### 1. Scope / Trigger
+
+Modify `frontend/src/pages/Experiments.svelte`, `/experiments` app routing, the LLM summary API helper, or SSE demo controls according to this section. The Experiment page is for functional research and demonstrations; it should reuse existing app capabilities instead of introducing parallel transport paths.
+
+### 2. Signatures
+
+Frontend helpers:
+
+```js
+summarizeTextWithLLM({ text, prompt, dimensions })
+triggerExportToast()
+pointsSSEURL(locationObject = globalThis.location)
+```
+
+Route entry:
+
+```js
+{ path: '/experiments', label: 'Experiment', description: 'LLM and SSE' }
+```
+
+Backend API paths:
+
+```text
+POST /api/llm/summaries
+POST /api/notifications/test-export-toast
+GET  /api/points/sse?access_token=<jwt>
+```
+
+### 3. Contracts
+
+* `Experiments.svelte` must call helpers from `frontend/src/api.js`; no direct `fetch('/api/...')` in the component.
+* The right side uses the same daisyUI `tabs tabs-lift` + radio input pattern as `Parameters.svelte`.
+* The `LLM` tab sends `text`, `prompt`, and `dimensions` to `summarizeTextWithLLM()`. For a single free-form summary demo, use `dimensions:['summary']` and render `response.summary.summary`.
+* The `SSE` tab owns the demo button that calls `triggerExportToast()`. Do not place this test action in the global `Header`.
+* The `SSE` tab connects through `new EventSource(pointsSSEURL())`, parses realtime envelopes with `dispatchRealtimeMessage()`, and displays received messages as demo output.
+* The page may keep chat/event history in component state only; do not persist experiment history unless a new storage contract is added.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| empty LLM text | show local validation message and do not call API |
+| empty LLM prompt | show local validation message and do not call API |
+| LLM API fails | show API client safe message and append a failed assistant message |
+| SSE disconnected | show disconnected/error state; reconnect remains available |
+| export trigger API fails | show API client safe message; do not fabricate success toast |
+| realtime message malformed | ignore or log a safe malformed-message entry; keep page usable |
+
+### 5. Good/Base/Bad Cases
+
+Good: User opens `/experiments`, submits text + prompt in the `LLM` tab, and sees the DeepSeek-backed summary appended to the chat surface with model/channel metadata.
+
+Base: User opens the `SSE` tab, stream connects through `pointsSSEURL()`, clicks `Trigger export completed`, and sees the backend `async_export_task` toast message arrive through SSE.
+
+Bad: Component directly calls `fetch('/api/llm/summaries')` or creates a fake toast immediately after clicking the SSE button; this bypasses helper tests and hides backend delivery behavior.
+
+### 6. Tests Required
+
+* `frontend/src/api.test.js` covers `summarizeTextWithLLM()` path, method, and JSON body.
+* `frontend/src/router.test.js` covers `/experiments.html` alias, menu label, app-route detection, and title.
+* `cd frontend && npm test`
+* `cd frontend && npm run build`
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```svelte
+await fetch('/api/llm/summaries', { method: 'POST' });
+```
+
+#### Correct
+
+```svelte
+const result = await summarizeTextWithLLM({
+  text,
+  prompt,
+  dimensions: ['summary']
+});
 ```
 
 ---

@@ -7,9 +7,11 @@ test('normalizes app route aliases', () => {
   assert.equal(normalizePath('/index.html'), '/');
   assert.equal(normalizePath('/dashboard'), '/');
   assert.equal(normalizePath('/orders.html'), '/orders');
+  assert.equal(normalizePath('/products.html'), '/products');
   assert.equal(normalizePath('/users.html'), '/users');
   assert.equal(normalizePath('/scheduler.html'), '/scheduler');
   assert.equal(normalizePath('/events.html'), '/events');
+  assert.equal(normalizePath('/experiments.html'), '/experiments');
   assert.equal(normalizePath('/dictionary.html'), '/dictionary');
   assert.equal(normalizePath('/parameters.html'), '/parameters');
   assert.equal(normalizePath('/notifications.html'), '/notifications');
@@ -22,9 +24,11 @@ test('exposes logged-in app menu routes from one source', () => {
     [
       ['/', 'Dashboard'],
       ['/orders', 'Order'],
+      ['/products', 'Product'],
       ['/users', 'User'],
       ['/scheduler', 'Scheduler'],
       ['/events', 'Event'],
+      ['/experiments', 'Experiment'],
       ['/dictionary', 'Dictionary'],
       ['/parameters', 'Parameter'],
       ['/notifications', 'Notification'],
@@ -49,9 +53,11 @@ test('classifies auth and app routes', () => {
 
   assert.equal(isAppRoute('/'), true);
   assert.equal(isAppRoute('/orders'), true);
+  assert.equal(isAppRoute('/products'), true);
   assert.equal(isAppRoute('/users'), true);
   assert.equal(isAppRoute('/scheduler'), true);
   assert.equal(isAppRoute('/events'), true);
+  assert.equal(isAppRoute('/experiments'), true);
   assert.equal(isAppRoute('/dictionary'), true);
   assert.equal(isAppRoute('/parameters'), true);
   assert.equal(isAppRoute('/notifications'), true);
@@ -62,9 +68,11 @@ test('classifies auth and app routes', () => {
 test('returns route titles for logged-in menu pages', () => {
   assert.equal(routeTitle('/'), 'Dashboard');
   assert.equal(routeTitle('/orders'), 'Order');
+  assert.equal(routeTitle('/products'), 'Product');
   assert.equal(routeTitle('/users'), 'User');
   assert.equal(routeTitle('/scheduler'), 'Scheduler');
   assert.equal(routeTitle('/events'), 'Event');
+  assert.equal(routeTitle('/experiments'), 'Experiment');
   assert.equal(routeTitle('/dictionary'), 'Dictionary');
   assert.equal(routeTitle('/parameters'), 'Parameter');
   assert.equal(routeTitle('/notifications'), 'Notification');

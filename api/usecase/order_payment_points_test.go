@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	fwevents "github.com/tfnick/go-svelte-starter/api/framework/events"
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
@@ -12,6 +11,7 @@ import (
 	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
 	usecaseevents "github.com/tfnick/go-svelte-starter/api/usecase/events"
+	"github.com/tfnick/sqlx"
 )
 
 func TestPayOrderQueuesPointsAwardAndSubscriberIsIdempotent(t *testing.T) {
@@ -39,11 +39,11 @@ func TestPayOrderQueuesPointsAwardAndSubscriberIsIdempotent(t *testing.T) {
 	if deliveryCount := countRows(t, appDB, `SELECT COUNT(*) FROM domain_event_deliveries WHERE subscriber = ?`, usecaseevents.OrderPaidSubscriber); deliveryCount != 1 {
 		t.Fatalf("expected one order paid delivery, got %d", deliveryCount)
 	}
-	if queueCount := countRows(t, appDB, `SELECT COUNT(*) FROM goqite WHERE queue = ?`, queue.QueueDomainEvents); queueCount != 1 {
-		t.Fatalf("expected one domain event queue message, got %d", queueCount)
+	if queueCount := countRows(t, appDB, `SELECT COUNT(*) FROM goqite WHERE queue = ?`, queue.QueueDomainEvents); queueCount != 2 {
+		t.Fatalf("expected two domain event queue messages, got %d", queueCount)
 	}
 
-	handleNextDomainEventMessage(t, appDB)
+	handleDomainEventMessageForSubscriber(t, appDB, usecaseevents.OrderPaidSubscriber)
 	points, err = usecase.GetUserPoints(ctx, usecase.PointsBalanceQry{UserID: "u1"})
 	if err != nil {
 		t.Fatalf("get points after handling event: %v", err)
@@ -129,7 +129,7 @@ func TestOrderPaidSubscriberFailureDoesNotRollBackPaidOrder(t *testing.T) {
 		t.Fatalf("drop point_transactions: %v", err)
 	}
 
-	body := nextDomainEventMessageBody(t, appDB)
+	body := domainEventMessageBodyForSubscriber(t, appDB, usecaseevents.OrderPaidSubscriber)
 	err := fwevents.HandleMessage(t.Context(), []byte(body))
 	if err == nil {
 		t.Fatalf("expected subscriber failure")
@@ -189,6 +189,18 @@ func registerUsecaseEventHandlers(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("register event handlers: %v", err)
 	}
+	if err := usecaseevents.RegisterMembershipEventHandlers(func(ctx fwusecase.Context, cmd usecaseevents.ApplyOrderMembershipCmd) (usecaseevents.MembershipResult, bool, error) {
+		membership, applied, err := usecase.ApplyOrderMembership(ctx, usecase.ApplyOrderMembershipCmd{
+			OrderID: cmd.OrderID,
+		})
+		return usecaseevents.MembershipResult{
+			UserID:              membership.UserID,
+			MembershipLevel:     membership.MembershipLevel,
+			MembershipExpiresAt: membership.MembershipExpiresAt,
+		}, applied, err
+	}); err != nil {
+		t.Fatalf("register membership event handlers: %v", err)
+	}
 }
 
 func handleNextDomainEventMessage(t *testing.T, appDB *sqlx.DB) {
@@ -199,6 +211,18 @@ func handleNextDomainEventMessage(t *testing.T, appDB *sqlx.DB) {
 		t.Fatalf("handle domain event message: %v", err)
 	}
 	if _, err := appDB.Exec(`DELETE FROM goqite WHERE queue = ?`, queue.QueueDomainEvents); err != nil {
+		t.Fatalf("delete handled queue message: %v", err)
+	}
+}
+
+func handleDomainEventMessageForSubscriber(t *testing.T, appDB *sqlx.DB, subscriber string) {
+	t.Helper()
+
+	body := domainEventMessageBodyForSubscriber(t, appDB, subscriber)
+	if err := fwevents.HandleMessage(t.Context(), []byte(body)); err != nil {
+		t.Fatalf("handle domain event message for %s: %v", subscriber, err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`DELETE FROM goqite WHERE queue = ? AND CAST(body AS TEXT) LIKE ?`), queue.QueueDomainEvents, `%"subscriber":"`+subscriber+`"%`); err != nil {
 		t.Fatalf("delete handled queue message: %v", err)
 	}
 }
@@ -227,6 +251,17 @@ func nextDomainEventMessageBody(t *testing.T, appDB *sqlx.DB) string {
 	return body
 }
 
+func domainEventMessageBodyForSubscriber(t *testing.T, appDB *sqlx.DB, subscriber string) string {
+	t.Helper()
+
+	var body string
+	query := appDB.Rebind(`SELECT CAST(body AS TEXT) FROM goqite WHERE queue = ? AND CAST(body AS TEXT) LIKE ? ORDER BY created LIMIT 1`)
+	if err := appDB.Get(&body, query, queue.QueueDomainEvents, `%"subscriber":"`+subscriber+`"%`); err != nil {
+		t.Fatalf("get domain event message body for %s: %v", subscriber, err)
+	}
+	return body
+}
+
 func countRows(t *testing.T, appDB *sqlx.DB, query string, args ...interface{}) int {
 	t.Helper()
 
@@ -247,8 +282,22 @@ func seedPayableOrder(t *testing.T, manager *db.DBManager) (*sqlx.DB, string) {
 	if _, err := appDB.Exec(`INSERT INTO users (id, name, email, password_hash, email_verified, is_active) VALUES ('u1', 'Ada', 'ada@example.com', '', 1, 1)`); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
-	if _, err := appDB.Exec(`INSERT INTO orders (id, user_id, amount, status) VALUES ('o1', 'u1', 1000, 'pending')`); err != nil {
+	seedUsecaseCheckoutProduct(t, appDB, "p1", "prod_usecase")
+	if _, err := appDB.Exec(`INSERT INTO orders (id, user_id, product_id, amount, status) VALUES ('o1', 'u1', 'p1', 1000, 'pending')`); err != nil {
 		t.Fatalf("insert order: %v", err)
 	}
 	return appDB, "o1"
+}
+
+func seedUsecaseCheckoutProduct(t *testing.T, appDB *sqlx.DB, productID string, creemProductID string) {
+	t.Helper()
+
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO products (
+			id, name, description, price, currency, stock, enabled, creem_product_id,
+			billing_type, membership_level, subscription_interval, created_at, updated_at
+		) VALUES (?, 'Premium Month', 'Membership test product', 1000, 'USD', 0, 1, ?, 'subscription', 'premium', 'month', '2026-01-01 00:00:00', '2026-01-01 00:00:00')
+	`), productID, creemProductID); err != nil {
+		t.Fatalf("insert checkout product: %v", err)
+	}
 }

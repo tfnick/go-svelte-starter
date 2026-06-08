@@ -5,23 +5,25 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	"github.com/tfnick/go-svelte-starter/api/framework/data/modelerror"
 	"github.com/tfnick/go-svelte-starter/api/framework/data/namelookup"
 	"github.com/tfnick/go-svelte-starter/api/framework/timefmt"
+	"github.com/tfnick/sqlx"
 )
 
 type User struct {
-	ID            string `json:"id" db:"id"`
-	Name          string `json:"name" db:"name"`
-	Email         string `json:"email" db:"email"`
-	PasswordHash  string `json:"-" db:"password_hash"`
-	EmailVerified int    `json:"email_verified,omitempty" db:"email_verified"`
-	IsActive      int    `json:"is_active,omitempty" db:"is_active"`
-	IsAdmin       int    `json:"is_admin,omitempty" db:"is_admin"`
-	CreatedAt     string `json:"created_at,omitempty" db:"created_at"`
-	UpdatedAt     string `json:"updated_at,omitempty" db:"updated_at"`
+	ID                  string `json:"id" db:"id"`
+	Name                string `json:"name" db:"name"`
+	Email               string `json:"email" db:"email"`
+	PasswordHash        string `json:"-" db:"password_hash"`
+	EmailVerified       int    `json:"email_verified,omitempty" db:"email_verified"`
+	IsActive            int    `json:"is_active,omitempty" db:"is_active"`
+	IsAdmin             int    `json:"is_admin,omitempty" db:"is_admin"`
+	MembershipLevel     string `json:"membership_level" db:"membership_level"`
+	MembershipExpiresAt string `json:"membership_expires_at" db:"membership_expires_at"`
+	CreatedAt           string `json:"created_at,omitempty" db:"created_at"`
+	UpdatedAt           string `json:"updated_at,omitempty" db:"updated_at"`
 }
 
 type UserQuery struct {
@@ -89,7 +91,11 @@ func GetAllUsers(ctx context.Context) ([]User, error) {
 		return nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
-	sql := `SELECT id, name, email, email_verified, is_active, is_admin, created_at, updated_at FROM users ORDER BY created_at DESC`
+	sql := `
+		SELECT id, name, email, email_verified, is_active, is_admin, membership_level, membership_expires_at, created_at, updated_at
+		FROM users
+		ORDER BY created_at DESC
+	`
 	var users []User
 	if err := eng.Select(&users, sql, UserQuery{}); err != nil {
 		return nil, fmt.Errorf("get users failed: %w", err)
@@ -117,7 +123,7 @@ func ListUsers(ctx context.Context, limit int, offset int) ([]User, error) {
 	}
 
 	query := d.Rebind(`
-		SELECT id, name, email, email_verified, is_active, is_admin, created_at, updated_at
+		SELECT id, name, email, email_verified, is_active, is_admin, membership_level, membership_expires_at, created_at, updated_at
 		FROM users
 		ORDER BY created_at DESC, id DESC
 		LIMIT ? OFFSET ?
@@ -194,6 +200,31 @@ func SetUserActive(ctx context.Context, id string, active bool) error {
 	result, err := d.Exec(query, value, timefmt.NowSQLiteDateTime(), id)
 	if err != nil {
 		return fmt.Errorf("set user active failed: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read affected rows failed: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found: %w", modelerror.ErrNotFound)
+	}
+	return nil
+}
+
+func UpdateUserMembership(ctx context.Context, userID string, level string, expiresAt string) error {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(`
+		UPDATE users
+		SET membership_level = ?, membership_expires_at = ?, updated_at = ?
+		WHERE id = ?
+	`)
+	result, err := d.Exec(query, level, expiresAt, timefmt.NowSQLiteDateTime(), userID)
+	if err != nil {
+		return fmt.Errorf("update user membership failed: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {

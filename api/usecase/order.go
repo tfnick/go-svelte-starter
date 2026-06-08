@@ -4,19 +4,28 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/tfnick/go-svelte-starter/api/framework/data/modelerror"
 	"github.com/tfnick/go-svelte-starter/api/framework/data/namelookup"
 	"github.com/tfnick/go-svelte-starter/api/framework/events"
+	"github.com/tfnick/go-svelte-starter/api/framework/timefmt"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
 	usecaseevents "github.com/tfnick/go-svelte-starter/api/usecase/events"
 	"github.com/tfnick/go-svelte-starter/api/usecase/translate"
 )
 
+const (
+	OrderSubscriptionStatusActive   = "active"
+	OrderSubscriptionStatusCanceled = "canceled"
+)
+
 type CreateOrderCmd struct {
-	UserID string
-	Items  []CreateOrderItemCmd
+	UserID    string
+	ProductID string
+	Items     []CreateOrderItemCmd
 }
 
 type CreateOrderItemCmd struct {
@@ -40,16 +49,47 @@ type UpdateOrderStatusCmd struct {
 }
 
 type PayOrderCmd struct {
+	OrderID                  string
+	ProviderCheckoutID       string
+	ProviderOrderID          string
+	ProviderCustomerID       string
+	ProviderSubscriptionID   string
+	ProviderProductID        string
+	ProviderSubscriptionHint string
+}
+
+type ApplyOrderMembershipCmd struct {
 	OrderID string
 }
 
+type ApplyOrderMembershipCo struct {
+	UserID              string
+	MembershipLevel     string
+	MembershipExpiresAt string
+}
+
+type CancelOrderSubscriptionCmd struct {
+	OrderID                 string
+	ProviderSubscriptionID  string
+	ProviderSubscriptionRef string
+}
+
 type OrderCo struct {
-	ID        string
-	UserID    string
-	UserName  string
-	Amount    int64
-	Status    string
-	CreatedAt string
+	ID                     string
+	UserID                 string
+	UserName               string
+	ProductID              string
+	ProductName            string
+	Amount                 int64
+	Status                 string
+	ProviderCheckoutID     string
+	ProviderOrderID        string
+	ProviderCustomerID     string
+	ProviderSubscriptionID string
+	ProviderProductID      string
+	SubscriptionStatus     string
+	MembershipAppliedAt    string
+	CreatedAt              string
 }
 
 type OrderItemCo struct {
@@ -72,8 +112,11 @@ type UserOrdersCo struct {
 }
 
 func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error) {
-	if cmd.UserID == "" {
+	if strings.TrimSpace(cmd.UserID) == "" {
 		return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "user ID is required", nil)
+	}
+	if strings.TrimSpace(cmd.ProductID) == "" {
+		return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "product ID is required", nil)
 	}
 	if _, err := GetUser(ctx, UserDetailQry{ID: cmd.UserID}); err != nil {
 		if fwusecase.CodeOf(err) == fwusecase.CodeNotFound {
@@ -82,10 +125,14 @@ func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error) {
 		return OrderCo{}, err
 	}
 
-	var order *models.Order
+	product, err := loadCheckoutProduct(ctx, cmd.ProductID)
+	if err != nil {
+		return OrderCo{}, err
+	}
 
-	err := fwusecase.WithAppTx(ctx, func(txCtx fwusecase.Context) error {
-		createdOrder, err := models.InsertOrder(txCtx.Std(), cmd.UserID, 0)
+	var order *models.Order
+	err = fwusecase.WithAppTx(ctx, func(txCtx fwusecase.Context) error {
+		createdOrder, err := models.InsertOrderWithProduct(txCtx.Std(), cmd.UserID, product.ID, 0)
 		if err != nil {
 			return err
 		}
@@ -196,7 +243,7 @@ func UpdateOrderStatus(ctx fwusecase.Context, cmd UpdateOrderStatusCmd) error {
 }
 
 func PayOrder(ctx fwusecase.Context, cmd PayOrderCmd) (OrderCo, error) {
-	if cmd.OrderID == "" {
+	if strings.TrimSpace(cmd.OrderID) == "" {
 		return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "order ID is required", nil)
 	}
 	if len(events.Subscribers(usecaseevents.OrderPaidTopic)) == 0 {
@@ -211,6 +258,17 @@ func PayOrder(ctx fwusecase.Context, cmd PayOrderCmd) (OrderCo, error) {
 				return fwusecase.E(fwusecase.CodeNotFound, "order not found", err)
 			}
 			return fwusecase.E(fwusecase.CodeInternal, "failed to load order", err)
+		}
+
+		refs := orderProviderRefsFromPayCmd(cmd)
+		if refs.SubscriptionStatus == "" && refs.ProviderSubscriptionID != "" {
+			refs.SubscriptionStatus = OrderSubscriptionStatusActive
+		}
+		if hasOrderProviderRefs(refs) {
+			if err := models.UpdateOrderProviderRefs(txCtx.Std(), order.ID, refs); err != nil {
+				return fwusecase.E(fwusecase.CodeInternal, "failed to update order payment references", err)
+			}
+			mergeOrderProviderRefs(order, refs)
 		}
 
 		if order.Status == "paid" {
@@ -254,6 +312,243 @@ func PayOrder(ctx fwusecase.Context, cmd PayOrderCmd) (OrderCo, error) {
 	return orderCoFromModel(paidOrder, names), nil
 }
 
+func ApplyOrderMembership(ctx fwusecase.Context, cmd ApplyOrderMembershipCmd) (ApplyOrderMembershipCo, bool, error) {
+	if strings.TrimSpace(cmd.OrderID) == "" {
+		return ApplyOrderMembershipCo{}, false, fwusecase.E(fwusecase.CodeValidation, "order ID is required", nil)
+	}
+
+	var result ApplyOrderMembershipCo
+	applied := false
+	err := fwusecase.WithAppTx(ctx, func(txCtx fwusecase.Context) error {
+		order, err := models.GetOrderByID(txCtx.Std(), cmd.OrderID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return fwusecase.E(fwusecase.CodeNotFound, "order not found", err)
+			}
+			return fwusecase.E(fwusecase.CodeInternal, "failed to load order", err)
+		}
+		if order.Status != "paid" {
+			return fwusecase.E(fwusecase.CodeConflict, "only paid orders can grant membership", nil)
+		}
+		if strings.TrimSpace(order.MembershipAppliedAt) != "" {
+			return nil
+		}
+		if strings.TrimSpace(order.ProductID) == "" {
+			return fwusecase.E(fwusecase.CodeValidation, "order product is required", nil)
+		}
+
+		product, err := models.GetProductByID(txCtx.Std(), order.ProductID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return fwusecase.E(fwusecase.CodeNotFound, "product not found", err)
+			}
+			return fwusecase.E(fwusecase.CodeInternal, "failed to load order product", err)
+		}
+		user, err := models.GetUserByID(txCtx.Std(), order.UserID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return fwusecase.E(fwusecase.CodeNotFound, "user not found", err)
+			}
+			return fwusecase.E(fwusecase.CodeInternal, "failed to load order user", err)
+		}
+
+		expiresAt, err := membershipExpiresAtForProduct(product, user.MembershipExpiresAt)
+		if err != nil {
+			return err
+		}
+		if err := models.UpdateUserMembership(txCtx.Std(), order.UserID, product.MembershipLevel, expiresAt); err != nil {
+			return fwusecase.E(fwusecase.CodeInternal, "failed to update user membership", err)
+		}
+
+		appliedAt := timefmt.NowSQLiteDateTime()
+		if err := models.MarkOrderMembershipApplied(txCtx.Std(), order.ID, appliedAt); err != nil {
+			return fwusecase.E(fwusecase.CodeInternal, "failed to mark membership fulfillment", err)
+		}
+
+		result = ApplyOrderMembershipCo{
+			UserID:              order.UserID,
+			MembershipLevel:     product.MembershipLevel,
+			MembershipExpiresAt: expiresAt,
+		}
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return ApplyOrderMembershipCo{}, false, err
+	}
+	return result, applied, nil
+}
+
+func CancelOrderSubscription(ctx fwusecase.Context, cmd CancelOrderSubscriptionCmd) error {
+	orderID := strings.TrimSpace(cmd.OrderID)
+	subscriptionID := firstNonEmptyString(cmd.ProviderSubscriptionID, cmd.ProviderSubscriptionRef)
+	if orderID == "" && subscriptionID == "" {
+		return fwusecase.E(fwusecase.CodeValidation, "subscription reference is required", nil)
+	}
+
+	err := fwusecase.WithAppTx(ctx, func(txCtx fwusecase.Context) error {
+		if subscriptionID != "" {
+			err := models.UpdateOrderSubscriptionStatusByProviderSubscriptionID(txCtx.Std(), subscriptionID, OrderSubscriptionStatusCanceled)
+			if err == nil {
+				return nil
+			}
+			if !errors.Is(err, modelerror.ErrNotFound) || orderID == "" {
+				return err
+			}
+		}
+		return models.UpdateOrderSubscriptionStatus(txCtx.Std(), orderID, OrderSubscriptionStatusCanceled)
+	})
+	if err != nil {
+		if errors.Is(err, modelerror.ErrNotFound) {
+			return fwusecase.E(fwusecase.CodeNotFound, "order subscription not found", err)
+		}
+		return fwusecase.E(fwusecase.CodeInternal, "failed to update order subscription", err)
+	}
+	return nil
+}
+
+func loadCheckoutProduct(ctx fwusecase.Context, productID string) (*models.Product, error) {
+	product, err := models.GetProductByID(ctx.Std(), productID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fwusecase.E(fwusecase.CodeValidation, "product not found", err)
+		}
+		return nil, fwusecase.E(fwusecase.CodeInternal, "failed to load product", err)
+	}
+	if product.Enabled != 1 {
+		return nil, fwusecase.E(fwusecase.CodeValidation, "product is disabled", nil)
+	}
+	if strings.TrimSpace(product.CreemProductID) == "" {
+		return nil, fwusecase.E(fwusecase.CodeValidation, "product Creem ID is required", nil)
+	}
+	return product, nil
+}
+
+func membershipExpiresAtForProduct(product *models.Product, currentExpiresAt string) (string, error) {
+	if product.BillingType == ProductBillingTypeOneTime {
+		return PermanentMembershipExpiresAt, nil
+	}
+	if product.BillingType != ProductBillingTypeSubscription {
+		return "", fwusecase.E(fwusecase.CodeValidation, "invalid product billing type", nil)
+	}
+
+	base := timefmt.NowUTC()
+	current, err := parseSQLiteTime(currentExpiresAt)
+	if err == nil && current.After(base) {
+		base = current
+	}
+
+	switch product.SubscriptionInterval {
+	case SubscriptionIntervalMonth:
+		return timefmt.SQLiteDateTime(addDateClamped(base, 0, 1, 0)), nil
+	case SubscriptionIntervalThreeMonths:
+		return timefmt.SQLiteDateTime(addDateClamped(base, 0, 3, 0)), nil
+	case SubscriptionIntervalSixMonths:
+		return timefmt.SQLiteDateTime(addDateClamped(base, 0, 6, 0)), nil
+	case SubscriptionIntervalYear:
+		return timefmt.SQLiteDateTime(addDateClamped(base, 1, 0, 0)), nil
+	default:
+		return "", fwusecase.E(fwusecase.CodeValidation, "invalid subscription interval", nil)
+	}
+}
+
+func addDateClamped(value time.Time, years int, months int, days int) time.Time {
+	targetYear := value.Year() + years
+	targetMonth := int(value.Month()) + months
+	for targetMonth > 12 {
+		targetYear++
+		targetMonth -= 12
+	}
+	for targetMonth < 1 {
+		targetYear--
+		targetMonth += 12
+	}
+
+	lastDay := daysInMonth(targetYear, time.Month(targetMonth))
+	targetDay := value.Day()
+	if targetDay > lastDay {
+		targetDay = lastDay
+	}
+	return time.Date(
+		targetYear,
+		time.Month(targetMonth),
+		targetDay,
+		value.Hour(),
+		value.Minute(),
+		value.Second(),
+		value.Nanosecond(),
+		value.Location(),
+	).AddDate(0, 0, days)
+}
+
+func daysInMonth(year int, month time.Month) int {
+	return time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+func parseSQLiteTime(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, fmt.Errorf("empty time")
+	}
+	if parsed, err := time.ParseInLocation(timefmt.SQLiteDateTimeLayout, value, time.UTC); err == nil {
+		return parsed, nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return parsed.UTC(), nil
+	}
+	return time.Parse(time.RFC3339Nano, value)
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func orderProviderRefsFromPayCmd(cmd PayOrderCmd) models.OrderProviderRefs {
+	return models.OrderProviderRefs{
+		ProviderCheckoutID:     strings.TrimSpace(cmd.ProviderCheckoutID),
+		ProviderOrderID:        strings.TrimSpace(cmd.ProviderOrderID),
+		ProviderCustomerID:     strings.TrimSpace(cmd.ProviderCustomerID),
+		ProviderSubscriptionID: strings.TrimSpace(cmd.ProviderSubscriptionID),
+		ProviderProductID:      strings.TrimSpace(cmd.ProviderProductID),
+		SubscriptionStatus:     strings.TrimSpace(cmd.ProviderSubscriptionHint),
+	}
+}
+
+func hasOrderProviderRefs(refs models.OrderProviderRefs) bool {
+	return refs.ProviderCheckoutID != "" ||
+		refs.ProviderOrderID != "" ||
+		refs.ProviderCustomerID != "" ||
+		refs.ProviderSubscriptionID != "" ||
+		refs.ProviderProductID != "" ||
+		refs.SubscriptionStatus != ""
+}
+
+func mergeOrderProviderRefs(order *models.Order, refs models.OrderProviderRefs) {
+	if refs.ProviderCheckoutID != "" {
+		order.ProviderCheckoutID = refs.ProviderCheckoutID
+	}
+	if refs.ProviderOrderID != "" {
+		order.ProviderOrderID = refs.ProviderOrderID
+	}
+	if refs.ProviderCustomerID != "" {
+		order.ProviderCustomerID = refs.ProviderCustomerID
+	}
+	if refs.ProviderSubscriptionID != "" {
+		order.ProviderSubscriptionID = refs.ProviderSubscriptionID
+	}
+	if refs.ProviderProductID != "" {
+		order.ProviderProductID = refs.ProviderProductID
+	}
+	if refs.SubscriptionStatus != "" {
+		order.SubscriptionStatus = refs.SubscriptionStatus
+	}
+}
+
 func isValidOrderStatus(status string) bool {
 	switch status {
 	case "pending", "paid", "shipped", "completed", "cancelled":
@@ -268,6 +563,9 @@ func resolveOrderNames(ctx fwusecase.Context, orders []models.Order, items []mod
 		namelookup.Collect(batch, translate.UserDisplayName, orders, func(order models.Order) string {
 			return order.UserID
 		})
+		namelookup.Collect(batch, translate.ProductDisplayName, orders, func(order models.Order) string {
+			return order.ProductID
+		})
 		namelookup.Collect(batch, translate.ProductDisplayName, items, func(item models.OrderItem) string {
 			return item.ProductID
 		})
@@ -280,12 +578,21 @@ func orderCoFromModel(order *models.Order, names namelookup.Result) OrderCo {
 	}
 
 	return OrderCo{
-		ID:        order.ID,
-		UserID:    order.UserID,
-		UserName:  names.Name(translate.UserDisplayName, order.UserID),
-		Amount:    order.Amount,
-		Status:    order.Status,
-		CreatedAt: order.CreatedAt,
+		ID:                     order.ID,
+		UserID:                 order.UserID,
+		UserName:               names.Name(translate.UserDisplayName, order.UserID),
+		ProductID:              order.ProductID,
+		ProductName:            names.Name(translate.ProductDisplayName, order.ProductID),
+		Amount:                 order.Amount,
+		Status:                 order.Status,
+		ProviderCheckoutID:     order.ProviderCheckoutID,
+		ProviderOrderID:        order.ProviderOrderID,
+		ProviderCustomerID:     order.ProviderCustomerID,
+		ProviderSubscriptionID: order.ProviderSubscriptionID,
+		ProviderProductID:      order.ProviderProductID,
+		SubscriptionStatus:     order.SubscriptionStatus,
+		MembershipAppliedAt:    order.MembershipAppliedAt,
+		CreatedAt:              order.CreatedAt,
 	}
 }
 

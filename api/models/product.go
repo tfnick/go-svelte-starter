@@ -5,51 +5,67 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
+	"github.com/tfnick/go-svelte-starter/api/framework/data/modelerror"
 	"github.com/tfnick/go-svelte-starter/api/framework/data/namelookup"
 	"github.com/tfnick/go-svelte-starter/api/framework/timefmt"
+	"github.com/tfnick/sqlx"
 )
 
-// Product 产品模型
 type Product struct {
-	ID          string `json:"id" db:"id"`
-	Name        string `json:"name" db:"name"`
-	Description string `json:"description,omitempty" db:"description"`
-	Price       int64  `json:"price" db:"price"`
-	Stock       int    `json:"stock" db:"stock"`
-	CreatedAt   string `json:"created_at,omitempty" db:"created_at"`
+	ID                   string `json:"id" db:"id"`
+	Name                 string `json:"name" db:"name"`
+	Description          string `json:"description,omitempty" db:"description"`
+	Price                int64  `json:"price" db:"price"`
+	Currency             string `json:"currency" db:"currency"`
+	Stock                int    `json:"stock" db:"stock"`
+	Enabled              int    `json:"enabled" db:"enabled"`
+	CreemProductID       string `json:"creem_product_id" db:"creem_product_id"`
+	BillingType          string `json:"billing_type" db:"billing_type"`
+	MembershipLevel      string `json:"membership_level" db:"membership_level"`
+	SubscriptionInterval string `json:"subscription_interval" db:"subscription_interval"`
+	CreatedAt            string `json:"created_at,omitempty" db:"created_at"`
+	UpdatedAt            string `json:"updated_at,omitempty" db:"updated_at"`
 }
 
-// CreateProduct 创建产品（仅用于开发和测试）
 func CreateProduct(ctx context.Context, product *Product) error {
 	if product.ID == "" {
 		product.ID = uuid.Must(uuid.NewV7()).String()
 	}
 	product.CreatedAt = timefmt.NowSQLiteDateTime()
+	product.UpdatedAt = product.CreatedAt
 
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return fmt.Errorf("数据库不可用: %w", err)
+		return fmt.Errorf("database unavailable: %w", err)
 	}
 
-	query := `INSERT INTO products (id, name, description, price, stock, created_at) VALUES (:id, :name, :description, :price, :stock, :created_at)`
-	_, err = d.NamedExec(query, product)
-	return err
+	query := `
+		INSERT INTO products (
+			id, name, description, price, currency, stock, enabled, creem_product_id,
+			billing_type, membership_level, subscription_interval, created_at, updated_at
+		) VALUES (
+			:id, :name, :description, :price, :currency, :stock, :enabled, :creem_product_id,
+			:billing_type, :membership_level, :subscription_interval, :created_at, :updated_at
+		)
+	`
+	if _, err := d.NamedExec(query, product); err != nil {
+		return fmt.Errorf("create product failed: %w", err)
+	}
+	return nil
 }
 
-// GetProductByID 获取产品
 func GetProductByID(ctx context.Context, id string) (*Product, error) {
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return nil, fmt.Errorf("数据库不可用: %w", err)
+		return nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
 	var product Product
 	query := d.Rebind(`SELECT * FROM products WHERE id = ?`)
 	err = d.Get(&product, query, id)
 	if err != nil {
-		return nil, fmt.Errorf("获取产品失败: %w", err)
+		return nil, fmt.Errorf("get product failed: %w", err)
 	}
 	return &product, nil
 }
@@ -61,10 +77,57 @@ func ListProducts(ctx context.Context) ([]Product, error) {
 	}
 
 	var products []Product
-	if err := d.Select(&products, `SELECT * FROM products ORDER BY id`); err != nil {
+	if err := d.Select(&products, `SELECT * FROM products ORDER BY created_at DESC, id DESC`); err != nil {
 		return nil, fmt.Errorf("list products failed: %w", err)
 	}
 	return products, nil
+}
+
+func UpdateProduct(ctx context.Context, product *Product) error {
+	product.UpdatedAt = timefmt.NowSQLiteDateTime()
+
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(`
+		UPDATE products SET
+			name = ?,
+			description = ?,
+			price = ?,
+			currency = ?,
+			stock = ?,
+			enabled = ?,
+			creem_product_id = ?,
+			billing_type = ?,
+			membership_level = ?,
+			subscription_interval = ?,
+			updated_at = ?
+		WHERE id = ?
+	`)
+	result, err := d.Exec(query,
+		product.Name,
+		product.Description,
+		product.Price,
+		product.Currency,
+		product.Stock,
+		product.Enabled,
+		product.CreemProductID,
+		product.BillingType,
+		product.MembershipLevel,
+		product.SubscriptionInterval,
+		product.UpdatedAt,
+		product.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update product failed: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("product not found: %w", modelerror.ErrNotFound)
+	}
+	return nil
 }
 
 func GetProductDisplayNamesByIDs(ctx context.Context, ids []string) (map[string]string, error) {
@@ -91,11 +154,10 @@ func GetProductDisplayNamesByIDs(ctx context.Context, ids []string) (map[string]
 	return namelookup.RowsToMap(rows), nil
 }
 
-// UpdateProductStock 更新产品库存（仅用于开发和测试）
 func UpdateProductStock(ctx context.Context, productID string, newStock int) error {
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return fmt.Errorf("数据库不可用: %w", err)
+		return fmt.Errorf("database unavailable: %w", err)
 	}
 
 	query := d.Rebind(`UPDATE products SET stock = ? WHERE id = ?`)

@@ -23,10 +23,18 @@ func TestOrderUsecaseResolvesDisplayNamesWithFrameworkLookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load expected product: %v", err)
 	}
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`UPDATE products SET creem_product_id = ?, enabled = 1 WHERE id = ?`), "prod_lookup", seedProductID); err != nil {
+		t.Fatalf("update checkout product: %v", err)
+	}
 
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	created, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{
-		UserID: seedUserID,
+		UserID:    seedUserID,
+		ProductID: seedProductID,
 	})
 	if err != nil {
 		t.Fatalf("create order: %v", err)
@@ -46,10 +54,6 @@ func TestOrderUsecaseResolvesDisplayNamesWithFrameworkLookup(t *testing.T) {
 		t.Fatalf("expected new Creem checkout ledger to have no local items, got %d", len(detail.Items))
 	}
 
-	appDB, err := manager.GetDB("app")
-	if err != nil {
-		t.Fatalf("get app db: %v", err)
-	}
 	if _, err := appDB.Exec(appDB.Rebind(`
 		INSERT INTO orders (id, user_id, amount, status, created_at)
 		VALUES (?, ?, ?, 'pending', '2026-01-01 00:00:00')

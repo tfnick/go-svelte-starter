@@ -4,6 +4,7 @@ import { afterEach, test } from 'node:test';
 import {
   createDictionaryType,
   createDictionaryValue,
+  createProduct,
   createVariable,
   createOrder,
   createOrderPaymentCheckout,
@@ -38,10 +39,12 @@ import {
   setScheduledTaskEnabled,
   setUserActive,
   setVariableEnabled,
+  summarizeTextWithLLM,
   triggerExportToast,
   updateDictionaryType,
   updateDictionaryValue,
   updateParameterIntegrationChannel,
+  updateProduct,
   updateScheduledTask,
   updateVariable
 } from './api.js';
@@ -266,13 +269,19 @@ test('dictionary and order api helpers use relative api paths', async () => {
   await getDictionaries(['product_category', 'product_category', 'region']);
   await getUserOrders('019ea0c1-0001-7000-8000-000000000001', { page: 2, pageSize: 10 });
   await createOrder({
-    user_id: '019ea0c1-0001-7000-8000-000000000001'
+    user_id: '019ea0c1-0001-7000-8000-000000000001',
+    product_id: 'product-1'
   });
   await createOrderPaymentCheckout('o001');
   await payOrder('o001');
   await getMyPoints();
   await getProducts();
   await triggerExportToast();
+  await summarizeTextWithLLM({
+    text: 'Source text',
+    prompt: 'Summarize briefly',
+    dimensions: ['summary']
+  });
   await listNotifications({
     page: 2,
     pageSize: 10,
@@ -286,7 +295,7 @@ test('dictionary and order api helpers use relative api paths', async () => {
   assert.equal(calls[1].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
   assert.equal(calls[2].path, '/api/orders');
   assert.equal(calls[2].options.method, 'POST');
-  assert.equal(calls[2].options.body, '{"user_id":"019ea0c1-0001-7000-8000-000000000001"}');
+  assert.equal(calls[2].options.body, '{"user_id":"019ea0c1-0001-7000-8000-000000000001","product_id":"product-1"}');
   assert.equal(calls[3].path, '/api/orders/o001/payment-checkout');
   assert.equal(calls[3].options.method, 'POST');
   assert.equal(calls[4].path, '/api/orders/o001/pay');
@@ -295,7 +304,10 @@ test('dictionary and order api helpers use relative api paths', async () => {
   assert.equal(calls[6].path, '/api/products');
   assert.equal(calls[7].path, '/api/notifications/test-export-toast');
   assert.equal(calls[7].options.method, 'POST');
-  assert.equal(calls[8].path, '/api/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
+  assert.equal(calls[8].path, '/api/llm/summaries');
+  assert.equal(calls[8].options.method, 'POST');
+  assert.equal(calls[8].options.body, '{"text":"Source text","prompt":"Summarize briefly","dimensions":["summary"]}');
+  assert.equal(calls[9].path, '/api/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
 });
 
 test('dictionary management api helpers use relative api paths', async () => {
@@ -505,6 +517,37 @@ test('variable api helpers use relative api paths', async () => {
   assert.equal(calls[3].path, '/api/variables/variable%201/enabled');
   assert.equal(calls[3].options.method, 'PATCH');
   assert.equal(calls[3].options.body, '{"enabled":false}');
+});
+
+test('product api helpers use relative api paths', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { product: { id: 'product 1' } } });
+  };
+
+  const payload = {
+    name: 'Premium',
+    creem_product_id: 'prod_1',
+    billing_type: 'subscription',
+    membership_level: 'premium',
+    subscription_interval: 'month',
+    enabled: true
+  };
+
+  await createProduct(payload);
+  await updateProduct('product 1', payload);
+
+  assert.equal(calls[0].path, '/api/products');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.body, JSON.stringify(payload));
+  assert.equal(calls[1].path, '/api/products/product%201');
+  assert.equal(calls[1].options.method, 'PUT');
+  assert.equal(calls[1].options.body, JSON.stringify(payload));
 });
 
 test('points SSE helper uses the current host and HTTP scheme', () => {

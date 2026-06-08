@@ -83,12 +83,18 @@ func TestGetUserOrdersRejectsInvalidPageQuery(t *testing.T) {
 	}
 }
 
-func TestCreateOrderAcceptsCreemLedgerRequestWithoutItems(t *testing.T) {
+func TestCreateOrderAcceptsSelectedProductLedgerRequest(t *testing.T) {
 	setupRouteTestDBs(t)
 
 	const seedUserID = "019ea0c1-0001-7000-8000-000000000001"
+	appDB, err := db.DefaultManager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	seedRouteCheckoutProduct(t, appDB, "route-product", "prod_route")
+
 	router := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/api/orders", strings.NewReader(`{"user_id":"`+seedUserID+`"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/orders", strings.NewReader(`{"user_id":"`+seedUserID+`","product_id":"route-product"}`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := router.NewContext(req, rec)
@@ -117,6 +123,9 @@ func TestCreateOrderAcceptsCreemLedgerRequestWithoutItems(t *testing.T) {
 	if envelope.Data.Order.Amount != 0 || envelope.Data.Order.Status != "pending" {
 		t.Fatalf("unexpected created order: %#v", envelope.Data.Order)
 	}
+	if envelope.Data.Order.ProductID != "route-product" || envelope.Data.Order.ProductName != "Route Product" {
+		t.Fatalf("expected selected product in order response, got %#v", envelope.Data.Order)
+	}
 }
 
 func seedRouteUserOrdersForPagination(t *testing.T, appDB *sqlx.DB, userID string, count int) {
@@ -134,5 +143,18 @@ func seedRouteUserOrdersForPagination(t *testing.T, appDB *sqlx.DB, userID strin
 		if err != nil {
 			t.Fatalf("insert order %d: %v", i, err)
 		}
+	}
+}
+
+func seedRouteCheckoutProduct(t *testing.T, appDB *sqlx.DB, productID string, creemProductID string) {
+	t.Helper()
+
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO products (
+			id, name, description, price, currency, stock, enabled, creem_product_id,
+			billing_type, membership_level, subscription_interval, created_at, updated_at
+		) VALUES (?, 'Route Product', 'Route checkout product', 1000, 'USD', 0, 1, ?, 'subscription', 'premium', 'month', '2026-01-01 00:00:00', '2026-01-01 00:00:00')
+	`), productID, creemProductID); err != nil {
+		t.Fatalf("insert route product: %v", err)
 	}
 }

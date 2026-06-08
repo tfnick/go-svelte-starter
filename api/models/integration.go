@@ -19,6 +19,9 @@ const (
 	IntegrationScenarioSMS     = "sms"
 	IntegrationScenarioEmail   = "email"
 
+	deepSeekOpenAICompatibleAdapterKey = "llm.deepseek.openai_compatible"
+	defaultDeepSeekModelCode           = "deepseek-chat"
+
 	IntegrationInvocationStatusStarted   = "started"
 	IntegrationInvocationStatusSucceeded = "succeeded"
 	IntegrationInvocationStatusFailed    = "failed"
@@ -224,7 +227,11 @@ func GetEnabledLLMConfig(ctx context.Context, qry LLMConfigQuery) (IntegrationLL
 
 	model, err := findEnabledModelOption(ctx, qry.Scenario, channel.ID, modelCode)
 	if err != nil {
-		return IntegrationLLMConfig{}, err
+		fallback, ok := defaultLLMModelOptionForChannel(qry.Scenario, channel, modelCode, err)
+		if !ok {
+			return IntegrationLLMConfig{}, err
+		}
+		model = fallback
 	}
 
 	return IntegrationLLMConfig{
@@ -698,6 +705,31 @@ func findEnabledModelOption(ctx context.Context, scenario string, channelID stri
 		return IntegrationModelOption{}, fmt.Errorf("load integration model option failed: %w", err)
 	}
 	return model, nil
+}
+
+func defaultLLMModelOptionForChannel(scenario string, channel IntegrationChannel, modelCode string, err error) (IntegrationModelOption, bool) {
+	if !errors.Is(err, modelerror.ErrNotFound) {
+		return IntegrationModelOption{}, false
+	}
+	if scenario != IntegrationScenarioLLM || channel.AdapterKey != deepSeekOpenAICompatibleAdapterKey {
+		return IntegrationModelOption{}, false
+	}
+
+	normalizedModelCode := strings.TrimSpace(modelCode)
+	if normalizedModelCode != "" && normalizedModelCode != defaultDeepSeekModelCode {
+		return IntegrationModelOption{}, false
+	}
+
+	return IntegrationModelOption{
+		Scenario:          IntegrationScenarioLLM,
+		ChannelID:         channel.ID,
+		ModelCode:         defaultDeepSeekModelCode,
+		ProviderModelID:   defaultDeepSeekModelCode,
+		CapabilitiesJSON:  "{}",
+		DefaultParamsJSON: "{}",
+		CostPolicyJSON:    "{}",
+		Enabled:           1,
+	}, true
 }
 
 type CreateIntegrationInvocationCmd struct {

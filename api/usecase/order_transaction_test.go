@@ -38,7 +38,7 @@ func setupUsecaseOrderTxDB(t *testing.T) *db.DBManager {
 	return manager
 }
 
-func TestCreateOrderCreatesPendingLedgerWithoutProducts(t *testing.T) {
+func TestCreateOrderCreatesPendingLedgerForSelectedProduct(t *testing.T) {
 	manager := setupUsecaseOrderTxDB(t)
 
 	appDB, err := manager.GetDB("app")
@@ -49,9 +49,10 @@ func TestCreateOrderCreatesPendingLedgerWithoutProducts(t *testing.T) {
 	if _, err := appDB.Exec(`INSERT INTO users (id, name, email, password_hash, email_verified, is_active) VALUES ('u1', 'Ada', 'ada@example.com', '', 1, 1)`); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
+	seedUsecaseCheckoutProduct(t, appDB, "p1", "prod_usecase")
 
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
-	order, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{UserID: "u1"})
+	order, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{UserID: "u1", ProductID: "p1"})
 	if err != nil {
 		t.Fatalf("create order: %v", err)
 	}
@@ -66,6 +67,9 @@ func TestCreateOrderCreatesPendingLedgerWithoutProducts(t *testing.T) {
 	}
 	if order.UserName != "Ada" {
 		t.Fatalf("expected resolved user name Ada, got %q", order.UserName)
+	}
+	if order.ProductID != "p1" || order.ProductName != "Premium Month" {
+		t.Fatalf("expected resolved product, got %#v", order)
 	}
 
 	var itemCount int
@@ -88,10 +92,12 @@ func TestCreateOrderIgnoresLegacyItemsForCreemCheckoutLedger(t *testing.T) {
 	if _, err := appDB.Exec(`INSERT INTO users (id, name, email, password_hash, email_verified, is_active) VALUES ('u1', 'Ada', 'ada@example.com', '', 1, 1)`); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
+	seedUsecaseCheckoutProduct(t, appDB, "p1", "prod_usecase")
 
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	order, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{
-		UserID: "u1",
+		UserID:    "u1",
+		ProductID: "p1",
 		Items: []usecase.CreateOrderItemCmd{
 			{ProductID: "missing-product", Quantity: 0},
 		},
@@ -122,7 +128,8 @@ func TestCreateOrderRequiresExistingUser(t *testing.T) {
 
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	_, err = usecase.CreateOrder(ctx, usecase.CreateOrderCmd{
-		UserID: "missing-user",
+		UserID:    "missing-user",
+		ProductID: "p1",
 	})
 	if err == nil {
 		t.Fatalf("expected missing user failure")

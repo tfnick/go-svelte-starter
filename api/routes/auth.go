@@ -36,17 +36,21 @@ type ResetPasswordRequest struct {
 }
 
 type CurrentUserResponse struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
-	IsAdmin       bool   `json:"is_admin"`
+	ID                  string `json:"id"`
+	Name                string `json:"name"`
+	Email               string `json:"email"`
+	EmailVerified       bool   `json:"email_verified"`
+	IsAdmin             bool   `json:"is_admin"`
+	MembershipLevel     string `json:"membership_level"`
+	MembershipExpiresAt string `json:"membership_expires_at"`
 }
 
 type AuthStatusUserResponse struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	IsAdmin bool   `json:"is_admin"`
+	ID                  string `json:"id"`
+	Name                string `json:"name"`
+	IsAdmin             bool   `json:"is_admin"`
+	MembershipLevel     string `json:"membership_level"`
+	MembershipExpiresAt string `json:"membership_expires_at"`
 }
 
 type CurrentUserEnvelope struct {
@@ -128,19 +132,23 @@ func bindResetPasswordRequest(c echo.Context) (ResetPasswordRequest, error) {
 
 func ToCurrentUserResponse(user usecase.UserCo) CurrentUserResponse {
 	return CurrentUserResponse{
-		ID:            user.ID,
-		Name:          user.Name,
-		Email:         user.Email,
-		EmailVerified: user.EmailVerified,
-		IsAdmin:       user.IsAdmin,
+		ID:                  user.ID,
+		Name:                user.Name,
+		Email:               user.Email,
+		EmailVerified:       user.EmailVerified,
+		IsAdmin:             user.IsAdmin,
+		MembershipLevel:     user.MembershipLevel,
+		MembershipExpiresAt: user.MembershipExpiresAt,
 	}
 }
 
 func ToAuthStatusUserResponse(user usecase.UserCo) AuthStatusUserResponse {
 	return AuthStatusUserResponse{
-		ID:      user.ID,
-		Name:    user.Name,
-		IsAdmin: user.IsAdmin,
+		ID:                  user.ID,
+		Name:                user.Name,
+		IsAdmin:             user.IsAdmin,
+		MembershipLevel:     user.MembershipLevel,
+		MembershipExpiresAt: user.MembershipExpiresAt,
 	}
 }
 

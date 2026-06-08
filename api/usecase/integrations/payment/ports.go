@@ -6,7 +6,8 @@ const (
 	Scenario               = "payment"
 	OperationCreatePayment = "create_payment"
 
-	WebhookEventPaymentSucceeded = "payment.succeeded"
+	WebhookEventPaymentSucceeded     = "payment.succeeded"
+	WebhookEventSubscriptionCanceled = "subscription.canceled"
 )
 
 type ProviderConfig struct {
@@ -51,13 +52,17 @@ type WebhookRequest struct {
 }
 
 type NormalizedWebhook struct {
-	ProviderEventID   string
-	EventType         string
-	BusinessEventType string
-	ProviderPaymentID string
-	PaymentStatus     string
-	OrderID           string
-	SafeSnapshot      map[string]interface{}
+	ProviderEventID        string
+	EventType              string
+	BusinessEventType      string
+	ProviderPaymentID      string
+	PaymentStatus          string
+	OrderID                string
+	ProviderOrderID        string
+	ProviderCustomerID     string
+	ProviderSubscriptionID string
+	ProviderProductID      string
+	SafeSnapshot           map[string]interface{}
 }
 
 type Adapter interface {

@@ -5,10 +5,12 @@
   import DashboardHome from './pages/DashboardHome.svelte';
   import Dictionary from './pages/Dictionary.svelte';
   import Events from './pages/Events.svelte';
+  import Experiments from './pages/Experiments.svelte';
   import ForgotPassword from './pages/ForgotPassword.svelte';
   import Login from './pages/Login.svelte';
   import Notifications from './pages/Notifications.svelte';
   import Parameters from './pages/Parameters.svelte';
+  import Products from './pages/Products.svelte';
   import Register from './pages/Register.svelte';
   import ResetPassword from './pages/ResetPassword.svelte';
   import Scheduler from './pages/Scheduler.svelte';
@@ -91,12 +93,16 @@
           <DashboardHome {auth} />
         {:else if path === '/orders'}
           <Dashboard {auth} />
+        {:else if path === '/products'}
+          <Products />
         {:else if path === '/users'}
           <Users {auth} />
         {:else if path === '/scheduler'}
           <Scheduler />
         {:else if path === '/events'}
           <Events />
+        {:else if path === '/experiments'}
+          <Experiments {auth} />
         {:else if path === '/dictionary'}
           <Dictionary />
         {:else if path === '/parameters'}

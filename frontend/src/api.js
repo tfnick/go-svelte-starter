@@ -251,9 +251,30 @@ export function getProducts() {
   return request('/api/products');
 }
 
+export function createProduct(payload) {
+  return request('/api/products', {
+    method: 'POST',
+    body: payload
+  }).then((result) => result?.product || result);
+}
+
+export function updateProduct(id, payload) {
+  return request(`/api/products/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: payload
+  }).then((result) => result?.product || result);
+}
+
 export function triggerExportToast() {
   return request('/api/notifications/test-export-toast', {
     method: 'POST'
+  });
+}
+
+export function summarizeTextWithLLM(payload) {
+  return request('/api/llm/summaries', {
+    method: 'POST',
+    body: payload
   });
 }
 

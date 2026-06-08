@@ -89,6 +89,20 @@ func CreateOrderPaymentCheckout(ctx fwusecase.Context, cmd CreateOrderPaymentChe
 	if order.Status != "pending" {
 		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeConflict, "only pending orders can be paid", nil)
 	}
+	if strings.TrimSpace(order.ProductID) == "" {
+		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeValidation, "order product is required", nil)
+	}
+
+	product, err := models.GetProductByID(ctx.Std(), order.ProductID)
+	if err != nil {
+		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load order product", err)
+	}
+	if product.Enabled != 1 {
+		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeValidation, "product is disabled", nil)
+	}
+	if strings.TrimSpace(product.CreemProductID) == "" {
+		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeValidation, "product Creem ID is required", nil)
+	}
 
 	user, err := models.GetUserByID(ctx.Std(), order.UserID)
 	if err != nil {
@@ -120,17 +134,20 @@ func CreateOrderPaymentCheckout(ctx fwusecase.Context, cmd CreateOrderPaymentChe
 	}
 
 	result, err := adapter.CreatePayment(ctx.Std(), providerCfg, payment.CreatePaymentRequest{
-		OrderID:  order.ID,
-		UserID:   order.UserID,
-		Amount:   order.Amount,
-		Currency: "USD",
+		OrderID:   order.ID,
+		UserID:    order.UserID,
+		Amount:    order.Amount,
+		Currency:  "USD",
+		ProductID: product.CreemProductID,
 		Customer: payment.Customer{
 			Email: user.Email,
 		},
 		Metadata: map[string]string{
-			"order_id": order.ID,
-			"user_id":  order.UserID,
-			"amount":   fmt.Sprintf("%d", order.Amount),
+			"order_id":         order.ID,
+			"user_id":          order.UserID,
+			"product_id":       order.ProductID,
+			"creem_product_id": product.CreemProductID,
+			"amount":           fmt.Sprintf("%d", order.Amount),
 		},
 	})
 	if err != nil {
@@ -164,6 +181,14 @@ func CreateOrderPaymentCheckout(ctx fwusecase.Context, cmd CreateOrderPaymentChe
 	}); err != nil {
 		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to record payment invocation", err)
 	}
+	if err := models.UpdateOrderProviderRefs(ctx.Std(), order.ID, models.OrderProviderRefs{
+		ProviderCheckoutID: result.ProviderPaymentID,
+		ProviderProductID:  product.CreemProductID,
+	}); err != nil {
+		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to record payment checkout", err)
+	}
+	order.ProviderCheckoutID = result.ProviderPaymentID
+	order.ProviderProductID = product.CreemProductID
 
 	names, err := resolveOrderNames(ctx, []models.Order{*order}, nil)
 	if err != nil {
@@ -298,6 +323,21 @@ func HandlePaymentWebhookJob(ctx context.Context, message []byte) error {
 		_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_webhook_normalize_failed")
 		return nil
 	}
+	if normalized.BusinessEventType == payment.WebhookEventSubscriptionCanceled {
+		ucCtx := fwusecase.NewContext(ctx, fwusecase.SurfaceSystem)
+		if err := CancelOrderSubscription(ucCtx, CancelOrderSubscriptionCmd{
+			OrderID:                normalized.OrderID,
+			ProviderSubscriptionID: normalized.ProviderSubscriptionID,
+		}); err != nil {
+			if fwusecase.CodeOf(err) == fwusecase.CodeInternal {
+				_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_subscription_update_temporary_failed")
+				return err
+			}
+			_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_subscription_update_failed")
+			return nil
+		}
+		return models.MarkIntegrationWebhookReceiptSucceeded(ctx, receipt.ID)
+	}
 	if normalized.BusinessEventType != payment.WebhookEventPaymentSucceeded {
 		return models.MarkIntegrationWebhookReceiptIgnored(ctx, receipt.ID, "payment_webhook_ignored")
 	}
@@ -307,7 +347,14 @@ func HandlePaymentWebhookJob(ctx context.Context, message []byte) error {
 	}
 
 	ucCtx := fwusecase.NewContext(ctx, fwusecase.SurfaceSystem)
-	if _, err := PayOrder(ucCtx, PayOrderCmd{OrderID: normalized.OrderID}); err != nil {
+	if _, err := PayOrder(ucCtx, PayOrderCmd{
+		OrderID:                normalized.OrderID,
+		ProviderCheckoutID:     normalized.ProviderPaymentID,
+		ProviderOrderID:        normalized.ProviderOrderID,
+		ProviderCustomerID:     normalized.ProviderCustomerID,
+		ProviderSubscriptionID: normalized.ProviderSubscriptionID,
+		ProviderProductID:      normalized.ProviderProductID,
+	}); err != nil {
 		if fwusecase.CodeOf(err) == fwusecase.CodeInternal {
 			_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_fulfillment_temporary_failed")
 			return err
@@ -406,9 +453,6 @@ func paymentProviderConfig(config models.IntegrationPaymentConfig) (payment.Prov
 	channelConfig = mergePaymentConfig(channelConfig, operationConfig)
 	if strings.TrimSpace(channelConfig.BaseURL) == "" {
 		return payment.ProviderConfig{}, fmt.Errorf("payment base_url is required")
-	}
-	if strings.TrimSpace(channelConfig.ProductID) == "" {
-		return payment.ProviderConfig{}, fmt.Errorf("payment product_id is required")
 	}
 
 	secrets, err := paymentCredentialSecrets(config.Credential.ValueText)

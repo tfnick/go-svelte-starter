@@ -61,19 +61,24 @@ type webhookEvent struct {
 }
 
 type webhookCheckoutObject struct {
-	ID        string                 `json:"id"`
-	Object    string                 `json:"object"`
-	RequestID string                 `json:"request_id"`
-	Status    string                 `json:"status"`
-	ProductID string                 `json:"product_id"`
-	Order     webhookOrderObject     `json:"order"`
-	Product   webhookProductObject   `json:"product"`
-	Metadata  map[string]interface{} `json:"metadata"`
+	ID             string                    `json:"id"`
+	Object         string                    `json:"object"`
+	RequestID      string                    `json:"request_id"`
+	Status         string                    `json:"status"`
+	ProductID      string                    `json:"product_id"`
+	CustomerID     string                    `json:"customer_id"`
+	SubscriptionID string                    `json:"subscription_id"`
+	Order          webhookOrderObject        `json:"order"`
+	Product        webhookProductObject      `json:"product"`
+	Customer       webhookCustomerObject     `json:"customer"`
+	Subscription   webhookSubscriptionObject `json:"subscription"`
+	Metadata       map[string]interface{}    `json:"metadata"`
 }
 
 type webhookOrderObject struct {
 	ID       string `json:"id"`
 	Product  string `json:"product"`
+	Customer string `json:"customer"`
 	Amount   int64  `json:"amount"`
 	Currency string `json:"currency"`
 	Status   string `json:"status"`
@@ -83,13 +88,77 @@ type webhookProductObject struct {
 	ID string `json:"id"`
 }
 
+func (p *webhookProductObject) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	if trimmed[0] == '"' {
+		var id string
+		if err := json.Unmarshal(trimmed, &id); err != nil {
+			return err
+		}
+		p.ID = strings.TrimSpace(id)
+		return nil
+	}
+	var parsed struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(trimmed, &parsed); err != nil {
+		return err
+	}
+	p.ID = strings.TrimSpace(parsed.ID)
+	return nil
+}
+
+type webhookCustomerObject struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
+func (c *webhookCustomerObject) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	if trimmed[0] == '"' {
+		var id string
+		if err := json.Unmarshal(trimmed, &id); err != nil {
+			return err
+		}
+		c.ID = strings.TrimSpace(id)
+		return nil
+	}
+	var parsed struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(trimmed, &parsed); err != nil {
+		return err
+	}
+	c.ID = strings.TrimSpace(parsed.ID)
+	c.Email = strings.TrimSpace(parsed.Email)
+	return nil
+}
+
+type webhookSubscriptionObject struct {
+	ID       string `json:"id"`
+	Status   string `json:"status"`
+	Customer string `json:"customer"`
+	Product  string `json:"product"`
+}
+
 func (a *Adapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig, req payment.CreatePaymentRequest) (payment.CreatePaymentResult, error) {
 	if err := validateCreateConfig(cfg); err != nil {
 		return payment.CreatePaymentResult{}, err
 	}
+	productID := firstNonEmpty(req.ProductID, cfg.ProductID)
+	if productID == "" {
+		return payment.CreatePaymentResult{}, providererror.New(providererror.CategoryValidation, false, "payment product is required", nil)
+	}
 
 	body, err := json.Marshal(createCheckoutRequest{
-		ProductID:  firstNonEmpty(req.ProductID, cfg.ProductID),
+		ProductID:  productID,
 		RequestID:  strings.TrimSpace(req.OrderID),
 		SuccessURL: firstNonEmpty(req.SuccessURL, cfg.SuccessURL),
 		Customer:   customerFromRequest(req.Customer),
@@ -171,29 +240,46 @@ func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.Provide
 
 	paymentStatus := firstNonEmpty(event.Object.Status, event.Object.Order.Status)
 	businessEventType := ""
-	if event.EventType == "checkout.completed" {
+	switch event.EventType {
+	case "checkout.completed":
 		paymentStatus = "succeeded"
 		businessEventType = payment.WebhookEventPaymentSucceeded
+	case "subscription.canceled":
+		paymentStatus = "canceled"
+		businessEventType = payment.WebhookEventSubscriptionCanceled
 	}
-	productID := firstNonEmpty(event.Object.ProductID, event.Object.Product.ID, event.Object.Order.Product)
+	providerOrderID := event.Object.Order.ID
+	providerSubscriptionID := firstNonEmpty(event.Object.SubscriptionID, event.Object.Subscription.ID)
+	if providerSubscriptionID == "" && (event.Object.Object == "subscription" || strings.HasPrefix(event.Object.ID, "sub_")) {
+		providerSubscriptionID = event.Object.ID
+	}
+	providerCustomerID := firstNonEmpty(event.Object.CustomerID, event.Object.Customer.ID, event.Object.Order.Customer, event.Object.Subscription.Customer)
+	productID := firstNonEmpty(event.Object.ProductID, event.Object.Product.ID, event.Object.Order.Product, event.Object.Subscription.Product)
 
 	snapshot := map[string]interface{}{
-		"event_type":          event.EventType,
-		"provider_event_id":   event.ID,
-		"provider_payment_id": event.Object.ID,
-		"payment_status":      paymentStatus,
-		"order_id":            orderID,
-		"product_id":          productID,
+		"event_type":               event.EventType,
+		"provider_event_id":        event.ID,
+		"provider_payment_id":      event.Object.ID,
+		"payment_status":           paymentStatus,
+		"order_id":                 orderID,
+		"provider_order_id":        providerOrderID,
+		"provider_customer_id":     providerCustomerID,
+		"provider_subscription_id": providerSubscriptionID,
+		"product_id":               productID,
 	}
 
 	return payment.NormalizedWebhook{
-		ProviderEventID:   event.ID,
-		EventType:         event.EventType,
-		BusinessEventType: businessEventType,
-		ProviderPaymentID: event.Object.ID,
-		PaymentStatus:     paymentStatus,
-		OrderID:           orderID,
-		SafeSnapshot:      snapshot,
+		ProviderEventID:        event.ID,
+		EventType:              event.EventType,
+		BusinessEventType:      businessEventType,
+		ProviderPaymentID:      event.Object.ID,
+		PaymentStatus:          paymentStatus,
+		OrderID:                orderID,
+		ProviderOrderID:        providerOrderID,
+		ProviderCustomerID:     providerCustomerID,
+		ProviderSubscriptionID: providerSubscriptionID,
+		ProviderProductID:      productID,
+		SafeSnapshot:           snapshot,
 	}, nil
 }
 
@@ -203,9 +289,6 @@ func validateCreateConfig(cfg payment.ProviderConfig) error {
 	}
 	if strings.TrimSpace(cfg.APIKey) == "" {
 		return providererror.New(providererror.CategoryAuth, false, "payment credential is required", nil)
-	}
-	if strings.TrimSpace(cfg.ProductID) == "" {
-		return providererror.New(providererror.CategoryValidation, false, "payment product is required", nil)
 	}
 	return nil
 }

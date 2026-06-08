@@ -141,7 +141,11 @@ func GetUserWithPasswordByEmail(ctx context.Context, email string) (*User, error
 		return nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
-	query := d.Rebind(`SELECT id, name, email, password_hash, created_at, updated_at, email_verified, is_active, is_admin FROM users WHERE email = ?`)
+	query := d.Rebind(`
+		SELECT id, name, email, password_hash, created_at, updated_at, email_verified, is_active, is_admin, membership_level, membership_expires_at
+		FROM users
+		WHERE email = ?
+	`)
 	var user User
 	err = d.Get(&user, query, email)
 	if err != nil {

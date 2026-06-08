@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/tfnick/sqlx"
 	fwevents "github.com/tfnick/go-svelte-starter/api/framework/events"
 	"github.com/tfnick/go-svelte-starter/api/framework/integrations/providererror"
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
@@ -17,6 +16,7 @@ import (
 	"github.com/tfnick/go-svelte-starter/api/usecase"
 	usecaseevents "github.com/tfnick/go-svelte-starter/api/usecase/events"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/payment"
+	"github.com/tfnick/sqlx"
 )
 
 type fakePaymentAdapter struct {
@@ -25,10 +25,10 @@ type fakePaymentAdapter struct {
 
 func (a fakePaymentAdapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig, req payment.CreatePaymentRequest) (payment.CreatePaymentResult, error) {
 	a.t.Helper()
-	if cfg.ChannelCode != "usecase-creem" || cfg.ProductID != "prod_usecase" || cfg.APIKey != "payment-api-key" {
+	if cfg.ChannelCode != "usecase-creem" || cfg.APIKey != "payment-api-key" {
 		a.t.Fatalf("unexpected provider config: %#v", cfg)
 	}
-	if req.OrderID != "o1" || req.Customer.Email != "ada@example.com" || req.Metadata["order_id"] != "o1" {
+	if req.OrderID != "o1" || req.ProductID != "prod_usecase" || req.Customer.Email != "ada@example.com" || req.Metadata["order_id"] != "o1" {
 		a.t.Fatalf("unexpected payment request: %#v", req)
 	}
 	return payment.CreatePaymentResult{
@@ -45,12 +45,16 @@ func (a fakePaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg pay
 		a.t.Fatalf("unexpected webhook secret: %q", cfg.WebhookSecret)
 	}
 	return payment.NormalizedWebhook{
-		ProviderEventID:   "evt_usecase",
-		EventType:         "checkout.completed",
-		BusinessEventType: payment.WebhookEventPaymentSucceeded,
-		ProviderPaymentID: "ch_usecase",
-		PaymentStatus:     "succeeded",
-		OrderID:           "o1",
+		ProviderEventID:        "evt_usecase",
+		EventType:              "checkout.completed",
+		BusinessEventType:      payment.WebhookEventPaymentSucceeded,
+		ProviderPaymentID:      "ch_usecase",
+		PaymentStatus:          "succeeded",
+		OrderID:                "o1",
+		ProviderOrderID:        "ord_usecase",
+		ProviderCustomerID:     "cust_usecase",
+		ProviderSubscriptionID: "sub_usecase",
+		ProviderProductID:      "prod_usecase",
 		SafeSnapshot: map[string]interface{}{
 			"event_type":          "checkout.completed",
 			"provider_event_id":   "evt_usecase",
@@ -68,6 +72,34 @@ func (authFailingPaymentAdapter) CreatePayment(ctx context.Context, cfg payment.
 
 func (authFailingPaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg payment.ProviderConfig, req payment.WebhookRequest) (payment.NormalizedWebhook, error) {
 	return payment.NormalizedWebhook{}, providererror.New(providererror.CategoryAuth, false, "payment webhook signature is invalid", nil)
+}
+
+type subscriptionCanceledPaymentAdapter struct {
+	t *testing.T
+}
+
+func (a subscriptionCanceledPaymentAdapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig, req payment.CreatePaymentRequest) (payment.CreatePaymentResult, error) {
+	a.t.Helper()
+	return payment.CreatePaymentResult{}, nil
+}
+
+func (a subscriptionCanceledPaymentAdapter) NormalizePaymentWebhook(ctx context.Context, cfg payment.ProviderConfig, req payment.WebhookRequest) (payment.NormalizedWebhook, error) {
+	a.t.Helper()
+	return payment.NormalizedWebhook{
+		ProviderEventID:        "evt_cancel",
+		EventType:              "subscription.canceled",
+		BusinessEventType:      payment.WebhookEventSubscriptionCanceled,
+		PaymentStatus:          "canceled",
+		OrderID:                "o1",
+		ProviderSubscriptionID: "sub_usecase",
+		ProviderProductID:      "prod_usecase",
+		SafeSnapshot: map[string]interface{}{
+			"event_type":               "subscription.canceled",
+			"provider_event_id":        "evt_cancel",
+			"provider_subscription_id": "sub_usecase",
+			"order_id":                 "o1",
+		},
+	}, nil
 }
 
 func TestCreateOrderPaymentCheckoutUsesDBConfigAndRecordsInvocation(t *testing.T) {
@@ -93,6 +125,13 @@ func TestCreateOrderPaymentCheckoutUsesDBConfigAndRecordsInvocation(t *testing.T
 	}
 	if status != "pending" {
 		t.Fatalf("checkout creation must not mark order paid, got %q", status)
+	}
+	var checkoutID string
+	if err := appDB.Get(&checkoutID, `SELECT provider_checkout_id FROM orders WHERE id = ?`, orderID); err != nil {
+		t.Fatalf("get checkout id: %v", err)
+	}
+	if checkoutID != "ch_usecase" {
+		t.Fatalf("expected checkout id to be stored, got %q", checkoutID)
 	}
 
 	var invocation struct {
@@ -329,6 +368,87 @@ func TestHandlePaymentWebhookJobCompletesOrderThroughWorker(t *testing.T) {
 	if eventCount := countRows(t, appDB, `SELECT COUNT(*) FROM domain_events WHERE topic = ?`, usecaseevents.OrderPaidTopic); eventCount != 1 {
 		t.Fatalf("expected order paid domain event, got %d", eventCount)
 	}
+	var refs struct {
+		ProviderCheckoutID     string `db:"provider_checkout_id"`
+		ProviderOrderID        string `db:"provider_order_id"`
+		ProviderCustomerID     string `db:"provider_customer_id"`
+		ProviderSubscriptionID string `db:"provider_subscription_id"`
+		ProviderProductID      string `db:"provider_product_id"`
+		SubscriptionStatus     string `db:"subscription_status"`
+	}
+	if err := appDB.Get(&refs, `
+		SELECT provider_checkout_id, provider_order_id, provider_customer_id, provider_subscription_id, provider_product_id, subscription_status
+		FROM orders
+		WHERE id = ?
+	`, orderID); err != nil {
+		t.Fatalf("get provider refs: %v", err)
+	}
+	if refs.ProviderCheckoutID != "ch_usecase" || refs.ProviderOrderID != "ord_usecase" || refs.ProviderCustomerID != "cust_usecase" || refs.ProviderSubscriptionID != "sub_usecase" || refs.ProviderProductID != "prod_usecase" || refs.SubscriptionStatus != usecase.OrderSubscriptionStatusActive {
+		t.Fatalf("unexpected provider refs: %#v", refs)
+	}
+}
+
+func TestHandlePaymentWebhookJobCancelsSubscriptionWithoutChangingMembership(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, orderID := seedPayableOrder(t, manager)
+	if _, err := appDB.Exec(`
+		UPDATE orders
+		SET status = 'paid', provider_subscription_id = 'sub_usecase', subscription_status = 'active', membership_applied_at = '2026-01-01 00:00:00'
+		WHERE id = ?
+	`, orderID); err != nil {
+		t.Fatalf("prepare paid subscription order: %v", err)
+	}
+	if _, err := appDB.Exec(`UPDATE users SET membership_level = 'premium', membership_expires_at = '2099-02-28 00:00:00' WHERE id = 'u1'`); err != nil {
+		t.Fatalf("prepare membership: %v", err)
+	}
+	seedPaymentIntegrationConfig(t, appDB, "payment.creem.subscription-cancel-test")
+	if err := usecase.RegisterPaymentAdapter("payment.creem.subscription-cancel-test", subscriptionCanceledPaymentAdapter{t: t}); err != nil {
+		t.Fatalf("register payment adapter: %v", err)
+	}
+	configurePaymentTestQueues(t)
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	receipt, err := usecase.ReceivePaymentWebhook(ctx, usecase.ReceivePaymentWebhookCmd{
+		ChannelCode: "usecase-creem",
+		Signature:   "signature",
+		RawPayload:  []byte(`{"id":"evt_cancel"}`),
+	})
+	if err != nil {
+		t.Fatalf("receive payment webhook: %v", err)
+	}
+
+	body, _ := json.Marshal(usecase.PaymentWebhookJobPayload{ReceiptID: receipt.ID})
+	if err := usecase.HandlePaymentWebhookJob(t.Context(), body); err != nil {
+		t.Fatalf("handle webhook job: %v", err)
+	}
+
+	var order struct {
+		Status             string `db:"status"`
+		SubscriptionStatus string `db:"subscription_status"`
+	}
+	if err := appDB.Get(&order, `SELECT status, subscription_status FROM orders WHERE id = ?`, orderID); err != nil {
+		t.Fatalf("load order: %v", err)
+	}
+	if order.Status != "paid" || order.SubscriptionStatus != usecase.OrderSubscriptionStatusCanceled {
+		t.Fatalf("unexpected order state after cancel webhook: %#v", order)
+	}
+	var user struct {
+		MembershipLevel     string `db:"membership_level"`
+		MembershipExpiresAt string `db:"membership_expires_at"`
+	}
+	if err := appDB.Get(&user, `SELECT membership_level, membership_expires_at FROM users WHERE id = 'u1'`); err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.MembershipLevel != "premium" || !sameSQLiteInstantForPaymentTest(user.MembershipExpiresAt, "2099-02-28 00:00:00") {
+		t.Fatalf("membership should not change after cancellation: %#v", user)
+	}
+}
+
+func sameSQLiteInstantForPaymentTest(actual string, expected string) bool {
+	if actual == expected {
+		return true
+	}
+	return actual == expected[:10]+"T"+expected[11:]+"Z"
 }
 
 func seedPaymentIntegrationConfig(t *testing.T, appDB *sqlx.DB, adapterKey string, webhookEnabledOverride ...int) {
@@ -390,5 +510,17 @@ func configurePaymentTestQueues(t *testing.T) {
 		}, awarded, err
 	}); err != nil {
 		t.Fatalf("register event handlers: %v", err)
+	}
+	if err := usecaseevents.RegisterMembershipEventHandlers(func(ctx fwusecase.Context, cmd usecaseevents.ApplyOrderMembershipCmd) (usecaseevents.MembershipResult, bool, error) {
+		membership, applied, err := usecase.ApplyOrderMembership(ctx, usecase.ApplyOrderMembershipCmd{
+			OrderID: cmd.OrderID,
+		})
+		return usecaseevents.MembershipResult{
+			UserID:              membership.UserID,
+			MembershipLevel:     membership.MembershipLevel,
+			MembershipExpiresAt: membership.MembershipExpiresAt,
+		}, applied, err
+	}); err != nil {
+		t.Fatalf("register membership event handlers: %v", err)
 	}
 }
