@@ -810,8 +810,8 @@ Modify `Parameter` management, external integration channel configuration, crede
 Backend API:
 
 ```text
-GET   /api/parameters/integration-schemas?scenario=payment|llm|sms|email
-GET   /api/parameters/integration-channels?scenario=payment|llm|sms|email
+GET   /api/parameters/integration-schemas?scenario=payment|llm|sms|email|oss
+GET   /api/parameters/integration-channels?scenario=payment|llm|sms|email|oss
 POST  /api/parameters/integration-channels
 PUT   /api/parameters/integration-channels/:id
 PATCH /api/parameters/integration-channels/:id/enabled
@@ -855,10 +855,10 @@ integration_credentials(id, credential_type, value_text, enabled, rotated_at)
 dictionary_types(type_key='integration_environment')
 dictionary_values(value_code='test'|'production')
 dictionary_types(type_key='integration_credential_type')
-dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password')
+dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_access_key')
 ```
 
-`smtp_password` is present in baseline `002_seed.sql` and is also backfilled for already-migrated databases by `008_add_email_integration_seed.sql`.
+`smtp_password` is present in baseline `002_seed.sql` and is also backfilled for already-migrated databases by `008_add_email_integration_seed.sql`. `s3_access_key` is present in baseline `002_seed.sql` and is backfilled by `011_add_oss_integration_seed.sql`.
 
 ### 3. Contracts
 
@@ -881,11 +881,12 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password')
 | `sms.aliyun.adapter` | `sms` | `aliyun` | `plain` | optional `base_url` URL, optional `sign_name` text, optional `template_code` text | `api_key` |
 | `email.aliyun.smtp` | `email` | `aliyun` | `json_object` | `smtp_host` required text default `smtp.qiye.aliyun.com`, `smtp_port` required number default `465`, `security` required option default `ssl`, `from_email` required text, optional `from_name` text | `username`, `password` with help text reminding admins to use the mailbox client authorization password instead of the account login password |
 | `email.resend.api` | `email` | `resend` | `plain` | `base_url` required URL default `https://api.resend.com`, `from_email` required text, optional `from_name` text | `api_key` |
+| `oss.cloudflare_r2.s3_compatible` | `oss` | `cloudflare_r2` | `json_object` | `endpoint_url` required URL, `bucket` required text, optional `region` default `auto`, optional `public_base_url` URL, optional `key_prefix` text | `access_key_id`, `secret_access_key` |
 
-* API only manages `integration_channels + integration_credentials`; it does not manage `integration_operation_configs`, `integration_model_options`, policy, webhook receipts, invocation raw data, provider request/response, prompt, or stream chunks.
+* API only manages `integration_channels + integration_credentials`; it does not manage `integration_operation_configs`, `integration_model_options`, policy, webhook receipts, invocation raw data, provider request/response, prompt, stream chunks, OSS upload/download runtime, presigned URLs, or artifact lifecycle.
 * Parameter APIs are protected internal admin configuration APIs. Routes must run behind `RequireAuth()` and `RequireAdmin()`; admin access is represented by `users.is_admin=1`.
-* `scenario` only allows `payment`, `llm`, `sms`, and `email`.
-* `credential_type` uses the `integration_credential_type` dictionary. Current seeded values are `payment_bundle`, `api_key`, and `smtp_password`; save usecases reject values that are not enabled dictionary values.
+* `scenario` only allows `payment`, `llm`, `sms`, `email`, and `oss`.
+* `credential_type` uses the `integration_credential_type` dictionary. Current seeded values are `payment_bundle`, `api_key`, `smtp_password`, and `s3_access_key`; save usecases reject values that are not enabled dictionary values.
 * `config_json` and `metadata_json` must be JSON objects and may only contain non-sensitive config. Obvious sensitive keys such as `api_key`, `secret`, `password`, `token`, and `private_key` are rejected recursively, including inside arrays.
 * create requires `credential_value`; update with empty `credential_value` preserves the existing credential value.
 * `credential_value` is stored as administrator-managed configuration in `integration_credentials.value_text`; it is not encrypted by this module. Legacy `ciphertext/key_version/masked_value` columns may exist for migration compatibility, but they are not part of the current API contract.
@@ -918,6 +919,8 @@ Good: Create a `payment.creem.hosted_checkout` channel with non-sensitive `base_
 
 Good: Create an `email.aliyun.smtp` channel with SMTP host/port/security/from fields in `config_json`, and username/password in admin-managed `credential_value`.
 
+Good: Create an `oss.cloudflare_r2.s3_compatible` channel with R2 endpoint/bucket/region in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API.
+
 Base: Edit an LLM channel's `priority` and `metadata_json` with empty `credential_value`; backend preserves the previous credential value.
 
 Bad: Store `api_key` inside `config_json`, or expose legacy `ciphertext/masked_value` through route DTO. This breaks the external integration anti-corruption credential boundary.
@@ -925,7 +928,7 @@ Bad: Store `api_key` inside `config_json`, or expose legacy `ciphertext/masked_v
 ### 6. Tests Required
 
 * `api/models/integration_test.go` covers channel/credential CRUD, admin credential value view, and duplicate conflict.
-* `api/usecase/dictionary_test.go` covers seeded `integration_credential_type` values, including `smtp_password`.
+* `api/usecase/dictionary_test.go` covers seeded `integration_credential_type` values, including `smtp_password` and `s3_access_key`.
 * `api/usecase/parameter_test.go` covers schema listing, credential value persistence, empty value preservation, non-empty value update, sensitive JSON key rejection including arrays, schema required field validation, URL validation, plain vs JSON object credential formats, and enable/disable.
 * `api/routes/parameter_test.go` covers schema route DTO, internal envelope, DTO without legacy plaintext/ciphertext/masked fields, create response, and enable/disable response.
 * `frontend/src/api.test.js` covers parameter helper paths, HTTP methods, encoded IDs, and bodies.

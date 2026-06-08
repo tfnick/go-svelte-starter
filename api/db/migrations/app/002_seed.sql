@@ -54,6 +54,7 @@ INSERT OR IGNORE INTO dictionary_values (
     ('019ea0c1-0003-7000-8000-000000000010', '019ea0c1-0003-7000-8000-000000000009', 'payment_bundle', 'Payment Bundle', 10, 1, 'JSON object containing payment API key and webhook secret'),
     ('019ea0c1-0003-7000-8000-000000000011', '019ea0c1-0003-7000-8000-000000000009', 'api_key', 'API Key', 20, 1, 'Single API key credential value'),
     ('019ea0c1-0003-7000-8000-000000000017', '019ea0c1-0003-7000-8000-000000000009', 'smtp_password', 'SMTP Password', 30, 1, 'SMTP username and password credential bundle'),
+    ('019ea0c1-0003-7000-8000-000000000018', '019ea0c1-0003-7000-8000-000000000009', 's3_access_key', 'S3 Access Key', 40, 1, 'S3-compatible access key credential bundle'),
     ('019ea0c1-0003-7000-8000-000000000013', '019ea0c1-0003-7000-8000-000000000012', 'sse', 'SSE', 10, 1, 'Realtime server-sent event notification'),
     ('019ea0c1-0003-7000-8000-000000000014', '019ea0c1-0003-7000-8000-000000000012', 'sms', 'SMS', 20, 1, 'SMS notification ledger entry'),
     ('019ea0c1-0003-7000-8000-000000000015', '019ea0c1-0003-7000-8000-000000000012', 'email', 'Email', 30, 1, 'Email notification ledger entry'),

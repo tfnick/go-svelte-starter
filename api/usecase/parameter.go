@@ -285,7 +285,7 @@ func ensureParameterCredentialTypeAllowed(ctx fwusecase.Context, credentialType 
 func normalizeIntegrationScenario(value string) (string, error) {
 	scenario := strings.TrimSpace(strings.ToLower(value))
 	switch scenario {
-	case models.IntegrationScenarioPayment, models.IntegrationScenarioLLM, models.IntegrationScenarioSMS, models.IntegrationScenarioEmail:
+	case models.IntegrationScenarioPayment, models.IntegrationScenarioLLM, models.IntegrationScenarioSMS, models.IntegrationScenarioEmail, models.IntegrationScenarioOSS:
 		return scenario, nil
 	default:
 		return "", fwusecase.E(fwusecase.CodeValidation, "invalid integration scenario", nil)

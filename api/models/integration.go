@@ -18,6 +18,7 @@ const (
 	IntegrationScenarioPayment = "payment"
 	IntegrationScenarioSMS     = "sms"
 	IntegrationScenarioEmail   = "email"
+	IntegrationScenarioOSS     = "oss"
 
 	deepSeekOpenAICompatibleAdapterKey = "llm.deepseek.openai_compatible"
 	defaultDeepSeekModelCode           = "deepseek-chat"

@@ -888,18 +888,20 @@ Route entry:
 Backend API paths:
 
 ```text
-GET   /api/parameters/integration-schemas?scenario=payment|llm|sms|email
-GET   /api/parameters/integration-channels?scenario=payment|llm|sms|email
+GET   /api/parameters/integration-schemas?scenario=payment|llm|sms|email|oss
+GET   /api/parameters/integration-channels?scenario=payment|llm|sms|email|oss
 POST  /api/parameters/integration-channels
 PUT   /api/parameters/integration-channels/:id
 PATCH /api/parameters/integration-channels/:id/enabled
 ```
 
+OSS/Cloudflare R2 is a Parameter configuration scenario only: the UI loads `scenario=oss`, captures R2 `endpoint_url` / `bucket` / `region` config and `s3_access_key` credentials, and does not execute upload/download or SDK connection tests.
+
 ### 3. Contracts
 
 * `Parameters.svelte` 必须通过 `frontend/src/api.js` helper 调用内部 API，不直接 `fetch('/api/...')`。
 * 页面左侧是 create/edit 表单，右侧是 daisyUI `tabs tabs-lift` + radio input pattern 的 tab content。
-* Tab 固定为 `Payment`、`LLM`、`SMS`、`Email`，分别查询 `scenario=payment|llm|sms|email` 的不分页列表。
+* Tab 固定为 `Payment`、`LLM`、`SMS`、`Email`、`OSS`，分别查询 `scenario=payment|llm|sms|email|oss` 的不分页列表。
 * `Parameter` 菜单项是 admin-only route；普通登录用户不显示该菜单，后端仍通过 `RequireAdmin()` 做最终权限保护。
 * 进入场景时先调用 `listParameterIntegrationSchemas(scenario)`，再按 `adapter_key` 匹配当前 schema。
 * 如果当前 `adapter_key` 有 schema，页面根据 `config_fields` 渲染结构化 config 表单，并同步写回 `form.config_json`；Advanced JSON 仍保留，用于额外非敏感字段。
@@ -907,8 +909,9 @@ PATCH /api/parameters/integration-channels/:id/enabled
 * `credential_format=plain` 时，结构化 credential 输入保存为原始 `credential_value` 字符串；`credential_format=json_object` 时，保存为 JSON object 字符串。
 * schema field 的 `dictionary_type` 可以通过 `getDictionaries(types)` 动态加载 options；如果字典没有值，使用 schema 内置 `options` 兜底。
 * config 和 credential 的 schema field 如果返回 `help_text`，页面应在字段名旁渲染 `?` 类型 tooltip，鼠标移入或键盘聚焦时展示说明；例如 Aliyun SMTP password 必须提示使用邮箱客户端授权密码，而不是账号登录密码。
+* 固定的 `Webhook` 开关虽然不是 adapter schema field，也必须在 label 旁渲染与 schema `help_text` 一致的 `?` tooltip；提示内容展示通用 provider callback URL 格式 `https://<public-domain>/api/integrations/<scenario>/<channel_code>/webhooks/<provider_code>`，并用当前 `form.scenario`、`form.channel_code`、`form.provider_code` 代入，空值保留占位符。当前已实现的 Payment/Creem 后端 route 是 `/api/integrations/payment/<channel_code>/webhooks/creem`；SMS/Email/LLM 页面只展示统一格式提示，不代表已有真实 webhook route。
 * `environment` 使用 `integration_environment` 字典，缺失时 fallback 为 `test` 和 `production`；provider API URL 不走 dictionary，也不使用 schema `options`，应渲染为普通 URL 输入框，因为 dictionary/option value 是规范化 code。
-* `credential_type` 使用 `integration_credential_type` 字典下拉，当前默认值为 `payment_bundle`、`api_key` 和 `smtp_password`；缺失时前端 fallback 到同一组值，后端保存仍按启用字典值校验。
+* `credential_type` 使用 `integration_credential_type` 字典下拉，当前默认值为 `payment_bundle`、`api_key`、`smtp_password` 和 `s3_access_key`；缺失时前端 fallback 到同一组值，后端保存仍按启用字典值校验。
 * 创建和编辑时使用 `credential_value`；编辑表单从 admin DTO 回填当前值。schema 中 `kind=secret` 的字段必须默认使用 password 输入遮罩，并提供显示/隐藏按钮。
 * 不再使用 `credential_masked_value`。列表只展示 `credential_type` 和是否 configured，不展示具体 credential value。
 * 前端不得提交或展示 legacy `credential_plaintext`、`ciphertext`、`key_version`、`masked_value`。
@@ -925,6 +928,7 @@ PATCH /api/parameters/integration-channels/:id/enabled
 | create/update succeeds | current scenario list refreshes and form enters edit state for saved channel |
 | enable/disable succeeds | current scenario list refreshes and selected form state updates if it was editing that row |
 | credential value empty on edit | frontend sends empty string; backend preserves existing credential |
+| Webhook help icon hover/focus | tooltip shows the provider callback URL format using current scenario/channel/provider values and does not change the save payload |
 | backend rejects sensitive config key or invalid schema field | page shows backend safe validation message |
 | mobile/narrow width | tables scroll horizontally and page avoids page-level horizontal overflow |
 
@@ -935,6 +939,8 @@ Good: 在 `Payment` tab 新增 `creem-prod`，通过 schema 字段填写 `base_u
 Base: 在 `LLM` tab 编辑 `deepseek-prod` 的 `priority` 和 `metadata_json`，credential 字段保持当前回填值，后端保存同一个 `credential_value`。
 
 Bad: 在 Svelte 组件中直接调用 `/api/parameters/integration-channels`，或在列表中展示具体 `credential_value`；这会绕过 helper 测试和后台配置边界。
+
+Bad: 将 Webhook tooltip 写死为 Creem 专用文案，或改成表单内常驻说明段落；这会隐藏 payment/sms/email/llm 的统一 callback 格式，也会挤占配置表单空间。
 
 ### 6. Tests Required
 

@@ -3,10 +3,10 @@ package usecase_test
 import (
 	"testing"
 
-	"github.com/tfnick/sqlx"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
+	"github.com/tfnick/sqlx"
 )
 
 func TestCreateParameterIntegrationChannelStoresCredentialValueAndReturnsAdminCo(t *testing.T) {
@@ -243,6 +243,25 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 	if emailSchemas[1].CredentialType != "api_key" || emailSchemas[1].CredentialFormat != usecase.ParameterIntegrationCredentialFormatPlain {
 		t.Fatalf("unexpected Resend Email schema: %#v", emailSchemas[1])
 	}
+
+	ossSchemas, err := usecase.ListParameterIntegrationSchemas(ctx, usecase.ListParameterIntegrationSchemasQry{
+		Scenario: models.IntegrationScenarioOSS,
+	})
+	if err != nil {
+		t.Fatalf("list OSS schemas: %v", err)
+	}
+	if len(ossSchemas) != 1 {
+		t.Fatalf("expected one OSS schema, got %#v", ossSchemas)
+	}
+	if ossSchemas[0].AdapterKey != "oss.cloudflare_r2.s3_compatible" || ossSchemas[0].ProviderCode != "cloudflare_r2" {
+		t.Fatalf("unexpected OSS schema: %#v", ossSchemas[0])
+	}
+	if ossSchemas[0].CredentialType != "s3_access_key" || ossSchemas[0].CredentialFormat != usecase.ParameterIntegrationCredentialFormatJSONObject {
+		t.Fatalf("unexpected OSS credential schema: %#v", ossSchemas[0])
+	}
+	if len(ossSchemas[0].ConfigFields) < 3 || ossSchemas[0].ConfigFields[0].Key != "endpoint_url" || ossSchemas[0].ConfigFields[2].DefaultValue != "auto" {
+		t.Fatalf("unexpected OSS config fields: %#v", ossSchemas[0].ConfigFields)
+	}
 }
 
 func TestParameterIntegrationChannelValidatesAdapterSchema(t *testing.T) {
@@ -376,6 +395,65 @@ func TestParameterIntegrationChannelAcceptsEmailResendPlainCredentialSchema(t *t
 	}
 	if channel.CredentialType != "api_key" || channel.CredentialValue != "re_secret" {
 		t.Fatalf("unexpected Resend Email channel: %#v", channel)
+	}
+}
+
+func TestParameterIntegrationChannelAcceptsCloudflareR2CredentialSchema(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+
+	channel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:       models.IntegrationScenarioOSS,
+		ChannelCode:    "r2-assets",
+		ProviderCode:   "cloudflare_r2",
+		AdapterKey:     "oss.cloudflare_r2.s3_compatible",
+		Environment:    "production",
+		Enabled:        true,
+		ConfigJSON:     `{"endpoint_url":"https://example-account.r2.cloudflarestorage.com","bucket":"assets","region":"auto","key_prefix":"uploads/"}`,
+		MetadataJSON:   "{}",
+		CredentialType: "s3_access_key",
+		CredentialValue: `{
+			"access_key_id":"r2-access-key",
+			"secret_access_key":"r2-secret-key"
+		}`,
+	})
+	if err != nil {
+		t.Fatalf("create Cloudflare R2 channel: %v", err)
+	}
+	if channel.Scenario != models.IntegrationScenarioOSS || channel.CredentialType != "s3_access_key" {
+		t.Fatalf("unexpected Cloudflare R2 channel: %#v", channel)
+	}
+
+	missingBucket := usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioOSS,
+		ChannelCode:     "r2-missing-bucket",
+		ProviderCode:    "cloudflare_r2",
+		AdapterKey:      "oss.cloudflare_r2.s3_compatible",
+		Environment:     "production",
+		Enabled:         true,
+		ConfigJSON:      `{"endpoint_url":"https://example-account.r2.cloudflarestorage.com","region":"auto"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "s3_access_key",
+		CredentialValue: `{"access_key_id":"r2-access-key","secret_access_key":"r2-secret-key"}`,
+	}
+	if _, err := usecase.CreateParameterIntegrationChannel(ctx, missingBucket); fwusecase.CodeOf(err) != fwusecase.CodeValidation {
+		t.Fatalf("expected missing bucket validation, got %v", err)
+	}
+
+	missingSecret := usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioOSS,
+		ChannelCode:     "r2-missing-secret",
+		ProviderCode:    "cloudflare_r2",
+		AdapterKey:      "oss.cloudflare_r2.s3_compatible",
+		Environment:     "production",
+		Enabled:         true,
+		ConfigJSON:      `{"endpoint_url":"https://example-account.r2.cloudflarestorage.com","bucket":"assets","region":"auto"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "s3_access_key",
+		CredentialValue: `{"access_key_id":"r2-access-key"}`,
+	}
+	if _, err := usecase.CreateParameterIntegrationChannel(ctx, missingSecret); fwusecase.CodeOf(err) != fwusecase.CodeValidation {
+		t.Fatalf("expected missing secret validation, got %v", err)
 	}
 }
 

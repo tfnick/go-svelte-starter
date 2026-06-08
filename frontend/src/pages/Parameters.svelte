@@ -16,7 +16,8 @@
     { key: 'payment', label: 'Payment', defaultProvider: 'creem', defaultAdapter: 'payment.creem.hosted_checkout', credentialType: 'payment_bundle' },
     { key: 'llm', label: 'LLM', defaultProvider: 'deepseek', defaultAdapter: 'llm.deepseek.openai_compatible', credentialType: 'api_key' },
     { key: 'sms', label: 'SMS', defaultProvider: 'aliyun', defaultAdapter: 'sms.aliyun.adapter', credentialType: 'api_key' },
-    { key: 'email', label: 'Email', defaultProvider: 'aliyun', defaultAdapter: 'email.aliyun.smtp', credentialType: 'smtp_password' }
+    { key: 'email', label: 'Email', defaultProvider: 'aliyun', defaultAdapter: 'email.aliyun.smtp', credentialType: 'smtp_password' },
+    { key: 'oss', label: 'OSS', defaultProvider: 'cloudflare_r2', defaultAdapter: 'oss.cloudflare_r2.s3_compatible', credentialType: 's3_access_key' }
   ];
 
   const defaultJSON = '{}';
@@ -29,7 +30,8 @@
   const fallbackCredentialTypeOptions = [
     { value: 'payment_bundle', label: 'Payment Bundle' },
     { value: 'api_key', label: 'API Key' },
-    { value: 'smtp_password', label: 'SMTP Password' }
+    { value: 'smtp_password', label: 'SMTP Password' },
+    { value: 's3_access_key', label: 'S3 Access Key' }
   ];
 
   let activeScenario = $state('payment');
@@ -37,25 +39,29 @@
     payment: [],
     llm: [],
     sms: [],
-    email: []
+    email: [],
+    oss: []
   });
   let schemasByScenario = $state({
     payment: [],
     llm: [],
     sms: [],
-    email: []
+    email: [],
+    oss: []
   });
   let loadingByScenario = $state({
     payment: false,
     llm: false,
     sms: false,
-    email: false
+    email: false,
+    oss: false
   });
   let loadingSchemasByScenario = $state({
     payment: false,
     llm: false,
     sms: false,
-    email: false
+    email: false,
+    oss: false
   });
   let dictionariesByType = $state({});
   let structuredConfig = $state({});
@@ -464,13 +470,20 @@
   function formatDate(value) {
     return formatLocalDateTime(value);
   }
+
+  function webhookHelpText() {
+    const scenario = String(form.scenario || '<scenario>').trim() || '<scenario>';
+    const channelCode = String(form.channel_code || '<channel_code>').trim() || '<channel_code>';
+    const providerCode = String(form.provider_code || '<provider_code>').trim() || '<provider_code>';
+    return `Configure the provider callback URL as https://<public-domain>/api/integrations/${scenario}/${channelCode}/webhooks/${providerCode}`;
+  }
 </script>
 
 <section class="space-y-6">
   <div class="flex flex-wrap items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold leading-tight">Parameter</h1>
-      <p class="mt-1 text-sm text-base-content/60">Channel integration settings for payment, LLM, SMS, and Email.</p>
+      <p class="mt-1 text-sm text-base-content/60">Channel integration settings for Payment, LLM, SMS, Email, and OSS.</p>
     </div>
     <div class="flex gap-2">
       <button class="btn btn-outline btn-sm" type="button" onclick={refreshCurrent} disabled={loadingByScenario[activeScenario] || loadingSchemasByScenario[activeScenario]}>
@@ -553,7 +566,18 @@
 
           <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
             <input class="toggle toggle-primary" type="checkbox" bind:checked={form.webhook_enabled} />
-            <span class="label-text">Webhook</span>
+            <span class="label-text inline-flex items-center gap-1.5">
+              <span>Webhook</span>
+              <span class="tooltip tooltip-right" data-tip={webhookHelpText()}>
+                <button
+                  class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-base-content/30 bg-transparent text-[10px] font-semibold leading-none text-base-content/60"
+                  aria-label={webhookHelpText()}
+                  type="button"
+                >
+                  ?
+                </button>
+              </span>
+            </span>
           </label>
         </div>
 

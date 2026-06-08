@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	"github.com/tfnick/go-svelte-starter/api/routes"
+	"github.com/tfnick/sqlx"
 )
 
 func TestListParameterIntegrationChannelsReturnsAdminDTO(t *testing.T) {
@@ -122,6 +122,32 @@ func TestListParameterIntegrationSchemasReturnsDTO(t *testing.T) {
 	}
 	if envelope.Data[1].AdapterKey != "email.resend.api" || envelope.Data[1].CredentialFormat != "plain" {
 		t.Fatalf("unexpected Resend Email schema response: %#v", envelope.Data[1])
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/parameters/integration-schemas?scenario=oss", nil)
+	rec = httptest.NewRecorder()
+	c = router.NewContext(req, rec)
+	if err := routes.ListParameterIntegrationSchemas(c); err != nil {
+		t.Fatalf("list OSS schemas: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	envelope = struct {
+		Success bool                                               `json:"success"`
+		Data    []routes.ParameterIntegrationAdapterSchemaResponse `json:"data"`
+	}{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode OSS schema response: %v", err)
+	}
+	if !envelope.Success || len(envelope.Data) != 1 {
+		t.Fatalf("unexpected OSS schema envelope: %s", rec.Body.String())
+	}
+	if envelope.Data[0].AdapterKey != "oss.cloudflare_r2.s3_compatible" || envelope.Data[0].CredentialType != "s3_access_key" {
+		t.Fatalf("unexpected OSS schema response: %#v", envelope.Data[0])
+	}
+	if len(envelope.Data[0].ConfigFields) == 0 || envelope.Data[0].ConfigFields[0].Key != "endpoint_url" {
+		t.Fatalf("expected OSS endpoint URL field, got %#v", envelope.Data[0].ConfigFields)
 	}
 }
 

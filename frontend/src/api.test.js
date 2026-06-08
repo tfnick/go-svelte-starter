@@ -464,6 +464,8 @@ test('parameter integration api helpers use relative api paths', async () => {
   await listParameterIntegrationSchemas('payment');
   await listParameterIntegrationChannels('email');
   await listParameterIntegrationSchemas('email');
+  await listParameterIntegrationChannels('oss');
+  await listParameterIntegrationSchemas('oss');
   await createParameterIntegrationChannel(payload);
   await updateParameterIntegrationChannel('channel 1', payload);
   await setParameterIntegrationChannelEnabled('channel 1', false);
@@ -473,14 +475,16 @@ test('parameter integration api helpers use relative api paths', async () => {
   assert.equal(calls[1].path, '/api/parameters/integration-schemas?scenario=payment');
   assert.equal(calls[2].path, '/api/parameters/integration-channels?scenario=email');
   assert.equal(calls[3].path, '/api/parameters/integration-schemas?scenario=email');
-  assert.equal(calls[4].path, '/api/parameters/integration-channels');
-  assert.equal(calls[4].options.method, 'POST');
-  assert.equal(calls[4].options.body, JSON.stringify(payload));
-  assert.equal(calls[5].path, '/api/parameters/integration-channels/channel%201');
-  assert.equal(calls[5].options.method, 'PUT');
-  assert.equal(calls[6].path, '/api/parameters/integration-channels/channel%201/enabled');
-  assert.equal(calls[6].options.method, 'PATCH');
-  assert.equal(calls[6].options.body, '{"enabled":false}');
+  assert.equal(calls[4].path, '/api/parameters/integration-channels?scenario=oss');
+  assert.equal(calls[5].path, '/api/parameters/integration-schemas?scenario=oss');
+  assert.equal(calls[6].path, '/api/parameters/integration-channels');
+  assert.equal(calls[6].options.method, 'POST');
+  assert.equal(calls[6].options.body, JSON.stringify(payload));
+  assert.equal(calls[7].path, '/api/parameters/integration-channels/channel%201');
+  assert.equal(calls[7].options.method, 'PUT');
+  assert.equal(calls[8].path, '/api/parameters/integration-channels/channel%201/enabled');
+  assert.equal(calls[8].options.method, 'PATCH');
+  assert.equal(calls[8].options.body, '{"enabled":false}');
 });
 
 test('variable api helpers use relative api paths', async () => {
