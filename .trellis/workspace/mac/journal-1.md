@@ -636,3 +636,36 @@ Archived the completed Dockerfile Dokploy deployment task and recorded the sessi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: Fix membership upgrade subscription cancellation
+
+**Date**: 2026-06-08
+**Task**: Fix membership upgrade subscription cancellation
+**Branch**: `master`
+
+### Summary
+
+Fixed Creem scheduled cancellation when upgrading memberships, added regression tests, updated backend payment contract spec, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3d68d7d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
