@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
-- **Last Active**: 2026-06-07
+- **Total Sessions**: 19
+- **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~605 | Active |
+| `journal-1.md` | ~638 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-06-08 | Dockerfile Dokploy deployment | `d273c31` | `master` |
 | 18 | 2026-06-07 | Creem webhook ingress hardening | `3bf9ce0`, `86ea2e7` | `main` |
 | 17 | 2026-06-07 | Parameter email channel and webhook naming | `08ffa44` | `main` |
 | 16 | 2026-06-07 | Rename app menu labels | `fa0ab00` | `main` |
