@@ -803,3 +803,36 @@ Implemented Google OAuth and GitHub OAuth login with backend callbacks, one-time
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: Marketing SaaS SEO landing implementation
+
+**Date**: 2026-06-09
+**Task**: Marketing SaaS SEO landing implementation
+**Branch**: `codex/marketing-saas-seo-landing`
+
+### Summary
+
+Added server-rendered marketing pages, /app SaaS boundary, checkout handoff, SEO endpoints, tests, and route documentation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bcd7cf9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
