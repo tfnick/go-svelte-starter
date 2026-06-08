@@ -52,6 +52,7 @@ test('filters admin-only routes from the menu for regular users', () => {
 
 test('classifies auth and app routes', () => {
   assert.equal(isAuthRoute('/login'), true);
+  assert.equal(isAuthRoute('/login/oauth/callback'), true);
   assert.equal(isAuthRoute('/register'), true);
   assert.equal(isAuthRoute('/orders'), false);
 
@@ -68,6 +69,7 @@ test('classifies auth and app routes', () => {
   assert.equal(isAppRoute('/settings'), true);
   assert.equal(isAppRoute('/variables'), true);
   assert.equal(isAppRoute('/login'), false);
+  assert.equal(isAppRoute('/login/oauth/callback'), false);
 });
 
 test('returns route titles for logged-in menu pages', () => {
@@ -83,4 +85,5 @@ test('returns route titles for logged-in menu pages', () => {
   assert.equal(routeTitle('/notifications'), 'Notification');
   assert.equal(routeTitle('/settings'), 'Setting');
   assert.equal(routeTitle('/variables'), 'Variable');
+  assert.equal(routeTitle('/login/oauth/callback'), 'Login');
 });

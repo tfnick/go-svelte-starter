@@ -2,6 +2,7 @@ const aliases = new Map([
   ['/index.html', '/'],
   ['/dashboard', '/'],
   ['/login.html', '/login'],
+  ['/login-oauth-callback.html', '/login/oauth/callback'],
   ['/register.html', '/register'],
   ['/forgot-password.html', '/forgot-password'],
   ['/reset-password.html', '/reset-password'],
@@ -100,6 +101,7 @@ export function navigate(path) {
 export function isAuthRoute(path) {
   switch (normalizePath(path)) {
     case '/login':
+    case '/login/oauth/callback':
     case '/register':
     case '/forgot-password':
     case '/reset-password':
@@ -122,6 +124,8 @@ export function visibleAppRoutes(user = null) {
 export function routeTitle(path) {
   switch (normalizePath(path)) {
     case '/login':
+      return 'Login';
+    case '/login/oauth/callback':
       return 'Login';
     case '/register':
       return 'Register';

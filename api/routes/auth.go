@@ -2,6 +2,8 @@ package routes
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -33,6 +35,10 @@ type ForgotPasswordRequest struct {
 type ResetPasswordRequest struct {
 	Token    string `json:"token"`
 	Password string `json:"password"`
+}
+
+type OAuthExchangeRequest struct {
+	Token string `json:"token"`
 }
 
 type CurrentUserResponse struct {
@@ -130,6 +136,14 @@ func bindResetPasswordRequest(c echo.Context) (ResetPasswordRequest, error) {
 	return req, nil
 }
 
+func bindOAuthExchangeRequest(c echo.Context) (OAuthExchangeRequest, error) {
+	var req OAuthExchangeRequest
+	if err := c.Bind(&req); err != nil {
+		return req, err
+	}
+	return req, nil
+}
+
 func ToCurrentUserResponse(user usecase.UserCo) CurrentUserResponse {
 	return CurrentUserResponse{
 		ID:                  user.ID,
@@ -219,9 +233,91 @@ func Login(c echo.Context) error {
 	return httpresponse.OK(c, ToAuthTokenResponse(auth, token))
 }
 
+func StartOAuthLogin(c echo.Context) error {
+	ctx := fwcontext.InternalUsecaseContext(c)
+	start, err := usecase.StartOAuthLogin(ctx, usecase.OAuthStartCmd{
+		Provider:       c.Param("provider"),
+		RedirectPath:   c.QueryParam("redirect_path"),
+		RequestBaseURL: requestBaseURL(c),
+	})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+	return c.Redirect(http.StatusFound, start.AuthorizationURL)
+}
+
+func CompleteOAuthLogin(c echo.Context) error {
+	ctx := fwcontext.InternalUsecaseContext(c)
+	result, err := usecase.CompleteOAuthLogin(ctx, usecase.OAuthCallbackCmd{
+		Provider:       c.Param("provider"),
+		Code:           c.QueryParam("code"),
+		State:          c.QueryParam("state"),
+		RequestBaseURL: requestBaseURL(c),
+	})
+	if err != nil {
+		return c.Redirect(http.StatusFound, oauthErrorRedirect(err))
+	}
+
+	values := url.Values{}
+	values.Set("token", result.ResultToken)
+	values.Set("redirect_path", result.RedirectPath)
+	return c.Redirect(http.StatusFound, "/login/oauth/callback?"+values.Encode())
+}
+
+func ExchangeOAuthLoginResult(c echo.Context) error {
+	req, err := bindOAuthExchangeRequest(c)
+	if err != nil {
+		return httpresponse.BadRequest(c, "invalid request data")
+	}
+
+	ctx := fwcontext.InternalUsecaseContext(c)
+	auth, err := usecase.ExchangeOAuthLoginResult(ctx, usecase.OAuthExchangeCmd{Token: req.Token})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	token, err := fwauth.IssueUserToken(auth.User.ID)
+	if err != nil {
+		return httpresponse.InternalServerError(c, err, "failed to issue login token")
+	}
+	return httpresponse.OK(c, ToAuthTokenResponse(auth, token))
+}
+
 func Logout(c echo.Context) error {
 	_ = usecase.Logout(fwcontext.InternalUsecaseContext(c), usecase.LogoutCmd{})
 	return httpresponse.OKMessage(c, "logged out")
+}
+
+func requestBaseURL(c echo.Context) string {
+	req := c.Request()
+	scheme := req.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = "http"
+		if req.TLS != nil {
+			scheme = "https"
+		}
+	}
+	host := req.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = req.Host
+	}
+	if host == "" {
+		return ""
+	}
+	return scheme + "://" + host
+}
+
+func oauthErrorRedirect(err error) string {
+	values := url.Values{}
+	values.Set("oauth_error", usecaseMessage(err, "OAuth login failed"))
+	return "/login?" + values.Encode()
+}
+
+func usecaseMessage(err error, fallback string) string {
+	if err == nil {
+		return fallback
+	}
+	return strings.TrimSpace(fmt.Sprint(err))
 }
 
 func GetCurrentUser(c echo.Context) error {

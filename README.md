@@ -99,10 +99,32 @@ Persistent storage:
 - Mount persistent storage to `/app/data` for SQLite files.
 - Optionally mount `/app/logs` if you want file logs to survive redeploys.
 
+Runtime environment files:
+
+- The executable automatically loads dotenv-style files at startup and only fills variables that are not already set by the operating system.
+- Checked paths are `.env`, `data/.env`, `.env` and `data/.env` next to the executable, and the same two paths in the executable directory's parent. The parent lookup is useful when the Windows build output runs from `tmp/`.
+- The format is `KEY=value`; blank lines and `#` comments are ignored, `export KEY=value` is accepted, and single or double quoted values are supported.
+- For Docker/Dokploy, you can still set real environment variables or mount a persistent env file such as `/app/data/.env`.
+
+Example `.env`:
+
+```env
+APP_PUBLIC_BASE_URL=http://127.0.0.1:5173
+GOOGLE_OAUTH_CLIENT_ID=<google-client-id>
+GOOGLE_OAUTH_CLIENT_SECRET=<google-client-secret>
+GITHUB_OAUTH_CLIENT_ID=<github-client-id>
+GITHUB_OAUTH_CLIENT_SECRET=<github-client-secret>
+APP_JWT_SECRET=<set-a-stable-secret>
+APP_INTEGRATION_MASTER_KEY=<set-a-stable-secret>
+```
+
 Runtime environment:
 
 - Set `APP_JWT_SECRET` to a stable secret so existing JWTs are not invalidated on every restart.
 - Set `APP_INTEGRATION_MASTER_KEY` to a stable secret so encrypted integration values remain decryptable across restarts.
+- Set `APP_PUBLIC_BASE_URL` to the browser-facing origin used by OAuth callbacks. In local development this is usually `http://127.0.0.1:5173`; in production it is your public site URL.
+- To enable Google OAuth, set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, then configure the provider callback URL as `<APP_PUBLIC_BASE_URL>/api/auth/oauth/google/callback`.
+- To enable GitHub OAuth, set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`, then configure the provider callback URL as `<APP_PUBLIC_BASE_URL>/api/auth/oauth/github/callback`.
 - Do not put runtime secrets into Docker build args.
 
 ## Frontend UI

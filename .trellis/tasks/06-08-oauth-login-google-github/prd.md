@@ -12,7 +12,7 @@ Add OAuth login so users can sign in with Google OAuth accounts and GitHub accou
 * Existing backend issues stateless JWT through `api/framework/http/auth`.
 * Existing user table has unique `email`, optional `password_hash`, `email_verified`, `is_active`, `is_admin`, membership fields, and timestamps.
 * Current app does not use cookie session auth; an archguard test explicitly rejects retired cookie/session auth symbols.
-* MVP OAuth provider credentials will use environment variables, while preserving a future path to configure OAuth providers through Parameter integration channels.
+* MVP OAuth provider credentials will use runtime environment variables loaded from OS env or dotenv-style env files, while preserving a future path to configure OAuth providers through Parameter integration channels.
 
 ## Research References
 
@@ -31,12 +31,13 @@ Add OAuth login so users can sign in with Google OAuth accounts and GitHub accou
 
 ## Decisions
 
-* MVP uses environment variables for provider credentials:
+* MVP uses runtime environment variables for provider credentials:
   * `GOOGLE_OAUTH_CLIENT_ID`
   * `GOOGLE_OAUTH_CLIENT_SECRET`
   * `GITHUB_OAUTH_CLIENT_ID`
   * `GITHUB_OAUTH_CLIENT_SECRET`
   * `APP_PUBLIC_BASE_URL` or equivalent public base URL config for callback URLs
+* The executable auto-loads dotenv-style `.env` files at startup from the working directory, `data/`, the executable directory, and the executable directory's parent. System/container env values take precedence over file values.
 * Parameter channel configuration for OAuth providers is intentionally reserved for a future task.
 * Only provider identities with a verified email can create or auto-link local users. Missing or unverified email is rejected.
 * Existing linked OAuth identity wins first: if `(provider, provider_user_id)` exists, login that mapped local user.
@@ -60,30 +61,42 @@ Add OAuth login so users can sign in with Google OAuth accounts and GitHub accou
 
 ## Acceptance Criteria (Evolving)
 
-* [ ] Login page shows Google and GitHub login options.
-* [ ] OAuth start endpoints redirect to the correct provider authorization URL.
-* [ ] OAuth callback verifies `state` before accepting provider `code`.
-* [ ] OAuth callback fetches provider identity and maps it to a local user.
-* [ ] Existing linked `(provider, provider_user_id)` identity logs in the mapped user.
-* [ ] Verified provider email matching an existing local user automatically links that provider identity.
-* [ ] Verified provider email not matching any local user creates an active local user with empty `password_hash`.
-* [ ] Missing or unverified provider email is rejected and does not create or link a user.
-* [ ] OAuth callback redirects with a one-time exchange token, not an app JWT.
-* [ ] OAuth exchange endpoint returns the same `AuthTokenResponse` shape as password login/register.
-* [ ] OAuth state and login result tokens reject expired or repeated use.
-* [ ] Missing provider env config returns a safe error and does not redirect to an invalid provider URL.
-* [ ] Existing JWT auth status/me/logout behavior continues to work after OAuth login.
-* [ ] Disabled users cannot log in through OAuth.
-* [ ] Backend tests cover provider identity mapping and account linking behavior.
-* [ ] Frontend tests cover OAuth helper URL/button behavior where practical.
+* [x] Login page shows Google and GitHub login options.
+* [x] OAuth start endpoints redirect to the correct provider authorization URL.
+* [x] OAuth callback verifies `state` before accepting provider `code`.
+* [x] OAuth callback fetches provider identity and maps it to a local user.
+* [x] Existing linked `(provider, provider_user_id)` identity logs in the mapped user.
+* [x] Verified provider email matching an existing local user automatically links that provider identity.
+* [x] Verified provider email not matching any local user creates an active local user with empty `password_hash`.
+* [x] Missing or unverified provider email is rejected and does not create or link a user.
+* [x] OAuth callback redirects with a one-time exchange token, not an app JWT.
+* [x] OAuth exchange endpoint returns the same `AuthTokenResponse` shape as password login/register.
+* [x] OAuth state and login result tokens reject expired or repeated use.
+* [x] Missing provider env config returns a safe error and does not redirect to an invalid provider URL.
+* [x] Existing JWT auth status/me/logout behavior continues to work after OAuth login.
+* [x] Disabled users cannot log in through OAuth.
+* [x] Backend tests cover provider identity mapping and account linking behavior.
+* [x] Frontend tests cover OAuth helper URL/button behavior where practical.
 
 ## Definition Of Done
 
-* Backend migrations, models, usecase, routes, and tests are implemented.
-* Frontend login UI and API helpers are implemented.
-* Relevant specs are updated if auth API/frontend contracts change.
-* `go test ./api/...`, `cd frontend && npm test`, and `cd frontend && npm run build` pass.
-* OAuth provider environment setup is documented in the task notes or spec.
+* [x] Backend migrations, models, usecase, routes, and tests are implemented.
+* [x] Frontend login UI and API helpers are implemented.
+* [x] Relevant specs are updated if auth API/frontend contracts change.
+* [x] `go test ./api/...`, `cd frontend && npm test`, and `cd frontend && npm run build` pass.
+* [x] OAuth provider environment setup is documented in the task notes or spec.
+
+## Implementation Notes
+
+Implemented on 2026-06-08:
+
+* Added `oauth_identities`, `oauth_states`, and `oauth_login_results` migration.
+* Added Google OAuth and GitHub OAuth adapters using backend authorization-code flow.
+* Added public start/callback/exchange routes while preserving JWT issuance in the route layer.
+* Added login buttons and `/login/oauth/callback` frontend route.
+* Documented OAuth environment variables and provider callback URLs in `README.md`.
+* Added runtime env file support for Windows exe and Linux executable deployments, plus `.env.example`.
+* Verified with `go test ./api/...`, `cd frontend && npm test`, `cd frontend && npm run build`, and a local browser smoke check on `http://127.0.0.1:5173/login`.
 
 ## Technical Notes
 

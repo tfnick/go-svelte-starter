@@ -202,6 +202,119 @@ names, err := translate.Resolve(ctx.Std(), func(batch *namelookup.Batch) {
 
 ---
 
+## Scenario: OAuth Login API
+
+### 1. Scope / Trigger
+
+Modify Google OAuth login, GitHub OAuth login, auth callback handling, OAuth identity storage, OAuth env wiring, or frontend token exchange according to this section.
+
+### 2. Signatures
+
+Backend API:
+
+```text
+GET  /api/auth/oauth/:provider/start?redirect_path=/orders
+GET  /api/auth/oauth/:provider/callback?code=<provider-code>&state=<state>
+POST /api/auth/oauth/exchange
+```
+
+Exchange request:
+
+```json
+{"token":"one-time-result-token"}
+```
+
+Usecase:
+
+```go
+type OAuthStartCmd struct {
+    Provider       string
+    RedirectPath   string
+    RequestBaseURL string
+}
+
+type OAuthCallbackCmd struct {
+    Provider       string
+    Code           string
+    State          string
+    RequestBaseURL string
+}
+
+type OAuthExchangeCmd struct {
+    Token string
+}
+```
+
+DB:
+
+```sql
+oauth_identities(id, provider, provider_user_id, user_id, email, email_verified, display_name, created_at, updated_at, UNIQUE(provider, provider_user_id))
+oauth_states(id, state_hash, provider, redirect_path, expires_at, used_at, created_at)
+oauth_login_results(id, token_hash, user_id, redirect_path, expires_at, used_at, created_at)
+```
+
+### 3. Contracts
+
+* Supported providers are `google` and `github`.
+* MVP provider credentials come from runtime env: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, and `APP_PUBLIC_BASE_URL`.
+* Runtime env may be provided by OS/container variables or dotenv-style files loaded by the executable at startup. System env wins; env files only fill missing keys.
+* Callback URLs are `<APP_PUBLIC_BASE_URL>/api/auth/oauth/google/callback` and `<APP_PUBLIC_BASE_URL>/api/auth/oauth/github/callback`.
+* `APP_PUBLIC_BASE_URL` is the browser-facing origin. In Vite development it may be `http://127.0.0.1:5173` because Vite proxies `/api` to the Go backend.
+* OAuth `state` values and exchange tokens are stored only as SHA-256 hashes.
+* The callback must not put an app JWT in the URL. It creates an `oauth_login_results` row and redirects to `/login/oauth/callback?token=<one-time-token>&redirect_path=<path>`.
+* `POST /api/auth/oauth/exchange` returns the same `AuthTokenResponse` DTO shape as password login/register.
+* Existing linked `(provider, provider_user_id)` wins. Otherwise a verified provider email may auto-link an existing local user or create a new active local user.
+* Provider access tokens are not persisted for login-only OAuth.
+* Route layer issues the app JWT after exchange; usecase returns `AuthCo`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| unsupported provider | `CodeValidation`, safe message `OAuth provider is not supported` |
+| missing provider env config | `CodeValidation`, safe message `OAuth provider is not configured` |
+| missing callback `code` or `state` | `CodeValidation`, safe message `OAuth callback is missing code or state` |
+| invalid, expired, or reused state | `CodeValidation`, safe message `OAuth state is invalid or expired` |
+| provider returns missing or unverified email | `CodeValidation`, safe message `OAuth verified email is required` |
+| disabled linked or matched local user | `CodeForbidden`, safe message `account is disabled` |
+| invalid, expired, or reused exchange token | `CodeValidation`, safe message `OAuth login result is invalid or expired` |
+| provider request fails | safe usecase error; do not leak provider secrets or raw tokens |
+
+### 5. Good/Base/Bad Cases
+
+Good: User clicks Google on the login page, backend creates hashed state, provider redirects back, backend resolves a verified email, creates a one-time exchange token, and frontend exchanges it for the normal JWT response.
+
+Base: GitHub profile email is empty, so the adapter fetches `/user/emails` and selects a verified email before account mapping.
+
+Bad: Redirect to the frontend with `?access_token=<jwt>`; URLs are logged and copied, so JWTs must never appear there.
+
+### 6. Tests Required
+
+* `api/models/oauth_test.go` covers migration-backed state/result token one-time use and identity uniqueness.
+* `api/usecase/auth_oauth_test.go` covers user creation, verified-email auto-linking, unverified email rejection, disabled user rejection, and exchange token one-time use.
+* `frontend/src/api.test.js` covers OAuth helper URL generation and exchange token storage.
+* `frontend/src/router.test.js` covers `/login/oauth/callback` auth-route classification.
+* Run `go test ./api/...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```go
+return c.Redirect(http.StatusFound, "/login?access_token="+jwt)
+```
+
+#### Correct
+
+```go
+values := url.Values{}
+values.Set("token", result.ResultToken)
+values.Set("redirect_path", result.RedirectPath)
+return c.Redirect(http.StatusFound, "/login/oauth/callback?"+values.Encode())
+```
+
+---
+
 ## Order Product Admin Contract
 
 订单相关内部响应当前规则：

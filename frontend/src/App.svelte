@@ -8,6 +8,7 @@
   import Experiments from './pages/Experiments.svelte';
   import ForgotPassword from './pages/ForgotPassword.svelte';
   import Login from './pages/Login.svelte';
+  import OAuthCallback from './pages/OAuthCallback.svelte';
   import Notifications from './pages/Notifications.svelte';
   import Parameters from './pages/Parameters.svelte';
   import Products from './pages/Products.svelte';
@@ -97,6 +98,8 @@
     <main class="page-wrap py-8">
       {#if path === '/login'}
         <Login onSuccess={handleAuthChanged} />
+      {:else if path === '/login/oauth/callback'}
+        <OAuthCallback onSuccess={handleAuthChanged} />
       {:else if path === '/register'}
         <Register onSuccess={handleAuthChanged} />
       {:else if path === '/forgot-password'}

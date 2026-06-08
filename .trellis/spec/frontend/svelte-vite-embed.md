@@ -66,6 +66,9 @@ getAccessToken()
 setAccessToken(token)
 getAuthStatus()
 login(payload)
+oauthLoginURL(provider, redirectPath = '/')
+startOAuthLogin(provider, redirectPath = '/')
+exchangeOAuthLoginResult(token)
 register(payload)
 logout()
 forgotPassword(payload)
@@ -111,6 +114,87 @@ pointsSSEURL(locationObject = globalThis.location)
 ```
 
 `login(payload)` 和 `register(payload)` 会从后端响应保存 `access_token`；`logout()` 会清除本地 token。`pointsSSEURL()` 会把本地 token 放入 `access_token` query parameter。
+
+---
+
+## Scenario: OAuth Login UI
+
+### 1. Scope / Trigger
+
+Modify `frontend/src/pages/Login.svelte`, `/login/oauth/callback`, OAuth API helpers, or auth-route classification according to this section.
+
+### 2. Signatures
+
+Frontend helpers:
+
+```js
+oauthLoginURL(provider, redirectPath = '/')
+startOAuthLogin(provider, redirectPath = '/')
+exchangeOAuthLoginResult(token)
+```
+
+Frontend route:
+
+```text
+/login/oauth/callback?token=<one-time-result-token>&redirect_path=<path>
+```
+
+Backend paths consumed by helpers:
+
+```text
+GET  /api/auth/oauth/:provider/start?redirect_path=<path>
+POST /api/auth/oauth/exchange
+```
+
+### 3. Contracts
+
+* `Login.svelte` shows Google and GitHub login buttons and calls `startOAuthLogin(provider, redirectPath())`.
+* Auth pages (`/login`, `/register`, `/forgot-password`, `/reset-password`, `/login/oauth/callback`) normalize redirect path to `/`; app routes may be preserved, including query string.
+* `startOAuthLogin()` assigns `globalThis.location` to the relative `/api/auth/oauth/.../start` URL. In Vite development, `/api` is proxied to the Go backend.
+* `OAuthCallback.svelte` reads the one-time `token`, calls `exchangeOAuthLoginResult(token)`, stores `access_token` through the shared API helper, refreshes auth, and navigates to `redirect_path` or `/`.
+* `OAuthCallback.svelte` must not parse or store an app JWT from the URL.
+* `Login.svelte` reads optional `oauth_error` from the URL and displays it through `Notice`.
+* `router.js` must classify `/login/oauth/callback` as an auth route so it renders outside the logged-in app shell.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| OAuth callback URL missing `token` | show safe error and keep user on callback card |
+| exchange API fails | show safe API client message and offer return to login |
+| `redirect_path` missing or unsafe | navigate to `/` |
+| provider callback fails and redirects to `/login?oauth_error=...` | login page shows the error |
+| logged-out user opens `/login/oauth/callback` | auth page renders without app sidebar |
+
+### 5. Good/Base/Bad Cases
+
+Good: A user opens `/orders`, is prompted to log in, clicks Google, and returns to `/orders` after exchange.
+
+Base: A user opens `/login`, clicks GitHub, and returns to `/` after exchange.
+
+Bad: Store a JWT from `location.search`; JWTs must only come from the internal exchange endpoint response.
+
+### 6. Tests Required
+
+* `frontend/src/api.test.js` covers OAuth start URL generation, `location.assign`, exchange path/method/body, and access-token storage.
+* `frontend/src/router.test.js` covers `/login/oauth/callback` as an auth route and non-app route.
+* Run `cd frontend && npm test` and `cd frontend && npm run build`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```js
+const token = new URLSearchParams(location.search).get('access_token');
+setAccessToken(token);
+```
+
+#### Correct
+
+```js
+const token = new URLSearchParams(location.search).get('token');
+await exchangeOAuthLoginResult(token);
+```
 
 ---
 

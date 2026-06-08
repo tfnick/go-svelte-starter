@@ -5,7 +5,9 @@ import (
 	"errors"
 	"flag"
 	"net/http"
+	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/tfnick/go-svelte-starter/api/db"
+	fwconfig "github.com/tfnick/go-svelte-starter/api/framework/config"
 	fwevents "github.com/tfnick/go-svelte-starter/api/framework/events"
 	fwcontext "github.com/tfnick/go-svelte-starter/api/framework/http/context"
 	authMiddleware "github.com/tfnick/go-svelte-starter/api/framework/http/middleware"
@@ -22,11 +25,14 @@ import (
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	deepseekllm "github.com/tfnick/go-svelte-starter/api/integrations/llm/deepseek"
+	githuboauth "github.com/tfnick/go-svelte-starter/api/integrations/oauth/github"
+	googleoauth "github.com/tfnick/go-svelte-starter/api/integrations/oauth/google"
 	s3compatibleoss "github.com/tfnick/go-svelte-starter/api/integrations/oss/s3compatible"
 	creempayment "github.com/tfnick/go-svelte-starter/api/integrations/payment/creem"
 	user "github.com/tfnick/go-svelte-starter/api/routes"
 	appusecase "github.com/tfnick/go-svelte-starter/api/usecase"
 	usecaseevents "github.com/tfnick/go-svelte-starter/api/usecase/events"
+	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/oauth"
 )
 
 func main() {
@@ -46,6 +52,14 @@ func main() {
 			logger.Error().Err(err).Msg("failed to close log file")
 		}
 	}()
+
+	envFiles, err := loadRuntimeEnvFiles()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to load environment files")
+	}
+	for _, envFile := range envFiles {
+		logger.Info().Str("path", envFile.Path).Int("assigned", envFile.Assigned).Msg("loaded environment file")
+	}
 
 	router := echo.New()
 	appCtx, stopApp := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -89,6 +103,12 @@ func main() {
 	}
 	if err := appusecase.RegisterPaymentAdapter("payment.creem.hosted_checkout", creempayment.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register payment adapter")
+	}
+	if err := appusecase.RegisterOAuthAdapter(oauth.ProviderGoogle, googleoauth.NewAdapter(nil)); err != nil {
+		logger.Fatal().Err(err).Msg("failed to register Google OAuth adapter")
+	}
+	if err := appusecase.RegisterOAuthAdapter(oauth.ProviderGitHub, githuboauth.NewAdapter(nil)); err != nil {
+		logger.Fatal().Err(err).Msg("failed to register GitHub OAuth adapter")
 	}
 	ossAdapter := s3compatibleoss.NewAdapter(nil)
 	for _, adapterKey := range []string{"oss.cloudflare_r2.s3_compatible", "oss.aliyun_oss.s3_compatible"} {
@@ -142,6 +162,9 @@ func main() {
 		api.POST("/auth/login", user.Login)
 		api.POST("/auth/forgot-password", user.ForgotPassword)
 		api.POST("/auth/reset-password", user.ResetPassword)
+		api.GET("/auth/oauth/:provider/start", user.StartOAuthLogin)
+		api.GET("/auth/oauth/:provider/callback", user.CompleteOAuthLogin)
+		api.POST("/auth/oauth/exchange", user.ExchangeOAuthLoginResult)
 
 		api.GET("/auth/status", user.GetAuthStatus, authMiddleware.OptionalAuth())
 		api.GET("/dictionaries", user.GetDictionaries)
@@ -307,4 +330,36 @@ func runSchedulerLoop(ctx context.Context, logger zerolog.Logger, interval time.
 			run()
 		}
 	}
+}
+
+func loadRuntimeEnvFiles() ([]fwconfig.EnvFileLoadResult, error) {
+	return fwconfig.LoadEnvFiles(runtimeEnvFileCandidates()...)
+}
+
+func runtimeEnvFileCandidates() []string {
+	candidates := []string{
+		".env",
+		filepath.Join("data", ".env"),
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		return candidates
+	}
+
+	exeDir := filepath.Dir(exePath)
+	candidates = append(candidates,
+		filepath.Join(exeDir, ".env"),
+		filepath.Join(exeDir, "data", ".env"),
+	)
+
+	parentDir := filepath.Dir(exeDir)
+	if parentDir != exeDir {
+		candidates = append(candidates,
+			filepath.Join(parentDir, ".env"),
+			filepath.Join(parentDir, "data", ".env"),
+		)
+	}
+
+	return candidates
 }

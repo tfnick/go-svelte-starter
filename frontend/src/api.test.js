@@ -10,6 +10,7 @@ import {
   createOrderPaymentCheckout,
   createParameterIntegrationChannel,
   createScheduledTask,
+  exchangeOAuthLoginResult,
   getAccessToken,
   getDictionaries,
   getMyPoints,
@@ -30,6 +31,7 @@ import {
   listVariables,
   login,
   logout,
+  oauthLoginURL,
   payOrder,
   pointsSSEURL,
   request,
@@ -40,6 +42,7 @@ import {
   setScheduledTaskEnabled,
   setUserActive,
   setVariableEnabled,
+  startOAuthLogin,
   summarizeTextWithLLM,
   triggerExportToast,
   updateDictionaryType,
@@ -256,6 +259,52 @@ test('api helpers use relative api paths and shared request behavior', async () 
   assert.equal(calls[1].path, '/api/auth/logout');
   assert.equal(calls[1].options.method, 'POST');
   assert.equal(calls[1].options.headers.get('authorization'), 'Bearer jwt-login');
+});
+
+test('oauth api helpers build start URL and store exchanged token', async () => {
+  installMemoryStorage();
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({
+      success: true,
+      data: {
+        access_token: 'jwt-oauth',
+        user: { id: 'u1', name: 'Ada' }
+      }
+    });
+  };
+
+  const originalLocation = globalThis.location;
+  let assignedURL = '';
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: {
+      assign(url) {
+        assignedURL = url;
+      }
+    }
+  });
+
+  assert.equal(
+    oauthLoginURL('google', '/orders?tab=mine'),
+    '/api/auth/oauth/google/start?redirect_path=%2Forders%3Ftab%3Dmine'
+  );
+  startOAuthLogin('github', '/products');
+  assert.equal(assignedURL, '/api/auth/oauth/github/start?redirect_path=%2Fproducts');
+
+  const result = await exchangeOAuthLoginResult('one-time-token');
+  assert.equal(result.access_token, 'jwt-oauth');
+  assert.equal(getAccessToken(), 'jwt-oauth');
+  assert.equal(calls[0].path, '/api/auth/oauth/exchange');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.body, '{"token":"one-time-token"}');
+
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: originalLocation
+  });
 });
 
 test('dictionary and order api helpers use relative api paths', async () => {

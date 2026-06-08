@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -51,6 +52,35 @@ func CreateUser(ctx context.Context, user *User) error {
 	return nil
 }
 
+func CreateOAuthUser(ctx context.Context, user *User) error {
+	if user.ID == "" {
+		user.ID = uuid.Must(uuid.NewV7()).String()
+	}
+	if user.IsActive == 0 {
+		user.IsActive = 1
+	}
+	user.EmailVerified = 1
+	user.CreatedAt = timefmt.NowSQLiteDateTime()
+	user.UpdatedAt = user.CreatedAt
+
+	eng, err := db.DynamicExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+
+	sql := `
+		INSERT INTO users (
+			id, name, email, password_hash, email_verified, is_active, created_at, updated_at
+		) VALUES (
+			:id, :name, :email, :password_hash, :email_verified, :is_active, :created_at, :updated_at
+		)
+	`
+	if _, err := eng.Exec(sql, user); err != nil {
+		return fmt.Errorf("create oauth user failed: %w", err)
+	}
+	return nil
+}
+
 func GetUserByID(ctx context.Context, id string) (*User, error) {
 	eng, err := db.DynamicExecutorFor(ctx, "app")
 	if err != nil {
@@ -81,6 +111,26 @@ func GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get user failed: %w", err)
+	}
+	return &user, nil
+}
+
+func GetUserByEmailOptional(ctx context.Context, email string) (*User, error) {
+	eng, err := db.DynamicExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
+
+	sqlStmt := `SELECT * FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1`
+	var user User
+	err = eng.Get(&user, sqlStmt, map[string]interface{}{
+		"email": email,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get user by email failed: %w", err)
 	}
 	return &user, nil
 }

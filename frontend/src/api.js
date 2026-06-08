@@ -101,6 +101,29 @@ export function login(payload) {
   });
 }
 
+export function oauthLoginURL(provider, redirectPath = '/') {
+  const params = new URLSearchParams();
+  if (redirectPath) {
+    params.set('redirect_path', redirectPath);
+  }
+  const query = params.toString();
+  return `/api/auth/oauth/${encodeURIComponent(provider)}/start${query ? `?${query}` : ''}`;
+}
+
+export function startOAuthLogin(provider, redirectPath = '/') {
+  globalThis.location?.assign(oauthLoginURL(provider, redirectPath));
+}
+
+export function exchangeOAuthLoginResult(token) {
+  return request('/api/auth/oauth/exchange', {
+    method: 'POST',
+    body: { token }
+  }).then((result) => {
+    setAccessToken(result?.access_token || '');
+    return result;
+  });
+}
+
 export function register(payload) {
   return request('/api/auth/register', {
     method: 'POST',
