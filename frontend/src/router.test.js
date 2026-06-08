@@ -15,6 +15,7 @@ test('normalizes app route aliases', () => {
   assert.equal(normalizePath('/dictionary.html'), '/dictionary');
   assert.equal(normalizePath('/parameters.html'), '/parameters');
   assert.equal(normalizePath('/notifications.html'), '/notifications');
+  assert.equal(normalizePath('/settings.html'), '/settings');
   assert.equal(normalizePath('/variables.html'), '/variables');
 });
 
@@ -32,6 +33,7 @@ test('exposes logged-in app menu routes from one source', () => {
       ['/dictionary', 'Dictionary'],
       ['/parameters', 'Parameter'],
       ['/notifications', 'Notification'],
+      ['/settings', 'Setting'],
       ['/variables', 'Variable']
     ]
   );
@@ -40,8 +42,10 @@ test('exposes logged-in app menu routes from one source', () => {
 test('filters admin-only routes from the menu for regular users', () => {
   assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/parameters'), false);
   assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/notifications'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/settings'), false);
   assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/parameters'), true);
   assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/notifications'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/settings'), true);
   assert.equal(visibleAppRoutes({ is_admin: 1 }).some((route) => route.path === '/notifications'), true);
   assert.equal(visibleAppRoutes({ is_admin: '1' }).some((route) => route.path === '/notifications'), true);
 });
@@ -61,6 +65,7 @@ test('classifies auth and app routes', () => {
   assert.equal(isAppRoute('/dictionary'), true);
   assert.equal(isAppRoute('/parameters'), true);
   assert.equal(isAppRoute('/notifications'), true);
+  assert.equal(isAppRoute('/settings'), true);
   assert.equal(isAppRoute('/variables'), true);
   assert.equal(isAppRoute('/login'), false);
 });
@@ -76,5 +81,6 @@ test('returns route titles for logged-in menu pages', () => {
   assert.equal(routeTitle('/dictionary'), 'Dictionary');
   assert.equal(routeTitle('/parameters'), 'Parameter');
   assert.equal(routeTitle('/notifications'), 'Notification');
+  assert.equal(routeTitle('/settings'), 'Setting');
   assert.equal(routeTitle('/variables'), 'Variable');
 });

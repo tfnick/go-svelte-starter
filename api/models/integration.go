@@ -59,6 +59,7 @@ type IntegrationChannel struct {
 	CredentialID   string `db:"credential_id"`
 	PolicyID       string `db:"policy_id"`
 	WebhookEnabled int    `db:"webhook_enabled"`
+	IsPrimary      int    `db:"is_primary"`
 	ConfigJSON     string `db:"config_json"`
 	MetadataJSON   string `db:"metadata_json"`
 	CreatedAt      string `db:"created_at"`
@@ -174,6 +175,7 @@ type IntegrationChannelConfig struct {
 	CredentialValue string `db:"credential_value"`
 	PolicyID        string `db:"policy_id"`
 	WebhookEnabled  int    `db:"webhook_enabled"`
+	IsPrimary       int    `db:"is_primary"`
 	ConfigJSON      string `db:"config_json"`
 	MetadataJSON    string `db:"metadata_json"`
 	CreatedAt       string `db:"created_at"`
@@ -443,6 +445,7 @@ type CreateIntegrationChannelCmd struct {
 	CredentialID   string
 	PolicyID       string
 	WebhookEnabled bool
+	IsPrimary      bool
 	ConfigJSON     string
 	MetadataJSON   string
 }
@@ -461,6 +464,7 @@ func CreateIntegrationChannel(ctx context.Context, cmd CreateIntegrationChannelC
 		CredentialID:   cmd.CredentialID,
 		PolicyID:       cmd.PolicyID,
 		WebhookEnabled: boolToInt(cmd.WebhookEnabled),
+		IsPrimary:      boolToInt(cmd.IsPrimary),
 		ConfigJSON:     cmd.ConfigJSON,
 		MetadataJSON:   cmd.MetadataJSON,
 		CreatedAt:      now,
@@ -475,6 +479,9 @@ func CreateIntegrationChannel(ctx context.Context, cmd CreateIntegrationChannelC
 	if channel.MetadataJSON == "" {
 		channel.MetadataJSON = "{}"
 	}
+	if channel.Scenario != IntegrationScenarioOSS || channel.Enabled == 0 {
+		channel.IsPrimary = 0
+	}
 
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
@@ -483,11 +490,11 @@ func CreateIntegrationChannel(ctx context.Context, cmd CreateIntegrationChannelC
 	if _, err := d.NamedExec(`
 		INSERT INTO integration_channels (
 			id, scenario, channel_code, provider_code, adapter_key, environment, enabled,
-			priority, credential_id, policy_id, webhook_enabled, config_json, metadata_json,
+			priority, credential_id, policy_id, webhook_enabled, is_primary, config_json, metadata_json,
 			created_at, updated_at
 		) VALUES (
 			:id, :scenario, :channel_code, :provider_code, :adapter_key, :environment, :enabled,
-			:priority, :credential_id, NULLIF(:policy_id, ''), :webhook_enabled, :config_json, :metadata_json,
+			:priority, :credential_id, NULLIF(:policy_id, ''), :webhook_enabled, :is_primary, :config_json, :metadata_json,
 			:created_at, :updated_at
 		)
 	`, channel); err != nil {
@@ -510,6 +517,7 @@ type UpdateIntegrationChannelCmd struct {
 	Priority       int
 	PolicyID       string
 	WebhookEnabled bool
+	IsPrimary      bool
 	ConfigJSON     string
 	MetadataJSON   string
 }
@@ -518,6 +526,10 @@ func UpdateIntegrationChannel(ctx context.Context, cmd UpdateIntegrationChannelC
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
 		return IntegrationChannelConfig{}, fmt.Errorf("database unavailable: %w", err)
+	}
+	isPrimary := boolToInt(cmd.IsPrimary)
+	if cmd.Scenario != IntegrationScenarioOSS || !cmd.Enabled {
+		isPrimary = 0
 	}
 
 	query := d.Rebind(`
@@ -531,6 +543,7 @@ func UpdateIntegrationChannel(ctx context.Context, cmd UpdateIntegrationChannelC
 			priority = ?,
 			policy_id = NULLIF(?, ''),
 			webhook_enabled = ?,
+			is_primary = ?,
 			config_json = ?,
 			metadata_json = ?,
 			updated_at = ?
@@ -547,6 +560,7 @@ func UpdateIntegrationChannel(ctx context.Context, cmd UpdateIntegrationChannelC
 		cmd.Priority,
 		cmd.PolicyID,
 		boolToInt(cmd.WebhookEnabled),
+		isPrimary,
 		cmd.ConfigJSON,
 		cmd.MetadataJSON,
 		timefmt.NowSQLiteDateTime(),
@@ -571,10 +585,13 @@ func SetIntegrationChannelEnabled(ctx context.Context, id string, enabled bool) 
 	}
 	query := d.Rebind(`
 		UPDATE integration_channels
-		SET enabled = ?, updated_at = ?
+		SET enabled = ?,
+			is_primary = CASE WHEN ? = 0 THEN 0 ELSE is_primary END,
+			updated_at = ?
 		WHERE id = ?
 	`)
-	result, err := d.Exec(query, boolToInt(enabled), timefmt.NowSQLiteDateTime(), id)
+	enabledInt := boolToInt(enabled)
+	result, err := d.Exec(query, enabledInt, enabledInt, timefmt.NowSQLiteDateTime(), id)
 	if err != nil {
 		return IntegrationChannelConfig{}, fmt.Errorf("set integration channel enabled failed: %w", err)
 	}
@@ -582,6 +599,22 @@ func SetIntegrationChannelEnabled(ctx context.Context, id string, enabled bool) 
 		return IntegrationChannelConfig{}, err
 	}
 	return GetIntegrationChannelConfigByID(ctx, id)
+}
+
+func ClearIntegrationChannelPrimary(ctx context.Context, scenario string) error {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+	query := d.Rebind(`
+		UPDATE integration_channels
+		SET is_primary = 0, updated_at = ?
+		WHERE scenario = ? AND is_primary = 1
+	`)
+	if _, err := d.Exec(query, timefmt.NowSQLiteDateTime(), scenario); err != nil {
+		return fmt.Errorf("clear integration channel primary failed: %w", err)
+	}
+	return nil
 }
 
 func findEnabledChannel(ctx context.Context, scenario string, channelCode string) (IntegrationChannel, error) {
@@ -592,7 +625,7 @@ func findEnabledChannel(ctx context.Context, scenario string, channelCode string
 
 	query := `
 		SELECT id, scenario, channel_code, provider_code, adapter_key, environment, enabled, priority,
-			credential_id, COALESCE(policy_id, '') AS policy_id, webhook_enabled, config_json, metadata_json, created_at, updated_at
+			credential_id, COALESCE(policy_id, '') AS policy_id, webhook_enabled, is_primary, config_json, metadata_json, created_at, updated_at
 		FROM integration_channels
 		WHERE scenario = ? AND enabled = 1
 	`
@@ -1077,7 +1110,7 @@ func integrationChannelConfigSelectSQL() string {
 			cred.credential_type AS credential_type,
 			COALESCE(NULLIF(cred.value_text, ''), cred.ciphertext) AS credential_value,
 			COALESCE(c.policy_id, '') AS policy_id,
-			c.webhook_enabled, c.config_json, c.metadata_json, c.created_at, c.updated_at
+			c.webhook_enabled, c.is_primary, c.config_json, c.metadata_json, c.created_at, c.updated_at
 		FROM integration_channels c
 		INNER JOIN integration_credentials cred ON cred.id = c.credential_id
 	`

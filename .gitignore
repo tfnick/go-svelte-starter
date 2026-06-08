@@ -1,6 +1,10 @@
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/**/*.db
+data/**/*.db-shm
+data/**/*.db-wal
+data/oss/
 frontend/dist/
 frontend/node_modules/
 logs/

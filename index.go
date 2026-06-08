@@ -22,6 +22,7 @@ import (
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	deepseekllm "github.com/tfnick/go-svelte-starter/api/integrations/llm/deepseek"
+	localoss "github.com/tfnick/go-svelte-starter/api/integrations/oss/local"
 	creempayment "github.com/tfnick/go-svelte-starter/api/integrations/payment/creem"
 	user "github.com/tfnick/go-svelte-starter/api/routes"
 	appusecase "github.com/tfnick/go-svelte-starter/api/usecase"
@@ -89,6 +90,9 @@ func main() {
 	if err := appusecase.RegisterPaymentAdapter("payment.creem.hosted_checkout", creempayment.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register payment adapter")
 	}
+	if err := appusecase.RegisterOSSAdapter(appusecase.SiteLogoOSSAdapterKey, localoss.NewAdapter("data/oss/site")); err != nil {
+		logger.Fatal().Err(err).Msg("failed to register OSS adapter")
+	}
 
 	if err := usecaseevents.RegisterEventHandlers(func(ctx fwusecase.Context, cmd usecaseevents.AwardOrderPaidPointsCmd) (usecaseevents.PointsResult, bool, error) {
 		points, awarded, err := appusecase.AwardOrderPaidPoints(ctx, appusecase.AwardOrderPaidPointsCmd{
@@ -138,6 +142,8 @@ func main() {
 
 		api.GET("/auth/status", user.GetAuthStatus, authMiddleware.OptionalAuth())
 		api.GET("/dictionaries", user.GetDictionaries)
+		api.GET("/settings/site", user.GetSiteSettings)
+		api.GET("/settings/public/logo", user.GetPublicSiteLogo)
 
 		// integration webhooks 是一类特殊的api接口，通常是按照第三方的标准来设计的，不走api routes的认证
 		api.POST("/integrations/payment/:channel_code/webhooks/creem", user.ReceivePaymentWebhook)
@@ -202,6 +208,7 @@ func main() {
 			admin.PUT("/parameters/integration-channels/:id", user.UpdateParameterIntegrationChannel)
 			admin.PATCH("/parameters/integration-channels/:id/enabled", user.SetParameterIntegrationChannelEnabled)
 			admin.GET("/notifications", user.ListNotifications)
+			admin.POST("/settings/site/logo", user.UploadSiteLogo)
 
 			protected.GET("/variables", user.ListVariables)
 			protected.POST("/variables", user.CreateVariable)

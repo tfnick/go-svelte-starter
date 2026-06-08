@@ -16,6 +16,7 @@ type ParameterIntegrationChannelRequest struct {
 	Enabled             bool   `json:"enabled"`
 	Priority            int    `json:"priority"`
 	WebhookEnabled      bool   `json:"webhook_enabled"`
+	IsPrimary           bool   `json:"is_primary"`
 	ConfigJSON          string `json:"config_json"`
 	MetadataJSON        string `json:"metadata_json"`
 	CredentialType      string `json:"credential_type"`
@@ -70,6 +71,7 @@ type ParameterIntegrationChannelResponse struct {
 	CredentialType  string `json:"credential_type"`
 	CredentialValue string `json:"credential_value"`
 	WebhookEnabled  bool   `json:"webhook_enabled"`
+	IsPrimary       bool   `json:"is_primary"`
 	ConfigJSON      string `json:"config_json"`
 	MetadataJSON    string `json:"metadata_json"`
 	CreatedAt       string `json:"created_at"`
@@ -158,6 +160,7 @@ func parameterIntegrationChannelCmdFromRequest(id string, req ParameterIntegrati
 		Enabled:         req.Enabled,
 		Priority:        req.Priority,
 		WebhookEnabled:  req.WebhookEnabled,
+		IsPrimary:       req.IsPrimary,
 		ConfigJSON:      req.ConfigJSON,
 		MetadataJSON:    req.MetadataJSON,
 		CredentialType:  req.CredentialType,
@@ -239,6 +242,7 @@ func toParameterIntegrationChannelResponse(channel usecase.ParameterIntegrationC
 		CredentialType:  channel.CredentialType,
 		CredentialValue: channel.CredentialValue,
 		WebhookEnabled:  channel.WebhookEnabled,
+		IsPrimary:       channel.IsPrimary,
 		ConfigJSON:      channel.ConfigJSON,
 		MetadataJSON:    channel.MetadataJSON,
 		CreatedAt:       channel.CreatedAt,

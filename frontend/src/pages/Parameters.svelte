@@ -99,6 +99,7 @@
       enabled: true,
       priority: 100,
       webhook_enabled: false,
+      is_primary: false,
       config_json: configJSONFromSchema(schema),
       metadata_json: defaultJSON,
       credential_type: schema?.credential_type || meta.credentialType,
@@ -213,6 +214,12 @@
     syncStructuredStateFromForm();
   }
 
+  function onEnabledChange() {
+    if (!form.enabled) {
+      form.is_primary = false;
+    }
+  }
+
   function editChannel(channel) {
     activeScenario = channel.scenario;
     form = {
@@ -225,6 +232,7 @@
       enabled: Boolean(channel.enabled),
       priority: channel.priority || 100,
       webhook_enabled: Boolean(channel.webhook_enabled),
+      is_primary: Boolean(channel.is_primary),
       config_json: formatJSON(channel.config_json),
       metadata_json: formatJSON(channel.metadata_json),
       credential_type: channel.credential_type,
@@ -277,6 +285,7 @@
       enabled: form.enabled,
       priority: Number(form.priority) || 100,
       webhook_enabled: form.webhook_enabled,
+      is_primary: form.scenario === 'oss' && form.enabled && form.is_primary,
       config_json: compactJSON(form.config_json),
       metadata_json: compactJSON(form.metadata_json),
       credential_type: form.credential_type,
@@ -560,7 +569,7 @@
 
         <div class="grid gap-3 sm:grid-cols-2">
           <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
-            <input class="toggle toggle-primary" type="checkbox" bind:checked={form.enabled} />
+            <input class="toggle toggle-primary" type="checkbox" bind:checked={form.enabled} onchange={onEnabledChange} />
             <span class="label-text">Enabled</span>
           </label>
 
@@ -580,6 +589,13 @@
             </span>
           </label>
         </div>
+
+        {#if form.scenario === 'oss'}
+          <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
+            <input class="toggle toggle-primary" type="checkbox" bind:checked={form.is_primary} disabled={!form.enabled} />
+            <span class="label-text">Primary provider</span>
+          </label>
+        {/if}
 
         {#if currentSchema()}
           <div class="rounded border border-base-300 p-3">
@@ -836,6 +852,11 @@
                             <span class="badge {channel.webhook_enabled ? 'badge-info' : 'badge-ghost'}">
                               {channel.webhook_enabled ? 'webhook' : 'no webhook'}
                             </span>
+                            {#if scenario.key === 'oss'}
+                              <span class="badge {channel.is_primary ? 'badge-primary' : 'badge-ghost'}">
+                                {channel.is_primary ? 'primary' : 'not primary'}
+                              </span>
+                            {/if}
                           </div>
                         </td>
                         <td class="text-xs">{formatDate(channel.updated_at)}</td>

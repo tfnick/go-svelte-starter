@@ -26,6 +26,7 @@ type SaveParameterIntegrationChannelCmd struct {
 	Enabled         bool
 	Priority        int
 	WebhookEnabled  bool
+	IsPrimary       bool
 	ConfigJSON      string
 	MetadataJSON    string
 	CredentialType  string
@@ -49,6 +50,7 @@ type ParameterIntegrationChannelCo struct {
 	CredentialType  string
 	CredentialValue string
 	WebhookEnabled  bool
+	IsPrimary       bool
 	ConfigJSON      string
 	MetadataJSON    string
 	CreatedAt       string
@@ -87,6 +89,9 @@ func CreateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 		if err != nil {
 			return fwusecase.E(fwusecase.CodeInternal, "failed to create integration credential", err)
 		}
+		if err := clearOSSPrimaryIfNeeded(txCtx, input); err != nil {
+			return err
+		}
 		created, err = models.CreateIntegrationChannel(txCtx.Std(), models.CreateIntegrationChannelCmd{
 			Scenario:       input.Scenario,
 			ChannelCode:    input.ChannelCode,
@@ -97,6 +102,7 @@ func CreateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 			Priority:       input.Priority,
 			CredentialID:   credential.ID,
 			WebhookEnabled: input.WebhookEnabled,
+			IsPrimary:      input.IsPrimary,
 			ConfigJSON:     input.ConfigJSON,
 			MetadataJSON:   input.MetadataJSON,
 		})
@@ -148,6 +154,9 @@ func UpdateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 			}
 			return fwusecase.E(fwusecase.CodeInternal, "failed to update integration credential", err)
 		}
+		if err := clearOSSPrimaryIfNeeded(txCtx, input); err != nil {
+			return err
+		}
 
 		updated, err = models.UpdateIntegrationChannel(txCtx.Std(), models.UpdateIntegrationChannelCmd{
 			ID:             input.ID,
@@ -159,6 +168,7 @@ func UpdateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 			Enabled:        input.Enabled,
 			Priority:       input.Priority,
 			WebhookEnabled: input.WebhookEnabled,
+			IsPrimary:      input.IsPrimary,
 			ConfigJSON:     input.ConfigJSON,
 			MetadataJSON:   input.MetadataJSON,
 		})
@@ -205,6 +215,7 @@ type parameterIntegrationChannelInputData struct {
 	Enabled         bool
 	Priority        int
 	WebhookEnabled  bool
+	IsPrimary       bool
 	ConfigJSON      string
 	MetadataJSON    string
 	CredentialType  string
@@ -227,6 +238,7 @@ func parameterIntegrationChannelInput(cmd SaveParameterIntegrationChannelCmd, cr
 		Enabled:         cmd.Enabled,
 		Priority:        cmd.Priority,
 		WebhookEnabled:  cmd.WebhookEnabled,
+		IsPrimary:       cmd.IsPrimary && scenario == models.IntegrationScenarioOSS && cmd.Enabled,
 		CredentialType:  strings.TrimSpace(cmd.CredentialType),
 		CredentialValue: strings.TrimSpace(cmd.CredentialValue),
 	}
@@ -267,6 +279,16 @@ func parameterIntegrationChannelInput(cmd SaveParameterIntegrationChannelCmd, cr
 		return parameterIntegrationChannelInputData{}, err
 	}
 	return input, nil
+}
+
+func clearOSSPrimaryIfNeeded(ctx fwusecase.Context, input parameterIntegrationChannelInputData) error {
+	if !input.IsPrimary {
+		return nil
+	}
+	if err := models.ClearIntegrationChannelPrimary(ctx.Std(), models.IntegrationScenarioOSS); err != nil {
+		return fwusecase.E(fwusecase.CodeInternal, "failed to update OSS primary provider", err)
+	}
+	return nil
 }
 
 func ensureParameterCredentialTypeAllowed(ctx fwusecase.Context, credentialType string) error {
@@ -372,6 +394,7 @@ func parameterIntegrationChannelCoFromModel(channel models.IntegrationChannelCon
 		CredentialType:  channel.CredentialType,
 		CredentialValue: channel.CredentialValue,
 		WebhookEnabled:  channel.WebhookEnabled == 1,
+		IsPrimary:       channel.Scenario == models.IntegrationScenarioOSS && channel.IsPrimary == 1,
 		ConfigJSON:      channel.ConfigJSON,
 		MetadataJSON:    channel.MetadataJSON,
 		CreatedAt:       channel.CreatedAt,

@@ -23,7 +23,7 @@ func TestListParameterIntegrationChannelsReturnsAdminDTO(t *testing.T) {
 	seedRouteParameterChannel(t, appDB)
 
 	router := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/api/parameters/integration-channels?scenario=sms", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/parameters/integration-channels?scenario=oss", nil)
 	rec := httptest.NewRecorder()
 	c := router.NewContext(req, rec)
 
@@ -50,6 +50,9 @@ func TestListParameterIntegrationChannelsReturnsAdminDTO(t *testing.T) {
 	}
 	if envelope.Data[0].CredentialValue != "route-sms-secret" {
 		t.Fatalf("unexpected response DTO: %#v", envelope.Data[0])
+	}
+	if !envelope.Data[0].IsPrimary {
+		t.Fatalf("expected primary flag in response DTO: %#v", envelope.Data[0])
 	}
 }
 
@@ -170,6 +173,7 @@ func TestCreateParameterIntegrationChannelReturnsCreatedDTO(t *testing.T) {
 		"enabled":true,
 		"priority":10,
 		"webhook_enabled":true,
+		"is_primary":true,
 		"config_json":"{\"base_url\":\"https://api.creem.io\",\"product_id\":\"prod_route\"}",
 		"metadata_json":"{\"owner\":\"finance\"}",
 		"credential_type":"payment_bundle",
@@ -198,6 +202,9 @@ func TestCreateParameterIntegrationChannelReturnsCreatedDTO(t *testing.T) {
 	}
 	if envelope.Data.CredentialValue != `{"api_key":"route-key","webhook_secret":"route-secret"}` {
 		t.Fatalf("expected credential value in admin DTO, got %s", rec.Body.String())
+	}
+	if envelope.Data.IsPrimary {
+		t.Fatalf("expected non-OSS primary flag to be ignored, got %#v", envelope.Data)
 	}
 }
 
@@ -231,7 +238,7 @@ func TestSetParameterIntegrationChannelEnabledReturnsUpdatedDTO(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if !envelope.Success || envelope.Data.Enabled {
+	if !envelope.Success || envelope.Data.Enabled || envelope.Data.IsPrimary {
 		t.Fatalf("expected disabled channel response, got %s", rec.Body.String())
 	}
 }
@@ -248,9 +255,9 @@ func seedRouteParameterChannel(t *testing.T, appDB *sqlx.DB) {
 	if _, err := appDB.Exec(appDB.Rebind(`
 		INSERT INTO integration_channels (
 			id, scenario, channel_code, provider_code, adapter_key, environment, enabled,
-			priority, credential_id, webhook_enabled, config_json, metadata_json
-		) VALUES (?, 'sms', 'route-sms', 'aliyun', 'sms.aliyun.adapter', 'test', 1,
-			30, ?, 0, '{"base_url":"https://sms.example.com"}', '{"owner":"ops"}')
+			priority, credential_id, webhook_enabled, is_primary, config_json, metadata_json
+		) VALUES (?, 'oss', 'route-sms', 'cloudflare_r2', 'oss.cloudflare_r2.s3_compatible', 'test', 1,
+			30, ?, 0, 1, '{"endpoint_url":"https://example-account.r2.cloudflarestorage.com","bucket":"assets","region":"auto"}', '{"owner":"ops"}')
 	`), "route-sms-channel", "route-sms-credential"); err != nil {
 		t.Fatalf("insert channel: %v", err)
 	}

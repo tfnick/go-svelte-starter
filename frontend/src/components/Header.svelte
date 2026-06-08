@@ -2,9 +2,14 @@
   import { logout } from '../api.js';
   import { navigate } from '../router.js';
 
-  let { auth, onAuthChanged } = $props();
+  let { auth, siteSettings, onAuthChanged } = $props();
   let busy = $state(false);
   let error = $state('');
+  let logoURL = $state('/logo.png');
+
+  $effect(() => {
+    logoURL = siteSettings?.logo_url || '/logo.png';
+  });
 
   async function handleLogout() {
     busy = true;
@@ -26,7 +31,18 @@
   <div class="page-wrap navbar px-0">
     <div class="navbar-start">
       <button class="btn btn-ghost px-2 text-lg font-bold" type="button" onclick={() => navigate('/')}>
-        Svelte Go Starter
+        <img
+          alt="Svelte Go Starter"
+          class="h-[25px] w-[110px] object-contain"
+          height="25"
+          src={logoURL}
+          width="110"
+          onerror={() => {
+            if (logoURL !== '/logo.png') {
+              logoURL = '/logo.png';
+            }
+          }}
+        />
       </button>
     </div>
 

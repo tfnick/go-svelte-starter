@@ -380,6 +380,19 @@ export function setParameterIntegrationChannelEnabled(id, enabled) {
   });
 }
 
+export function getSiteSettings() {
+  return request('/api/settings/site');
+}
+
+export function uploadSiteLogo(file) {
+  const form = new FormData();
+  form.set('logo', file);
+  return request('/api/settings/site/logo', {
+    method: 'POST',
+    body: form
+  });
+}
+
 export function listVariables() {
   return request('/api/variables');
 }

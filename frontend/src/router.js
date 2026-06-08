@@ -14,6 +14,7 @@ const aliases = new Map([
   ['/dictionary.html', '/dictionary'],
   ['/parameters.html', '/parameters'],
   ['/notifications.html', '/notifications'],
+  ['/settings.html', '/settings'],
   ['/variables.html', '/variables']
 ]);
 
@@ -68,6 +69,12 @@ export const appRoutes = Object.freeze([
     path: '/notifications',
     label: 'Notification',
     description: 'Delivery ledger',
+    adminOnly: true
+  },
+  {
+    path: '/settings',
+    label: 'Setting',
+    description: 'Site preferences',
     adminOnly: true
   },
   {
@@ -140,6 +147,8 @@ export function routeTitle(path) {
       return 'Parameter';
     case '/notifications':
       return 'Notification';
+    case '/settings':
+      return 'Setting';
     case '/variables':
       return 'Variable';
     case '/':

@@ -829,6 +829,7 @@ Request DTO:
   "enabled": true,
   "priority": 100,
   "webhook_enabled": true,
+  "is_primary": false,
   "config_json": "{\"base_url\":\"https://api.creem.io\",\"product_id\":\"prod_123\"}",
   "metadata_json": "{}",
   "credential_type": "payment_bundle",
@@ -849,7 +850,7 @@ func SetParameterIntegrationChannelEnabled(ctx fwusecase.Context, cmd SetParamet
 DB:
 
 ```sql
-integration_channels(id, scenario, channel_code, provider_code, adapter_key, environment, enabled, priority, credential_id, policy_id, webhook_enabled, config_json, metadata_json)
+integration_channels(id, scenario, channel_code, provider_code, adapter_key, environment, enabled, priority, credential_id, policy_id, webhook_enabled, is_primary, config_json, metadata_json)
 integration_webhook_receipts(id, scenario, channel_id, channel_code, provider_code, provider_event_id, idempotency_key, status, attempts, message_id)
 integration_credentials(id, credential_type, value_text, enabled, rotated_at)
 dictionary_types(type_key='integration_environment')
@@ -892,6 +893,9 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_acce
 * create requires `credential_value`; update with empty `credential_value` preserves the existing credential value.
 * `credential_value` is stored as administrator-managed configuration in `integration_credentials.value_text`; it is not encrypted by this module. Legacy `ciphertext/key_version/masked_value` columns may exist for migration compatibility, but they are not part of the current API contract.
 * Responses return `credential_type` and `credential_value` for the protected admin page. They must never return `credential_plaintext`, `ciphertext`, `key_version`, or `masked_value`.
+* `is_primary` is meaningful only for `scenario=oss`; it marks the primary OSS provider/channel. Zero primary OSS channels is valid, and there must be at most one primary OSS channel.
+* Saving an enabled OSS channel with `is_primary=true` must atomically clear `is_primary` on every other OSS channel in the same app DB transaction before returning the saved row. Saving `is_primary=false` must not auto-promote another channel.
+* Disabling any integration channel clears that channel's `is_primary` flag. Non-OSS create/update requests with `is_primary=true` are normalized to false.
 * route layer uses route-local DTOs and `httpresponse`; it must not return `models.IntegrationChannel` or `models.IntegrationCredential` directly.
 
 ### 4. Validation & Error Matrix
@@ -911,6 +915,9 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_acce
 | schema field with `options` has a value outside the allowed option values | `CodeValidation` |
 | `credential_format=json_object` value is not a JSON object | `CodeValidation` |
 | duplicate `(scenario, channel_code, environment)` | `CodeConflict`, safe message `integration channel already exists` |
+| create/update enabled OSS channel with `is_primary=true` | saved row becomes primary and all other OSS rows become non-primary |
+| create/update non-OSS channel with `is_primary=true` | response returns `is_primary=false` and no OSS primary state changes |
+| disable current primary OSS channel | channel returns `enabled=false` and `is_primary=false`; zero primary OSS channels remains valid |
 | update/toggle missing channel | `CodeNotFound`, safe message `integration channel not found` |
 | credential storage or database failure | `CodeInternal` with safe message and internal cause |
 
@@ -924,17 +931,23 @@ Good: Create an `oss.cloudflare_r2.s3_compatible` channel with R2 endpoint/bucke
 
 Good: Create an `oss.aliyun_oss.s3_compatible` channel with Aliyun OSS endpoint/bucket/region in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API.
 
+Good: Mark `oss.cloudflare_r2.s3_compatible` as `is_primary=true`; backend clears any previous OSS primary channel and leaves non-OSS scenarios untouched.
+
 Base: Edit an LLM channel's `priority` and `metadata_json` with empty `credential_value`; backend preserves the previous credential value.
+
+Base: Disable the current primary OSS channel; backend clears only that channel's primary flag, and zero primary OSS channels is allowed until an admin selects another.
 
 Bad: Store `api_key` inside `config_json`, or expose legacy `ciphertext/masked_value` through route DTO. This breaks the external integration anti-corruption credential boundary.
 
+Bad: Enforce primary-provider uniqueness only in the frontend. The backend transaction and database unique constraint must be the authority.
+
 ### 6. Tests Required
 
-* `api/models/integration_test.go` covers channel/credential CRUD, admin credential value view, and duplicate conflict.
+* `api/models/integration_test.go` covers channel/credential CRUD, admin credential value view, duplicate conflict, OSS primary uniqueness, and clearing primary on disable.
 * `api/usecase/dictionary_test.go` covers seeded `integration_credential_type` values, including `smtp_password` and `s3_access_key`.
-* `api/usecase/parameter_test.go` covers schema listing, credential value persistence, empty value preservation, non-empty value update, sensitive JSON key rejection including arrays, schema required field validation, URL validation, plain vs JSON object credential formats, and enable/disable.
-* `api/routes/parameter_test.go` covers schema route DTO, internal envelope, DTO without legacy plaintext/ciphertext/masked fields, create response, and enable/disable response.
-* `frontend/src/api.test.js` covers parameter helper paths, HTTP methods, encoded IDs, and bodies.
+* `api/usecase/parameter_test.go` covers schema listing, credential value persistence, empty value preservation, non-empty value update, sensitive JSON key rejection including arrays, schema required field validation, URL validation, plain vs JSON object credential formats, enable/disable, OSS primary at-most-one behavior, zero-primary behavior, and non-OSS primary normalization.
+* `api/routes/parameter_test.go` covers schema route DTO, internal envelope, DTO without legacy plaintext/ciphertext/masked fields, create response, `is_primary` mapping, and enable/disable response.
+* `frontend/src/api.test.js` covers parameter helper paths, HTTP methods, encoded IDs, `is_primary`, and bodies.
 * `frontend/src/router.test.js` covers `/parameters`, `/parameters.html`, menu label, and title.
 * Run `go test ./...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
 
@@ -1435,6 +1448,133 @@ _ = usecase.UpdateOrderStatus(ctx, usecase.UpdateOrderStatusCmd{
 
 ```go
 order, err := usecase.PayOrder(ctx, usecase.PayOrderCmd{OrderID: orderID})
+```
+
+---
+
+## Scenario: Site Settings Logo API
+
+### 1. Scope / Trigger
+
+Modify site settings, app logo upload/display, `app_settings`, `/api/settings/*`, or runtime OSS-backed static assets according to this section.
+
+### 2. Signatures
+
+Backend API:
+
+```text
+GET  /api/settings/site
+POST /api/settings/site/logo
+GET  /api/settings/public/logo
+```
+
+Usecase:
+
+```go
+type SiteSettingsCo struct {
+    LogoURL        string
+    LogoConfigured bool
+    LogoUpdatedAt  string
+}
+
+type SaveSiteLogoCmd struct {
+    Filename    string
+    ContentType string
+    Size        int64
+    Body        io.Reader
+}
+
+func GetSiteSettings(ctx fwusecase.Context, qry SiteSettingsQry) (SiteSettingsCo, error)
+func SaveSiteLogo(ctx fwusecase.Context, cmd SaveSiteLogoCmd) (SiteSettingsCo, error)
+func GetSiteLogoObject(ctx fwusecase.Context, qry SiteLogoObjectQry) (SiteLogoObjectCo, error)
+```
+
+DB:
+
+```sql
+app_settings(setting_key TEXT PRIMARY KEY, value_json TEXT, created_at DATETIME, updated_at DATETIME)
+```
+
+Stored `site.logo` JSON:
+
+```json
+{"object_key":"settings/site-logo.png","content_type":"image/png","size":658,"updated_at":"2026-06-08T12:00:00.123456789Z"}
+```
+
+### 3. Contracts
+
+* `GET /api/settings/site` is safe to call before login and returns the internal success envelope.
+* Default response when no logo is configured:
+
+```json
+{"logo_url":"/logo.png","logo_configured":false,"logo_updated_at":""}
+```
+
+* Configured response uses a cache-busting public image URL:
+
+```json
+{"logo_url":"/api/settings/public/logo?v=2026-06-08T12%3A00%3A00.123456789Z","logo_configured":true,"logo_updated_at":"2026-06-08T12:00:00.123456789Z"}
+```
+
+* `POST /api/settings/site/logo` is admin-only and accepts multipart form data with a `logo` file field.
+* Logo bytes are stored through `api/usecase/integrations/oss.Adapter`; DB stores only safe metadata, not raw image bytes.
+* `GET /api/settings/public/logo` is unauthenticated because browser `<img>` requests cannot attach the app bearer token. It streams the configured object or redirects to `/logo.png` when no object is configured.
+* Site-logo storage may use a local OSS adapter registered in `index.go` for app-owned public assets. Provider SDK details must remain under `api/integrations/oss/<provider>`, and usecase must depend only on the OSS port.
+* Accepted logo formats are detected from file magic bytes: PNG, JPEG, and WebP.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| no `site.logo` setting | `GET /api/settings/site` returns `/logo.png` and `logo_configured:false` |
+| no public logo object | `GET /api/settings/public/logo` redirects to `/logo.png` |
+| missing upload file | `CodeValidation`, safe message `logo file is required` |
+| upload over 2 MiB | `CodeValidation`, safe message `logo file is too large` |
+| unsupported magic bytes | `CodeValidation`, safe message `logo image type is not supported` |
+| OSS adapter not registered | `CodeInternal`, safe message `logo storage is not configured` |
+| object storage failure | `CodeInternal`, safe message `failed to store logo` or `failed to load logo` |
+
+### 5. Good/Base/Bad Cases
+
+Good: Settings page uploads `logo` as `FormData`; route builds `SaveSiteLogoCmd`; usecase validates bytes, calls registered OSS adapter, stores `site.logo` metadata, and returns a cache-busted `logo_url`.
+
+Base: Fresh install has no `site.logo` row; header displays `/logo.png` from the embedded frontend public assets.
+
+Bad: Route writes uploaded bytes directly under `frontend/dist` or stores raw image bytes in SQLite; this bypasses the OSS port and breaks production/runtime separation.
+
+Bad: The frontend sets `<img src="/api/settings/site/logo">` behind `RequireAuth()`; browser image requests do not include bearer auth headers.
+
+### 6. Tests Required
+
+* `api/models/setting_test.go` covers `app_settings` upsert/get and single-row replacement.
+* `api/usecase/setting_test.go` covers default fallback, upload validation, OSS adapter invocation, persisted metadata, and object readback.
+* `api/routes/setting_test.go` covers internal envelope and route-local DTOs for settings read/upload.
+* `api/integrations/oss/local/local_test.go` covers local adapter root confinement and read/write mapping.
+* Frontend API tests cover `getSiteSettings()` and `uploadSiteLogo()` path/method/FormData behavior.
+* Run `go test ./...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```go
+func UploadSiteLogo(c echo.Context) error {
+    file, _ := c.FormFile("logo")
+    _ = os.WriteFile("frontend/dist/logo.png", fileBytes(file), 0644)
+    return c.JSON(200, map[string]string{"logo_url": "/logo.png"})
+}
+```
+
+#### Correct
+
+```go
+settings, err := usecase.SaveSiteLogo(ctx, usecase.SaveSiteLogoCmd{
+    Filename:    fileHeader.Filename,
+    ContentType: fileHeader.Header.Get(echo.HeaderContentType),
+    Size:        fileHeader.Size,
+    Body:        file,
+})
+return httpresponse.OK(c, toSiteSettingsResponse(settings))
 ```
 
 ---

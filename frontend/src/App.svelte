@@ -14,14 +14,16 @@
   import Register from './pages/Register.svelte';
   import ResetPassword from './pages/ResetPassword.svelte';
   import Scheduler from './pages/Scheduler.svelte';
+  import Settings from './pages/Settings.svelte';
   import Users from './pages/Users.svelte';
   import Variables from './pages/Variables.svelte';
-  import { getAuthStatus } from './api.js';
+  import { getAuthStatus, getSiteSettings } from './api.js';
   import { isAuthRoute, normalizePath, routeTitle, visibleAppRoutes } from './router.js';
   import { onMount } from 'svelte';
 
   let path = $state(normalizePath());
   let auth = $state({ loading: true, logged_in: false, user: null });
+  let siteSettings = $state({ logo_url: '/logo.png', logo_configured: false, logo_updated_at: '' });
 
   async function refreshAuth() {
     auth = { ...auth, loading: true };
@@ -46,6 +48,19 @@
     refreshAuth();
   }
 
+  async function refreshSiteSettings() {
+    try {
+      const settings = await getSiteSettings();
+      siteSettings = {
+        logo_url: settings?.logo_url || '/logo.png',
+        logo_configured: Boolean(settings?.logo_configured),
+        logo_updated_at: settings?.logo_updated_at || ''
+      };
+    } catch {
+      siteSettings = { logo_url: '/logo.png', logo_configured: false, logo_updated_at: '' };
+    }
+  }
+
   function canAccessCurrentPath() {
     return visibleAppRoutes(auth.user).some((route) => route.path === path);
   }
@@ -53,6 +68,7 @@
   onMount(() => {
     syncRoute();
     refreshAuth();
+    refreshSiteSettings();
     window.addEventListener('popstate', syncRoute);
 
     return () => {
@@ -62,7 +78,7 @@
 </script>
 
 <div class="app-shell">
-  <Header {auth} onAuthChanged={handleAuthChanged} />
+  <Header {auth} {siteSettings} onAuthChanged={handleAuthChanged} />
 
   {#if isAuthRoute(path)}
     <main class="page-wrap py-8">
@@ -109,6 +125,8 @@
           <Parameters />
         {:else if path === '/notifications'}
           <Notifications />
+        {:else if path === '/settings'}
+          <Settings settings={siteSettings} onSettingsChanged={refreshSiteSettings} />
         {:else if path === '/variables'}
           <Variables />
         {:else}

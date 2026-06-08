@@ -897,6 +897,8 @@ PATCH /api/parameters/integration-channels/:id/enabled
 
 OSS providers such as Cloudflare R2 and Aliyun OSS are Parameter configuration scenarios only: the UI loads `scenario=oss`, captures provider `endpoint_url` / `bucket` / `region` config and `s3_access_key` credentials, and does not execute upload/download or SDK connection tests.
 
+OSS primary-provider UI is scoped to the OSS tab only. The form renders a `Primary provider` toggle for OSS channels, submits `is_primary` only as a meaningful OSS field, and treats the backend response as the source of truth for the final primary state. Zero primary OSS channels is a valid state; the UI must not auto-promote another channel when the current primary is unchecked or disabled.
+
 ### 3. Contracts
 
 * `Parameters.svelte` 必须通过 `frontend/src/api.js` helper 调用内部 API，不直接 `fetch('/api/...')`。
@@ -928,11 +930,20 @@ OSS providers such as Cloudflare R2 and Aliyun OSS are Parameter configuration s
 | create/update succeeds | current scenario list refreshes and form enters edit state for saved channel |
 | enable/disable succeeds | current scenario list refreshes and selected form state updates if it was editing that row |
 | credential value empty on edit | frontend sends empty string; backend preserves existing credential |
+| OSS primary toggled on and save succeeds | refreshed list shows only the backend-returned primary row |
+| primary OSS channel disabled | refreshed row shows `enabled=false` and not primary; no local auto-promote occurs |
+| non-OSS tab active | primary provider toggle is hidden |
 | Webhook help icon hover/focus | tooltip shows the provider callback URL format using current scenario/channel/provider values and does not change the save payload |
 | backend rejects sensitive config key or invalid schema field | page shows backend safe validation message |
 | mobile/narrow width | tables scroll horizontally and page avoids page-level horizontal overflow |
 
 ### 5. Good/Base/Bad Cases
+
+Good: In the `OSS` tab, mark Cloudflare R2 as `Primary provider` and save; after refresh, only the backend-returned primary row shows the primary badge.
+
+Base: In the `OSS` tab, uncheck the current primary provider and save; zero primary OSS channels remains valid, and every OSS row shows not primary.
+
+Bad: Enforce primary-provider uniqueness only by hiding or disabling other OSS row controls. The backend response must remain the page source of truth.
 
 Good: 在 `Payment` tab 新增 `creem-prod`，通过 schema 字段填写 `base_url/product_id/success_url`，通过 credential 字段填写 secret bundle。
 
@@ -944,6 +955,7 @@ Bad: 将 Webhook tooltip 写死为 Creem 专用文案，或改成表单内常驻
 
 ### 6. Tests Required
 
+* `frontend/src/api.test.js` must cover Parameter integration helper bodies including `is_primary`.
 * `frontend/src/api.test.js` 覆盖 parameter helper 路径、method、encoded ID 和 body。
 * `frontend/src/router.test.js` 覆盖 `/parameters.html` alias、menu label、app-route detection 和 title。
 * `cd frontend && npm test`
@@ -1088,6 +1100,97 @@ await createVariable({ key: 'feature.new_checkout', value_type: 'boolean', value
 * 常用 UI 使用 daisyUI class，例如 `btn`、`input`、`card`、`alert`、`navbar`、`loading`。
 * 不要引入第二套 Svelte UI component library，除非任务明确要求。
 * 组件中的错误提示应显示 API client 抛出的 safe message。
+
+---
+
+## Scenario: Settings Logo UI
+
+### 1. Scope / Trigger
+
+Modify `frontend/src/pages/Settings.svelte`, `/settings` app routing, header logo rendering, or settings API helpers according to this section.
+
+### 2. Signatures
+
+Frontend helpers:
+
+```js
+getSiteSettings()
+uploadSiteLogo(file)
+```
+
+Route entry:
+
+```js
+{ path: '/settings', label: 'Setting', description: 'Site preferences', adminOnly: true }
+```
+
+Backend API paths:
+
+```text
+GET  /api/settings/site
+POST /api/settings/site/logo
+GET  /api/settings/public/logo
+```
+
+Header logo:
+
+```svelte
+<img src={siteSettings.logo_url || '/logo.png'} width="110" height="25" />
+```
+
+### 3. Contracts
+
+* `Header.svelte` renders an image in `navbar-start`, not the text `Svelte Go Starter`.
+* The logo renders at `110x25` with object containment and falls back to `/logo.png` on load error.
+* `App.svelte` loads site settings with `getSiteSettings()` and passes them into `Header`.
+* `/settings` is admin-only in `appRoutes`; regular users do not see the menu item and backend upload remains protected by `RequireAdmin()`.
+* `Settings.svelte` uses daisyUI `tabs tabs-lift` and includes `General` and `Retain` tabs.
+* `General` uploads the logo through `uploadSiteLogo(file)` using `FormData`; it must not call `fetch('/api/settings/site/logo')` directly.
+* `frontend/public/logo.png` is the default public asset and must be present so Vite copies it to `frontend/dist/logo.png` during build.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| settings API fails | header keeps `/logo.png` |
+| no configured logo | header displays `/logo.png` |
+| configured logo URL fails to load | image `onerror` resets to `/logo.png` |
+| regular user opens menu | `/settings` is absent from `visibleAppRoutes()` |
+| user selects no file | page shows local `Logo file is required` and does not call upload |
+| upload API fails | page displays API client safe message through `Notice` |
+| upload succeeds | page clears file input, refreshes site settings, and header updates |
+
+### 5. Good/Base/Bad Cases
+
+Good: Admin opens `/settings`, selects a PNG/WebP/JPEG logo, uploads it, and the header image switches to `/api/settings/public/logo?v=...`.
+
+Base: Fresh install has only `frontend/public/logo.png`; header still shows a 110x25 image before any settings API response arrives.
+
+Bad: Component directly calls `fetch('/api/settings/site/logo')`, or forces `Content-Type: application/json` for `FormData`; this breaks the API helper contract.
+
+Bad: Header stores the configured logo URL in localStorage; the source of truth is the backend settings API.
+
+### 6. Tests Required
+
+* `frontend/src/api.test.js` covers settings helper paths, `FormData`, auth header, and no forced JSON content type.
+* `frontend/src/router.test.js` covers `/settings.html`, app-route detection, route title, and admin-only visibility.
+* `cd frontend && npm test`
+* `cd frontend && npm run build` and verify `frontend/dist/logo.png` exists.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```svelte
+await fetch('/api/settings/site/logo', { method: 'POST', body: formData });
+```
+
+#### Correct
+
+```svelte
+await uploadSiteLogo(selectedLogo);
+await onSettingsChanged?.();
+```
 
 ---
 

@@ -228,6 +228,112 @@ func TestCreateIntegrationChannelReturnsConflictOnDuplicateCodeAndEnvironment(t 
 	}
 }
 
+func TestOSSPrimaryChannelUniquenessAndDisable(t *testing.T) {
+	setupModelsTestDB(t)
+
+	firstCredential, err := models.CreateIntegrationCredential(t.Context(), models.CreateIntegrationCredentialCmd{
+		CredentialType: "s3_access_key",
+		ValueText:      `{"access_key_id":"ak1","secret_access_key":"sk1"}`,
+		Enabled:        true,
+	})
+	if err != nil {
+		t.Fatalf("create first credential: %v", err)
+	}
+	first, err := models.CreateIntegrationChannel(t.Context(), models.CreateIntegrationChannelCmd{
+		Scenario:     models.IntegrationScenarioOSS,
+		ChannelCode:  "models-r2",
+		ProviderCode: "cloudflare_r2",
+		AdapterKey:   "oss.cloudflare_r2.s3_compatible",
+		Environment:  "production",
+		Enabled:      true,
+		Priority:     10,
+		CredentialID: firstCredential.ID,
+		IsPrimary:    true,
+		ConfigJSON:   `{"endpoint_url":"https://r2.example.com","bucket":"assets","region":"auto"}`,
+		MetadataJSON: "{}",
+	})
+	if err != nil {
+		t.Fatalf("create first primary OSS channel: %v", err)
+	}
+	if first.IsPrimary != 1 {
+		t.Fatalf("expected first channel to be primary, got %#v", first)
+	}
+
+	secondCredential, err := models.CreateIntegrationCredential(t.Context(), models.CreateIntegrationCredentialCmd{
+		CredentialType: "s3_access_key",
+		ValueText:      `{"access_key_id":"ak2","secret_access_key":"sk2"}`,
+		Enabled:        true,
+	})
+	if err != nil {
+		t.Fatalf("create second credential: %v", err)
+	}
+	_, err = models.CreateIntegrationChannel(t.Context(), models.CreateIntegrationChannelCmd{
+		Scenario:     models.IntegrationScenarioOSS,
+		ChannelCode:  "models-aliyun-conflict",
+		ProviderCode: "aliyun",
+		AdapterKey:   "oss.aliyun_oss.s3_compatible",
+		Environment:  "production",
+		Enabled:      true,
+		Priority:     20,
+		CredentialID: secondCredential.ID,
+		IsPrimary:    true,
+		ConfigJSON:   `{"endpoint_url":"https://oss-cn-hangzhou.aliyuncs.com","bucket":"assets","region":"cn-hangzhou"}`,
+		MetadataJSON: "{}",
+	})
+	if !errors.Is(err, models.ErrIntegrationChannelConflict) {
+		t.Fatalf("expected primary uniqueness conflict, got %v", err)
+	}
+
+	second, err := models.CreateIntegrationChannel(t.Context(), models.CreateIntegrationChannelCmd{
+		Scenario:     models.IntegrationScenarioOSS,
+		ChannelCode:  "models-aliyun",
+		ProviderCode: "aliyun",
+		AdapterKey:   "oss.aliyun_oss.s3_compatible",
+		Environment:  "production",
+		Enabled:      true,
+		Priority:     20,
+		CredentialID: secondCredential.ID,
+		IsPrimary:    false,
+		ConfigJSON:   `{"endpoint_url":"https://oss-cn-hangzhou.aliyuncs.com","bucket":"assets","region":"cn-hangzhou"}`,
+		MetadataJSON: "{}",
+	})
+	if err != nil {
+		t.Fatalf("create second non-primary OSS channel: %v", err)
+	}
+	if second.IsPrimary != 0 {
+		t.Fatalf("expected second channel to be non-primary, got %#v", second)
+	}
+
+	disabled, err := models.SetIntegrationChannelEnabled(t.Context(), first.ID, false)
+	if err != nil {
+		t.Fatalf("disable primary channel: %v", err)
+	}
+	if disabled.Enabled != 0 || disabled.IsPrimary != 0 {
+		t.Fatalf("expected disabling channel to clear primary flag, got %#v", disabled)
+	}
+
+	updatedSecond, err := models.UpdateIntegrationChannel(t.Context(), models.UpdateIntegrationChannelCmd{
+		ID:             second.ID,
+		Scenario:       models.IntegrationScenarioOSS,
+		ChannelCode:    second.ChannelCode,
+		ProviderCode:   second.ProviderCode,
+		AdapterKey:     second.AdapterKey,
+		Environment:    second.Environment,
+		Enabled:        true,
+		Priority:       second.Priority,
+		WebhookEnabled: false,
+		IsPrimary:      true,
+		ConfigJSON:     second.ConfigJSON,
+		MetadataJSON:   second.MetadataJSON,
+	})
+	if err != nil {
+		t.Fatalf("promote second channel: %v", err)
+	}
+	if updatedSecond.IsPrimary != 1 {
+		t.Fatalf("expected second channel to become primary, got %#v", updatedSecond)
+	}
+}
+
 func setupModelsTestDB(t *testing.T) *db.DBManager {
 	t.Helper()
 

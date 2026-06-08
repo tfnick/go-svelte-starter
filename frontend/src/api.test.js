@@ -14,6 +14,7 @@ import {
   getDictionaries,
   getMyPoints,
   getProducts,
+  getSiteSettings,
   getUserOrders,
   listUsers,
   listEventDeliveries,
@@ -46,7 +47,8 @@ import {
   updateParameterIntegrationChannel,
   updateProduct,
   updateScheduledTask,
-  updateVariable
+  updateVariable,
+  uploadSiteLogo
 } from './api.js';
 
 const originalFetch = globalThis.fetch;
@@ -454,6 +456,7 @@ test('parameter integration api helpers use relative api paths', async () => {
     enabled: true,
     priority: 10,
     webhook_enabled: true,
+    is_primary: true,
     config_json: '{}',
     metadata_json: '{}',
     credential_type: 'payment_bundle',
@@ -485,6 +488,29 @@ test('parameter integration api helpers use relative api paths', async () => {
   assert.equal(calls[8].path, '/api/parameters/integration-channels/channel%201/enabled');
   assert.equal(calls[8].options.method, 'PATCH');
   assert.equal(calls[8].options.body, '{"enabled":false}');
+});
+
+test('setting api helpers use relative api paths and multipart upload', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { logo_url: '/logo.png', logo_configured: false, logo_updated_at: '' } });
+  };
+
+  const logoBlob = new Blob(['logo'], { type: 'image/png' });
+  await getSiteSettings();
+  await uploadSiteLogo(logoBlob);
+
+  assert.equal(calls[0].path, '/api/settings/site');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[1].path, '/api/settings/site/logo');
+  assert.equal(calls[1].options.method, 'POST');
+  assert.equal(calls[1].options.body instanceof FormData, true);
+  assert.equal(calls[1].options.headers.get('authorization'), 'Bearer jwt-api');
+  assert.equal(calls[1].options.headers.has('content-type'), false);
 });
 
 test('variable api helpers use relative api paths', async () => {

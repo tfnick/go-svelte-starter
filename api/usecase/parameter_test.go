@@ -525,6 +525,114 @@ func TestParameterIntegrationChannelAcceptsAliyunOSSCredentialSchema(t *testing.
 	}
 }
 
+func TestOSSPrimaryProviderIsAtMostOneAndCanBeEmpty(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+
+	first, err := usecase.CreateParameterIntegrationChannel(ctx, ossParameterChannelCmd("primary-r2", "cloudflare_r2", "oss.cloudflare_r2.s3_compatible", true))
+	if err != nil {
+		t.Fatalf("create first primary OSS channel: %v", err)
+	}
+	if !first.IsPrimary {
+		t.Fatalf("expected first channel to be primary, got %#v", first)
+	}
+
+	second, err := usecase.CreateParameterIntegrationChannel(ctx, ossParameterChannelCmd("primary-aliyun", "aliyun", "oss.aliyun_oss.s3_compatible", true))
+	if err != nil {
+		t.Fatalf("create second primary OSS channel: %v", err)
+	}
+	if !second.IsPrimary {
+		t.Fatalf("expected second channel to be primary, got %#v", second)
+	}
+
+	channels, err := usecase.ListParameterIntegrationChannels(ctx, usecase.ListParameterIntegrationChannelsQry{
+		Scenario: models.IntegrationScenarioOSS,
+	})
+	if err != nil {
+		t.Fatalf("list OSS channels: %v", err)
+	}
+	if countPrimaryChannels(channels) != 1 || primaryChannel(channels).ID != second.ID {
+		t.Fatalf("expected only second channel to be primary, got %#v", channels)
+	}
+
+	updatedFirst, err := usecase.UpdateParameterIntegrationChannel(ctx, ossParameterChannelUpdateCmd(first.ID, "primary-r2", "cloudflare_r2", "oss.cloudflare_r2.s3_compatible", true))
+	if err != nil {
+		t.Fatalf("promote first channel: %v", err)
+	}
+	if !updatedFirst.IsPrimary {
+		t.Fatalf("expected first channel to become primary, got %#v", updatedFirst)
+	}
+	channels, err = usecase.ListParameterIntegrationChannels(ctx, usecase.ListParameterIntegrationChannelsQry{
+		Scenario: models.IntegrationScenarioOSS,
+	})
+	if err != nil {
+		t.Fatalf("list OSS channels after promote: %v", err)
+	}
+	if countPrimaryChannels(channels) != 1 || primaryChannel(channels).ID != first.ID {
+		t.Fatalf("expected only first channel to be primary, got %#v", channels)
+	}
+
+	noPrimary, err := usecase.UpdateParameterIntegrationChannel(ctx, ossParameterChannelUpdateCmd(first.ID, "primary-r2", "cloudflare_r2", "oss.cloudflare_r2.s3_compatible", false))
+	if err != nil {
+		t.Fatalf("unset first channel primary: %v", err)
+	}
+	if noPrimary.IsPrimary {
+		t.Fatalf("expected first channel to stop being primary, got %#v", noPrimary)
+	}
+	channels, err = usecase.ListParameterIntegrationChannels(ctx, usecase.ListParameterIntegrationChannelsQry{
+		Scenario: models.IntegrationScenarioOSS,
+	})
+	if err != nil {
+		t.Fatalf("list OSS channels after unset: %v", err)
+	}
+	if countPrimaryChannels(channels) != 0 {
+		t.Fatalf("expected zero primary channels to be valid, got %#v", channels)
+	}
+
+	rePrimary, err := usecase.UpdateParameterIntegrationChannel(ctx, ossParameterChannelUpdateCmd(first.ID, "primary-r2", "cloudflare_r2", "oss.cloudflare_r2.s3_compatible", true))
+	if err != nil {
+		t.Fatalf("re-promote first channel: %v", err)
+	}
+	if !rePrimary.IsPrimary {
+		t.Fatalf("expected first channel to be primary again, got %#v", rePrimary)
+	}
+	disabled, err := usecase.SetParameterIntegrationChannelEnabled(ctx, usecase.SetParameterIntegrationChannelEnabledCmd{
+		ID:      first.ID,
+		Enabled: false,
+	})
+	if err != nil {
+		t.Fatalf("disable primary channel: %v", err)
+	}
+	if disabled.Enabled || disabled.IsPrimary {
+		t.Fatalf("expected disabling primary channel to clear primary, got %#v", disabled)
+	}
+}
+
+func TestNonOSSParameterChannelIgnoresPrimaryFlag(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+
+	channel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioLLM,
+		ChannelCode:     "primary-ignored-llm",
+		ProviderCode:    "deepseek",
+		AdapterKey:      "llm.deepseek.openai_compatible",
+		Environment:     "test",
+		Enabled:         true,
+		IsPrimary:       true,
+		ConfigJSON:      `{"base_url":"https://api.deepseek.com"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "api_key",
+		CredentialValue: "sk_deepseek",
+	})
+	if err != nil {
+		t.Fatalf("create LLM channel with primary flag: %v", err)
+	}
+	if channel.IsPrimary {
+		t.Fatalf("expected non-OSS channel primary flag to be ignored, got %#v", channel)
+	}
+}
+
 func TestSetParameterIntegrationChannelEnabled(t *testing.T) {
 	manager := setupUsecaseOrderTxDB(t)
 	appDB, err := manager.GetDB("app")
@@ -544,6 +652,56 @@ func TestSetParameterIntegrationChannelEnabled(t *testing.T) {
 	if channel.Enabled {
 		t.Fatalf("expected disabled channel, got %#v", channel)
 	}
+}
+
+func ossParameterChannelCmd(channelCode string, providerCode string, adapterKey string, isPrimary bool) usecase.SaveParameterIntegrationChannelCmd {
+	return usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioOSS,
+		ChannelCode:     channelCode,
+		ProviderCode:    providerCode,
+		AdapterKey:      adapterKey,
+		Environment:     "production",
+		Enabled:         true,
+		Priority:        10,
+		IsPrimary:       isPrimary,
+		ConfigJSON:      ossConfigJSON(providerCode),
+		MetadataJSON:    "{}",
+		CredentialType:  "s3_access_key",
+		CredentialValue: `{"access_key_id":"oss-access-key","secret_access_key":"oss-secret-key"}`,
+	}
+}
+
+func ossParameterChannelUpdateCmd(id string, channelCode string, providerCode string, adapterKey string, isPrimary bool) usecase.SaveParameterIntegrationChannelCmd {
+	cmd := ossParameterChannelCmd(channelCode, providerCode, adapterKey, isPrimary)
+	cmd.ID = id
+	cmd.CredentialValue = ""
+	return cmd
+}
+
+func ossConfigJSON(providerCode string) string {
+	if providerCode == "aliyun" {
+		return `{"endpoint_url":"https://oss-cn-hangzhou.aliyuncs.com","bucket":"assets","region":"cn-hangzhou"}`
+	}
+	return `{"endpoint_url":"https://example-account.r2.cloudflarestorage.com","bucket":"assets","region":"auto"}`
+}
+
+func countPrimaryChannels(channels []usecase.ParameterIntegrationChannelCo) int {
+	count := 0
+	for i := range channels {
+		if channels[i].IsPrimary {
+			count++
+		}
+	}
+	return count
+}
+
+func primaryChannel(channels []usecase.ParameterIntegrationChannelCo) usecase.ParameterIntegrationChannelCo {
+	for i := range channels {
+		if channels[i].IsPrimary {
+			return channels[i]
+		}
+	}
+	return usecase.ParameterIntegrationChannelCo{}
 }
 
 func seedParameterChannel(t *testing.T, appDB *sqlx.DB) {
