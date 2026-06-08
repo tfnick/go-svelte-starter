@@ -30,7 +30,8 @@ Modify `Setting -> General` logo upload so site logos are stored in the configur
 * Add model/usecase helpers to find the enabled primary OSS integration channel.
 * Add a usecase mapper from integration-channel config JSON and credential JSON to `oss.ProviderConfig`.
 * Update site-logo metadata to store the OSS channel/adapter/provider used for the uploaded object, so public read can use the same provider even if the current primary changes later.
-* Register provider-backed OSS adapters for configured OSS adapter keys. Use a generic S3-compatible adapter for Cloudflare R2 and Aliyun OSS, keeping provider HTTP/signing details inside `api/integrations/oss`.
+* Register provider-backed OSS adapters for configured OSS adapter keys. Use a generic S3-compatible adapter for Cloudflare R2 and Aliyun OSS, implemented with AWS SDK Go v2 inside `api/integrations/oss`.
+* Expose optional OSS `use_path_style` config for S3-compatible addressing style. Cloudflare R2 defaults to path-style; Aliyun OSS defaults to virtual-hosted addressing unless explicitly overridden.
 * Update Settings API DTO and frontend state to include upload availability and a short unavailable reason.
 
 ## Decision (ADR-lite)

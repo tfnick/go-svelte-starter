@@ -262,6 +262,10 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 	if len(ossSchemas[0].ConfigFields) < 3 || ossSchemas[0].ConfigFields[0].Key != "endpoint_url" || ossSchemas[0].ConfigFields[2].DefaultValue != "auto" {
 		t.Fatalf("unexpected Cloudflare R2 config fields: %#v", ossSchemas[0].ConfigFields)
 	}
+	r2PathStyleField, ok := schemaFieldByKey(ossSchemas[0].ConfigFields, "use_path_style")
+	if !ok || r2PathStyleField.Kind != usecase.ParameterIntegrationSchemaFieldBoolean || r2PathStyleField.DefaultValue != "true" {
+		t.Fatalf("unexpected Cloudflare R2 path-style field: %#v", r2PathStyleField)
+	}
 	if ossSchemas[1].AdapterKey != "oss.aliyun_oss.s3_compatible" || ossSchemas[1].ProviderCode != "aliyun" {
 		t.Fatalf("unexpected Aliyun OSS schema: %#v", ossSchemas[1])
 	}
@@ -270,6 +274,10 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 	}
 	if len(ossSchemas[1].ConfigFields) < 3 || ossSchemas[1].ConfigFields[0].Key != "endpoint_url" || ossSchemas[1].ConfigFields[2].Placeholder != "cn-hangzhou" {
 		t.Fatalf("unexpected Aliyun OSS config fields: %#v", ossSchemas[1].ConfigFields)
+	}
+	aliyunPathStyleField, ok := schemaFieldByKey(ossSchemas[1].ConfigFields, "use_path_style")
+	if !ok || aliyunPathStyleField.Kind != usecase.ParameterIntegrationSchemaFieldBoolean || aliyunPathStyleField.DefaultValue != "" {
+		t.Fatalf("unexpected Aliyun OSS path-style field: %#v", aliyunPathStyleField)
 	}
 }
 
@@ -737,4 +745,13 @@ func loadParameterCredentialValue(t *testing.T, appDB *sqlx.DB, channelID string
 		t.Fatalf("load credential value: %v", err)
 	}
 	return value
+}
+
+func schemaFieldByKey(fields []usecase.ParameterIntegrationSchemaFieldCo, key string) (usecase.ParameterIntegrationSchemaFieldCo, bool) {
+	for i := range fields {
+		if fields[i].Key == key {
+			return fields[i], true
+		}
+	}
+	return usecase.ParameterIntegrationSchemaFieldCo{}, false
 }

@@ -23,6 +23,7 @@ type ProviderConfig struct {
 	Region          string
 	PublicBaseURL   string
 	KeyPrefix       string
+	UsePathStyle    *bool
 	AccessKeyID     string
 	SecretAccessKey string
 }

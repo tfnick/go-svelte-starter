@@ -1,84 +1,122 @@
 package s3compatible
 
 import (
-	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"io"
+	"errors"
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
+	smithymiddleware "github.com/aws/smithy-go/middleware"
 
 	"github.com/tfnick/go-svelte-starter/api/framework/integrations/providererror"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/oss"
 )
 
-const (
-	defaultRegion = "auto"
-	serviceName   = "s3"
-)
+const defaultRegion = "auto"
 
-type HTTPDoer interface {
-	Do(req *http.Request) (*http.Response, error)
+type S3API interface {
+	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
 }
+
+type PresignAPI interface {
+	PresignGetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+	PresignPutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+}
+
+type Option func(*Adapter)
 
 type Adapter struct {
-	client HTTPDoer
-	now    func() time.Time
+	httpClient     *http.Client
+	clientFactory  func(context.Context, oss.ProviderConfig) (S3API, error)
+	presignFactory func(context.Context, oss.ProviderConfig) (PresignAPI, error)
+	now            func() time.Time
 }
 
-func NewAdapter(client HTTPDoer) *Adapter {
-	if client == nil {
-		client = &http.Client{Timeout: 60 * time.Second}
+func NewAdapter(httpClient *http.Client) *Adapter {
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 60 * time.Second}
 	}
 	return &Adapter{
-		client: client,
-		now:    time.Now,
+		httpClient: httpClient,
+		now:        time.Now,
+	}
+}
+
+func NewAdapterWithOptions(httpClient *http.Client, options ...Option) *Adapter {
+	adapter := NewAdapter(httpClient)
+	for _, option := range options {
+		option(adapter)
+	}
+	return adapter
+}
+
+func WithClientFactory(factory func(context.Context, oss.ProviderConfig) (S3API, error)) Option {
+	return func(a *Adapter) {
+		a.clientFactory = factory
+	}
+}
+
+func WithPresignFactory(factory func(context.Context, oss.ProviderConfig) (PresignAPI, error)) Option {
+	return func(a *Adapter) {
+		a.presignFactory = factory
 	}
 }
 
 func (a *Adapter) PutObject(ctx context.Context, cfg oss.ProviderConfig, req oss.PutObjectRequest) (oss.PutObjectResult, error) {
-	if err := validateConfig(cfg); err != nil {
-		return oss.PutObjectResult{}, err
-	}
 	if req.Body == nil {
 		return oss.PutObjectResult{}, providererror.New(providererror.CategoryValidation, false, "OSS object body is required", nil)
+	}
+	if err := validateConfig(cfg); err != nil {
+		return oss.PutObjectResult{}, err
 	}
 	key, providerKey, err := objectKeys(cfg, req.Key)
 	if err != nil {
 		return oss.PutObjectResult{}, err
 	}
-	payload, err := io.ReadAll(req.Body)
+	client, err := a.s3Client(ctx, cfg)
 	if err != nil {
-		return oss.PutObjectResult{}, providererror.New(providererror.CategoryTemporary, true, "failed to read OSS object body", err)
+		return oss.PutObjectResult{}, err
 	}
+
 	contentType := strings.TrimSpace(req.ContentType)
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-
-	resp, err := a.do(ctx, http.MethodPut, cfg, providerKey, bytes.NewReader(payload), contentType)
+	metadata := safeMetadata(req.Metadata)
+	result, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(strings.TrimSpace(cfg.Bucket)),
+		Key:         aws.String(providerKey),
+		Body:        req.Body,
+		ContentType: aws.String(contentType),
+		Metadata:    metadata,
+	})
 	if err != nil {
-		return oss.PutObjectResult{}, err
+		return oss.PutObjectResult{}, providerError(err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return oss.PutObjectResult{}, providerErrorFromResponse(resp)
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
 
+	size := req.Size
+	if size < 0 {
+		size = 0
+	}
 	return oss.PutObjectResult{
 		Key:               key,
-		ETag:              trimHeaderQuotes(resp.Header.Get("ETag")),
-		Size:              int64(len(payload)),
+		ETag:              trimHeaderQuotes(aws.ToString(result.ETag)),
+		Size:              size,
 		PublicURL:         publicURL(cfg.PublicBaseURL, providerKey),
-		ProviderRequestID: providerRequestID(resp.Header),
+		ProviderRequestID: responseRequestID(result.ResultMetadata),
 	}, nil
 }
 
@@ -90,23 +128,30 @@ func (a *Adapter) GetObject(ctx context.Context, cfg oss.ProviderConfig, req oss
 	if err != nil {
 		return oss.GetObjectResult{}, err
 	}
-
-	resp, err := a.do(ctx, http.MethodGet, cfg, providerKey, nil, "")
+	client, err := a.s3Client(ctx, cfg)
 	if err != nil {
 		return oss.GetObjectResult{}, err
 	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		defer resp.Body.Close()
-		return oss.GetObjectResult{}, providerErrorFromResponse(resp)
+
+	result, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(strings.TrimSpace(cfg.Bucket)),
+		Key:    aws.String(providerKey),
+	})
+	if err != nil {
+		return oss.GetObjectResult{}, providerError(err)
+	}
+	if result.Body == nil {
+		return oss.GetObjectResult{}, providererror.New(providererror.CategoryProviderInternal, false, "OSS object body is empty", nil)
 	}
 
 	return oss.GetObjectResult{
 		Key:               key,
-		Body:              resp.Body,
-		ContentType:       resp.Header.Get("Content-Type"),
-		Size:              resp.ContentLength,
-		ETag:              trimHeaderQuotes(resp.Header.Get("ETag")),
-		ProviderRequestID: providerRequestID(resp.Header),
+		Body:              result.Body,
+		ContentType:       aws.ToString(result.ContentType),
+		Size:              aws.ToInt64(result.ContentLength),
+		ETag:              trimHeaderQuotes(aws.ToString(result.ETag)),
+		Metadata:          result.Metadata,
+		ProviderRequestID: responseRequestID(result.ResultMetadata),
 	}, nil
 }
 
@@ -118,113 +163,129 @@ func (a *Adapter) DeleteObject(ctx context.Context, cfg oss.ProviderConfig, req 
 	if err != nil {
 		return oss.DeleteObjectResult{}, err
 	}
-
-	resp, err := a.do(ctx, http.MethodDelete, cfg, providerKey, nil, "")
+	client, err := a.s3Client(ctx, cfg)
 	if err != nil {
 		return oss.DeleteObjectResult{}, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return oss.DeleteObjectResult{Deleted: false, ProviderRequestID: providerRequestID(resp.Header)}, nil
+
+	result, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(strings.TrimSpace(cfg.Bucket)),
+		Key:    aws.String(providerKey),
+	})
+	if err != nil {
+		mappedErr := providerError(err)
+		if providerErr, ok := providererror.From(mappedErr); ok && providerErr.Category == providererror.CategoryPermanent {
+			return oss.DeleteObjectResult{Deleted: false, ProviderRequestID: providerErr.ProviderRequestID}, nil
+		}
+		return oss.DeleteObjectResult{}, mappedErr
 	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return oss.DeleteObjectResult{}, providerErrorFromResponse(resp)
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	return oss.DeleteObjectResult{Deleted: true, ProviderRequestID: providerRequestID(resp.Header)}, nil
+	return oss.DeleteObjectResult{Deleted: true, ProviderRequestID: responseRequestID(result.ResultMetadata)}, nil
 }
 
-func (a *Adapter) PresignObject(_ context.Context, cfg oss.ProviderConfig, req oss.PresignObjectRequest) (oss.PresignObjectResult, error) {
+func (a *Adapter) PresignObject(ctx context.Context, cfg oss.ProviderConfig, req oss.PresignObjectRequest) (oss.PresignObjectResult, error) {
 	if err := validateConfig(cfg); err != nil {
 		return oss.PresignObjectResult{}, err
 	}
-	if _, _, err := objectKeys(cfg, req.Key); err != nil {
+	_, providerKey, err := objectKeys(cfg, req.Key)
+	if err != nil {
 		return oss.PresignObjectResult{}, err
 	}
-	return oss.PresignObjectResult{}, providererror.New(providererror.CategoryValidation, false, "OSS presign is not supported", nil)
-}
-
-func (a *Adapter) do(ctx context.Context, method string, cfg oss.ProviderConfig, key string, body io.Reader, contentType string) (*http.Response, error) {
-	endpoint, err := objectURL(cfg, key)
+	presigner, err := a.presigner(ctx, cfg)
 	if err != nil {
-		return nil, err
+		return oss.PresignObjectResult{}, err
 	}
-	payloadHash := emptyPayloadHash()
-	if body != nil {
-		var payload []byte
-		payload, err = io.ReadAll(body)
-		if err != nil {
-			return nil, providererror.New(providererror.CategoryTemporary, true, "failed to read OSS request body", err)
+	expiresIn := req.ExpiresIn
+	if expiresIn <= 0 {
+		expiresIn = time.Hour
+	}
+
+	method := strings.ToUpper(strings.TrimSpace(req.Method))
+	if method == "" {
+		method = http.MethodGet
+	}
+
+	var result *v4.PresignedHTTPRequest
+	switch method {
+	case http.MethodGet:
+		result, err = presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(strings.TrimSpace(cfg.Bucket)),
+			Key:    aws.String(providerKey),
+		}, s3.WithPresignExpires(expiresIn))
+	case http.MethodPut:
+		contentType := strings.TrimSpace(req.ContentType)
+		if contentType == "" {
+			contentType = "application/octet-stream"
 		}
-		payloadHash = sha256HexBytes(payload)
-		body = bytes.NewReader(payload)
+		result, err = presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+			Bucket:      aws.String(strings.TrimSpace(cfg.Bucket)),
+			Key:         aws.String(providerKey),
+			ContentType: aws.String(contentType),
+		}, s3.WithPresignExpires(expiresIn))
+	default:
+		return oss.PresignObjectResult{}, providererror.New(providererror.CategoryValidation, false, "OSS presign method is not supported", nil)
 	}
-	if body == nil {
-		body = http.NoBody
+	if err != nil {
+		return oss.PresignObjectResult{}, providerError(err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
-	if err != nil {
-		return nil, providererror.New(providererror.CategoryValidation, false, "OSS endpoint is invalid", err)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	if err := a.sign(req, cfg, payloadHash); err != nil {
-		return nil, err
-	}
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return nil, providererror.New(providererror.CategoryTemporary, true, "OSS provider request failed", err)
-	}
-	return resp, nil
+	return oss.PresignObjectResult{
+		URL:               result.URL,
+		ExpiresAt:         a.now().UTC().Add(expiresIn),
+		ProviderRequestID: "",
+	}, nil
 }
 
-func (a *Adapter) sign(req *http.Request, cfg oss.ProviderConfig, payloadHash string) error {
-	now := a.now().UTC()
-	date := now.Format("20060102")
-	amzDate := now.Format("20060102T150405Z")
+func (a *Adapter) s3Client(ctx context.Context, cfg oss.ProviderConfig) (S3API, error) {
+	if a.clientFactory != nil {
+		return a.clientFactory(ctx, cfg)
+	}
+	return a.newS3Client(ctx, cfg)
+}
+
+func (a *Adapter) presigner(ctx context.Context, cfg oss.ProviderConfig) (PresignAPI, error) {
+	if a.presignFactory != nil {
+		return a.presignFactory(ctx, cfg)
+	}
+	client, err := a.newS3Client(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return s3.NewPresignClient(client), nil
+}
+
+func (a *Adapter) newS3Client(ctx context.Context, cfg oss.ProviderConfig) (*s3.Client, error) {
+	endpoint, err := normalizedEndpoint(cfg.EndpointURL)
+	if err != nil {
+		return nil, err
+	}
 	region := strings.TrimSpace(cfg.Region)
 	if region == "" {
 		region = defaultRegion
 	}
 
-	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
-	req.Header.Set("X-Amz-Date", amzDate)
+	awsCfg, err := config.LoadDefaultConfig(
+		ctx,
+		config.WithRegion(region),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			strings.TrimSpace(cfg.AccessKeyID),
+			strings.TrimSpace(cfg.SecretAccessKey),
+			"",
+		)),
+		config.WithHTTPClient(a.httpClient),
+	)
+	if err != nil {
+		return nil, providererror.New(providererror.CategoryProviderInternal, false, "failed to configure OSS provider", err)
+	}
 
-	canonicalHeaders, signedHeaders := canonicalHeaders(req)
-	canonicalRequest := strings.Join([]string{
-		req.Method,
-		canonicalURI(req.URL),
-		canonicalQuery(req.URL.Query()),
-		canonicalHeaders,
-		signedHeaders,
-		payloadHash,
-	}, "\n")
-
-	scope := strings.Join([]string{date, region, serviceName, "aws4_request"}, "/")
-	stringToSign := strings.Join([]string{
-		"AWS4-HMAC-SHA256",
-		amzDate,
-		scope,
-		sha256HexString(canonicalRequest),
-	}, "\n")
-	signature := hex.EncodeToString(hmacSHA256(signingKey(cfg.SecretAccessKey, date, region), stringToSign))
-
-	req.Header.Set("Authorization", fmt.Sprintf(
-		"AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		cfg.AccessKeyID,
-		scope,
-		signedHeaders,
-		signature,
-	))
-	return nil
+	return s3.NewFromConfig(awsCfg, func(options *s3.Options) {
+		options.BaseEndpoint = aws.String(endpoint)
+		options.UsePathStyle = usePathStyle(cfg)
+	}), nil
 }
 
 func validateConfig(cfg oss.ProviderConfig) error {
-	if strings.TrimSpace(cfg.EndpointURL) == "" {
-		return providererror.New(providererror.CategoryValidation, false, "OSS endpoint URL is required", nil)
+	if _, err := normalizedEndpoint(cfg.EndpointURL); err != nil {
+		return err
 	}
 	if strings.TrimSpace(cfg.Bucket) == "" {
 		return providererror.New(providererror.CategoryValidation, false, "OSS bucket is required", nil)
@@ -233,6 +294,26 @@ func validateConfig(cfg oss.ProviderConfig) error {
 		return providererror.New(providererror.CategoryAuth, false, "OSS credential is required", nil)
 	}
 	return nil
+}
+
+func normalizedEndpoint(raw string) (string, error) {
+	parsed, err := url.Parse(strings.TrimRight(strings.TrimSpace(raw), "/"))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", providererror.New(providererror.CategoryValidation, false, "OSS endpoint URL is invalid", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", providererror.New(providererror.CategoryValidation, false, "OSS endpoint URL is invalid", nil)
+	}
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String(), nil
+}
+
+func usePathStyle(cfg oss.ProviderConfig) bool {
+	if cfg.UsePathStyle != nil {
+		return *cfg.UsePathStyle
+	}
+	return strings.EqualFold(strings.TrimSpace(cfg.ProviderCode), "cloudflare_r2")
 }
 
 func objectKeys(cfg oss.ProviderConfig, rawKey string) (string, string, error) {
@@ -258,122 +339,22 @@ func cleanObjectKey(key string) string {
 	return key
 }
 
-func objectURL(cfg oss.ProviderConfig, key string) (*url.URL, error) {
-	endpoint, err := url.Parse(strings.TrimRight(strings.TrimSpace(cfg.EndpointURL), "/"))
-	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" {
-		return nil, providererror.New(providererror.CategoryValidation, false, "OSS endpoint URL is invalid", err)
+func safeMetadata(metadata map[string]string) map[string]string {
+	if len(metadata) == 0 {
+		return nil
 	}
-	if endpoint.Scheme != "http" && endpoint.Scheme != "https" {
-		return nil, providererror.New(providererror.CategoryValidation, false, "OSS endpoint URL is invalid", nil)
-	}
-
-	endpoint.Path = joinURLPath(endpoint.Path, cfg.Bucket, key)
-	endpoint.RawQuery = ""
-	return endpoint, nil
-}
-
-func joinURLPath(basePath string, bucket string, key string) string {
-	parts := []string{strings.Trim(basePath, "/"), strings.Trim(strings.TrimSpace(bucket), "/"), cleanObjectKey(key)}
-	filtered := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if part != "" {
-			filtered = append(filtered, part)
+	result := make(map[string]string, len(metadata))
+	for key, value := range metadata {
+		cleanKey := strings.TrimSpace(key)
+		if cleanKey == "" {
+			continue
 		}
+		result[cleanKey] = strings.TrimSpace(value)
 	}
-	return "/" + strings.Join(filtered, "/")
-}
-
-func canonicalURI(u *url.URL) string {
-	path := u.EscapedPath()
-	if path == "" {
-		return "/"
+	if len(result) == 0 {
+		return nil
 	}
-	return path
-}
-
-func canonicalQuery(values url.Values) string {
-	if len(values) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	parts := make([]string, 0)
-	for _, key := range keys {
-		items := append([]string(nil), values[key]...)
-		sort.Strings(items)
-		for _, value := range items {
-			parts = append(parts, awsEscape(key)+"="+awsEscape(value))
-		}
-	}
-	return strings.Join(parts, "&")
-}
-
-func canonicalHeaders(req *http.Request) (string, string) {
-	values := map[string]string{
-		"host": strings.ToLower(req.URL.Host),
-	}
-	if contentType := strings.TrimSpace(req.Header.Get("Content-Type")); contentType != "" {
-		values["content-type"] = collapseSpaces(contentType)
-	}
-	values["x-amz-content-sha256"] = strings.TrimSpace(req.Header.Get("X-Amz-Content-Sha256"))
-	values["x-amz-date"] = strings.TrimSpace(req.Header.Get("X-Amz-Date"))
-
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	var canonical strings.Builder
-	for _, key := range keys {
-		canonical.WriteString(key)
-		canonical.WriteString(":")
-		canonical.WriteString(values[key])
-		canonical.WriteString("\n")
-	}
-	return canonical.String(), strings.Join(keys, ";")
-}
-
-func collapseSpaces(value string) string {
-	fields := strings.Fields(value)
-	return strings.Join(fields, " ")
-}
-
-func awsEscape(value string) string {
-	escaped := url.QueryEscape(value)
-	escaped = strings.ReplaceAll(escaped, "+", "%20")
-	escaped = strings.ReplaceAll(escaped, "%7E", "~")
-	return escaped
-}
-
-func signingKey(secret string, date string, region string) []byte {
-	kDate := hmacSHA256([]byte("AWS4"+secret), date)
-	kRegion := hmacSHA256(kDate, region)
-	kService := hmacSHA256(kRegion, serviceName)
-	return hmacSHA256(kService, "aws4_request")
-}
-
-func hmacSHA256(key []byte, value string) []byte {
-	mac := hmac.New(sha256.New, key)
-	_, _ = mac.Write([]byte(value))
-	return mac.Sum(nil)
-}
-
-func sha256HexString(value string) string {
-	return sha256HexBytes([]byte(value))
-}
-
-func sha256HexBytes(value []byte) string {
-	sum := sha256.Sum256(value)
-	return hex.EncodeToString(sum[:])
-}
-
-func emptyPayloadHash() string {
-	return sha256HexBytes(nil)
+	return result
 }
 
 func publicURL(baseURL string, key string) string {
@@ -392,54 +373,70 @@ func publicURL(baseURL string, key string) string {
 	return baseURL + "/" + strings.Join(escaped, "/")
 }
 
-func providerErrorFromResponse(resp *http.Response) error {
-	requestID := providerRequestID(resp.Header)
-	category, retryable := categoryForStatus(resp.StatusCode)
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-	err := providererror.New(category, retryable, safeMessageForStatus(resp.StatusCode), fmt.Errorf("OSS provider status %d", resp.StatusCode))
-	err.ProviderRequestID = requestID
-	return err
+func providerError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var noSuchKey *types.NoSuchKey
+	if errors.As(err, &noSuchKey) {
+		return withProviderDetails(providererror.New(providererror.CategoryPermanent, false, "OSS object not found", err), err)
+	}
+
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		category, retryable := categoryForAPIError(apiErr.ErrorCode())
+		return withProviderDetails(providererror.New(category, retryable, safeMessageForAPIError(apiErr.ErrorCode()), err), err)
+	}
+
+	return providererror.New(providererror.CategoryTemporary, true, "OSS provider request failed", err)
 }
 
-func categoryForStatus(status int) (string, bool) {
-	switch {
-	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+func categoryForAPIError(code string) (string, bool) {
+	switch code {
+	case "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch", "InvalidSecurity":
 		return providererror.CategoryAuth, false
-	case status == http.StatusTooManyRequests:
-		return providererror.CategoryRateLimit, true
-	case status == http.StatusRequestTimeout:
-		return providererror.CategoryTimeout, true
-	case status == http.StatusBadRequest:
-		return providererror.CategoryValidation, false
-	case status == http.StatusNotFound:
+	case "NoSuchBucket", "NoSuchKey", "NotFound", "404":
 		return providererror.CategoryPermanent, false
-	case status >= http.StatusInternalServerError:
+	case "SlowDown", "TooManyRequests", "Throttling", "ThrottlingException":
+		return providererror.CategoryRateLimit, true
+	case "RequestTimeout", "RequestTimeoutException":
+		return providererror.CategoryTimeout, true
+	case "InvalidArgument", "InvalidBucketName", "InvalidObjectName", "MalformedXML":
+		return providererror.CategoryValidation, false
+	case "InternalError", "ServiceUnavailable":
 		return providererror.CategoryTemporary, true
 	default:
 		return providererror.CategoryProviderInternal, false
 	}
 }
 
-func safeMessageForStatus(status int) string {
-	switch status {
-	case http.StatusNotFound:
+func safeMessageForAPIError(code string) string {
+	switch code {
+	case "NoSuchKey", "NotFound", "404":
 		return "OSS object not found"
-	case http.StatusUnauthorized, http.StatusForbidden:
+	case "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch", "InvalidSecurity":
 		return "OSS provider authentication failed"
-	case http.StatusTooManyRequests:
+	case "SlowDown", "TooManyRequests", "Throttling", "ThrottlingException":
 		return "OSS provider rate limit exceeded"
 	default:
 		return "OSS provider request failed"
 	}
 }
 
-func providerRequestID(header http.Header) string {
-	for _, name := range []string{"X-Amz-Request-Id", "X-Amz-Id-2", "X-Oss-Request-Id", "X-Request-Id"} {
-		if value := strings.TrimSpace(header.Get(name)); value != "" {
-			return value
-		}
+func withProviderDetails(providerErr *providererror.Error, err error) *providererror.Error {
+	var responseErr interface {
+		ServiceRequestID() string
 	}
-	return ""
+	if errors.As(err, &responseErr) {
+		providerErr.ProviderRequestID = responseErr.ServiceRequestID()
+	}
+	return providerErr
+}
+
+func responseRequestID(metadata smithymiddleware.Metadata) string {
+	requestID, _ := awsmiddleware.GetRequestIDMetadata(metadata)
+	return requestID
 }
 
 func trimHeaderQuotes(value string) string {

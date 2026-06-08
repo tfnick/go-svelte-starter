@@ -882,14 +882,15 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_acce
 | `sms.aliyun.adapter` | `sms` | `aliyun` | `plain` | optional `base_url` URL, optional `sign_name` text, optional `template_code` text | `api_key` |
 | `email.aliyun.smtp` | `email` | `aliyun` | `json_object` | `smtp_host` required text default `smtp.qiye.aliyun.com`, `smtp_port` required number default `465`, `security` required option default `ssl`, `from_email` required text, optional `from_name` text | `username`, `password` with help text reminding admins to use the mailbox client authorization password instead of the account login password |
 | `email.resend.api` | `email` | `resend` | `plain` | `base_url` required URL default `https://api.resend.com`, `from_email` required text, optional `from_name` text | `api_key` |
-| `oss.cloudflare_r2.s3_compatible` | `oss` | `cloudflare_r2` | `json_object` | `endpoint_url` required URL, `bucket` required text, optional `region` default `auto`, optional `public_base_url` URL, optional `key_prefix` text | `access_key_id`, `secret_access_key` |
-| `oss.aliyun_oss.s3_compatible` | `oss` | `aliyun` | `json_object` | `endpoint_url` required URL, `bucket` required text, optional `region`, optional `public_base_url` URL, optional `key_prefix` text | `access_key_id`, `secret_access_key` |
+| `oss.cloudflare_r2.s3_compatible` | `oss` | `cloudflare_r2` | `json_object` | `endpoint_url` required URL, `bucket` required text, optional `region` default `auto`, optional `use_path_style` boolean default `true`, optional `public_base_url` URL, optional `key_prefix` text | `access_key_id`, `secret_access_key` |
+| `oss.aliyun_oss.s3_compatible` | `oss` | `aliyun` | `json_object` | `endpoint_url` required URL, `bucket` required text, optional `region`, optional `use_path_style` boolean override, optional `public_base_url` URL, optional `key_prefix` text | `access_key_id`, `secret_access_key` |
 
 * API only manages `integration_channels + integration_credentials`; it does not manage `integration_operation_configs`, `integration_model_options`, policy, webhook receipts, invocation raw data, provider request/response, prompt, stream chunks, OSS upload/download runtime, presigned URLs, or artifact lifecycle.
 * Parameter APIs are protected internal admin configuration APIs. Routes must run behind `RequireAuth()` and `RequireAdmin()`; admin access is represented by `users.is_admin=1`.
 * `scenario` only allows `payment`, `llm`, `sms`, `email`, and `oss`.
 * `credential_type` uses the `integration_credential_type` dictionary. Current seeded values are `payment_bundle`, `api_key`, `smtp_password`, and `s3_access_key`; save usecases reject values that are not enabled dictionary values.
 * `config_json` and `metadata_json` must be JSON objects and may only contain non-sensitive config. Obvious sensitive keys such as `api_key`, `secret`, `password`, `token`, and `private_key` are rejected recursively, including inside arrays.
+* OSS `use_path_style` is an optional boolean addressing-style override. Cloudflare R2 schema defaults it to `true`; Aliyun OSS should usually omit it so the provider adapter uses AWS SDK virtual-hosted addressing by default.
 * create requires `credential_value`; update with empty `credential_value` preserves the existing credential value.
 * `credential_value` is stored as administrator-managed configuration in `integration_credentials.value_text`; it is not encrypted by this module. Legacy `ciphertext/key_version/masked_value` columns may exist for migration compatibility, but they are not part of the current API contract.
 * Responses return `credential_type` and `credential_value` for the protected admin page. They must never return `credential_plaintext`, `ciphertext`, `key_version`, or `masked_value`.
@@ -927,9 +928,9 @@ Good: Create a `payment.creem.hosted_checkout` channel with non-sensitive `base_
 
 Good: Create an `email.aliyun.smtp` channel with SMTP host/port/security/from fields in `config_json`, and username/password in admin-managed `credential_value`.
 
-Good: Create an `oss.cloudflare_r2.s3_compatible` channel with R2 endpoint/bucket/region in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API.
+Good: Create an `oss.cloudflare_r2.s3_compatible` channel with R2 endpoint/bucket/region/use_path_style in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API.
 
-Good: Create an `oss.aliyun_oss.s3_compatible` channel with Aliyun OSS endpoint/bucket/region in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API.
+Good: Create an `oss.aliyun_oss.s3_compatible` channel with Aliyun OSS endpoint/bucket/region in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API and virtual-hosted addressing remains the adapter default.
 
 Good: Mark `oss.cloudflare_r2.s3_compatible` as `is_primary=true`; backend clears any previous OSS primary channel and leaves non-OSS scenarios untouched.
 
@@ -945,7 +946,7 @@ Bad: Enforce primary-provider uniqueness only in the frontend. The backend trans
 
 * `api/models/integration_test.go` covers channel/credential CRUD, admin credential value view, duplicate conflict, OSS primary uniqueness, and clearing primary on disable.
 * `api/usecase/dictionary_test.go` covers seeded `integration_credential_type` values, including `smtp_password` and `s3_access_key`.
-* `api/usecase/parameter_test.go` covers schema listing, credential value persistence, empty value preservation, non-empty value update, sensitive JSON key rejection including arrays, schema required field validation, URL validation, plain vs JSON object credential formats, enable/disable, OSS primary at-most-one behavior, zero-primary behavior, and non-OSS primary normalization.
+* `api/usecase/parameter_test.go` covers schema listing including OSS `use_path_style`, credential value persistence, empty value preservation, non-empty value update, sensitive JSON key rejection including arrays, schema required field validation, URL validation, plain vs JSON object credential formats, enable/disable, OSS primary at-most-one behavior, zero-primary behavior, and non-OSS primary normalization.
 * `api/routes/parameter_test.go` covers schema route DTO, internal envelope, DTO without legacy plaintext/ciphertext/masked fields, create response, `is_primary` mapping, and enable/disable response.
 * `frontend/src/api.test.js` covers parameter helper paths, HTTP methods, encoded IDs, `is_primary`, and bodies.
 * `frontend/src/router.test.js` covers `/parameters`, `/parameters.html`, menu label, and title.
@@ -1522,7 +1523,7 @@ Stored `site.logo` JSON:
 * Logo bytes are stored through `api/usecase/integrations/oss.Adapter`; DB stores only safe metadata, not raw image bytes.
 * `GET /api/settings/public/logo` is unauthenticated because browser `<img>` requests cannot attach the app bearer token. It streams the configured object or redirects to `/logo.png` when no object is configured.
 * Site-logo upload resolves the enabled primary OSS channel (`scenario=oss`, `enabled=1`, `is_primary=1`) and its enabled credential, then maps channel `config_json` plus credential JSON to `oss.ProviderConfig`.
-* Site-logo storage must not use the local OSS adapter. `index.go` registers provider-backed OSS adapters such as `oss.cloudflare_r2.s3_compatible` and `oss.aliyun_oss.s3_compatible`; provider HTTP/signing details remain under `api/integrations/oss/<provider>`, and usecase depends only on the OSS port.
+* Site-logo storage must not use the local OSS adapter. `index.go` registers provider-backed OSS adapters such as `oss.cloudflare_r2.s3_compatible` and `oss.aliyun_oss.s3_compatible`; AWS SDK Go v2 configuration/signing details remain under `api/integrations/oss/<provider>`, and usecase depends only on the OSS port.
 * Persisted `site.logo` metadata includes `channel_code`, `provider_code`, and `adapter_key`; public logo read uses that persisted provider/channel metadata. Legacy metadata without channel/adapter fields may fall back to the current primary OSS provider.
 * Accepted logo formats are detected from file magic bytes: PNG, JPEG, and WebP.
 
@@ -1557,7 +1558,7 @@ Bad: `index.go` registers a site-logo-only local adapter key and settings usecas
 * `api/models/integration_test.go` covers primary OSS channel config lookup and metadata channel lookup.
 * `api/usecase/setting_test.go` covers default fallback, missing primary validation, primary OSS adapter invocation, persisted metadata, and object readback through persisted provider config.
 * `api/routes/setting_test.go` covers internal envelope, upload availability DTO fields, route-local DTOs for settings read/upload, and missing-primary validation mapping.
-* `api/integrations/oss/s3compatible/s3compatible_test.go` covers S3-compatible request method/path/header signing, key prefix handling, provider request ID, and normalized provider errors.
+* `api/integrations/oss/s3compatible/s3compatible_test.go` covers AWS SDK S3 client/presigner input mapping, key prefix handling, addressing-style defaults, and normalized provider errors.
 * Frontend API tests cover `getSiteSettings()` response fields and `uploadSiteLogo()` path/method/FormData behavior.
 * Run `go test ./...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
 

@@ -237,6 +237,7 @@ type ossChannelConfigJSON struct {
 	Region        string `json:"region"`
 	PublicBaseURL string `json:"public_base_url"`
 	KeyPrefix     string `json:"key_prefix"`
+	UsePathStyle  *bool  `json:"use_path_style"`
 }
 
 type ossChannelCredentialJSON struct {
@@ -306,6 +307,7 @@ func siteLogoProviderFromChannel(channel models.IntegrationChannelConfig) (siteL
 		Region:          strings.TrimSpace(cfg.Region),
 		PublicBaseURL:   strings.TrimRight(strings.TrimSpace(cfg.PublicBaseURL), "/"),
 		KeyPrefix:       strings.Trim(strings.TrimSpace(cfg.KeyPrefix), "/"),
+		UsePathStyle:    cfg.UsePathStyle,
 		AccessKeyID:     strings.TrimSpace(credential.AccessKeyID),
 		SecretAccessKey: strings.TrimSpace(credential.SecretAccessKey),
 	}

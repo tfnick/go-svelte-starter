@@ -337,6 +337,14 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 				HelpText:     "Cloudflare R2 commonly uses the SDK region value auto.",
 			},
 			{
+				Key:          "use_path_style",
+				Label:        "Use Path Style",
+				Kind:         ParameterIntegrationSchemaFieldBoolean,
+				Required:     false,
+				DefaultValue: "true",
+				HelpText:     "Use AWS SDK S3 path-style addressing for Cloudflare R2.",
+			},
+			{
 				Key:         "public_base_url",
 				Label:       "Public Base URL",
 				Kind:        ParameterIntegrationSchemaFieldURL,
@@ -403,6 +411,13 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 				Required:    false,
 				Placeholder: "cn-hangzhou",
 				HelpText:    "Optional SDK region value matching the OSS endpoint region.",
+			},
+			{
+				Key:      "use_path_style",
+				Label:    "Use Path Style",
+				Kind:     ParameterIntegrationSchemaFieldBoolean,
+				Required: false,
+				HelpText: "Optional AWS SDK S3 path-style addressing override. Aliyun OSS defaults to virtual-hosted addressing.",
 			},
 			{
 				Key:         "public_base_url",

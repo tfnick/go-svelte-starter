@@ -122,6 +122,9 @@ func TestSaveSiteLogoUsesOSSPortAndPersistsMetadata(t *testing.T) {
 	if adapter.putConfig.AccessKeyID != "ak-site-logo" || adapter.putConfig.SecretAccessKey != "sk-site-logo" {
 		t.Fatalf("expected primary OSS credential, got %#v", adapter.putConfig)
 	}
+	if adapter.putConfig.UsePathStyle == nil || !*adapter.putConfig.UsePathStyle {
+		t.Fatalf("expected primary OSS path-style config, got %#v", adapter.putConfig)
+	}
 	if !settings.LogoConfigured || !strings.HasPrefix(settings.LogoURL, "/api/settings/public/logo?v=") {
 		t.Fatalf("expected configured logo URL, got %#v", settings)
 	}
@@ -167,7 +170,7 @@ func seedPrimaryOSSChannel(t *testing.T, adapterKey string) {
 		Priority:     1,
 		CredentialID: credential.ID,
 		IsPrimary:    true,
-		ConfigJSON:   `{"endpoint_url":"https://r2.example.com","bucket":"assets","region":"auto","key_prefix":"public"}`,
+		ConfigJSON:   `{"endpoint_url":"https://r2.example.com","bucket":"assets","region":"auto","key_prefix":"public","use_path_style":true}`,
 		MetadataJSON: "{}",
 	}); err != nil {
 		t.Fatalf("create primary OSS channel: %v", err)
