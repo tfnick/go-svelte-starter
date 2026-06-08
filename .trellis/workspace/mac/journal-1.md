@@ -770,3 +770,36 @@ Implemented settings logo upload through primary OSS provider, switched S3-compa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: OAuth login and env file config
+
+**Date**: 2026-06-09
+**Task**: OAuth login and env file config
+**Branch**: `master`
+
+### Summary
+
+Implemented Google OAuth and GitHub OAuth login with backend callbacks, one-time token exchange, frontend login flow, and executable dotenv-style runtime env file loading for Windows/Linux deployments.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `142db13` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
