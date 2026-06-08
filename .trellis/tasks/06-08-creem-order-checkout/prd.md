@@ -24,6 +24,8 @@ The local `products` table and `/api/products` endpoint are retained for legacy/
   * `PayOrder` and the `order.paid` durable event side effect for points.
 * Creem test checkout uses `https://test-api.creem.io/v1`, `POST /checkouts`, and `x-api-key`.
 * Creem payment success is represented by `checkout.completed`.
+* Creem test checkout is backed by Stripe test-mode card rules. Real/non-test cards are rejected in test mode with a card-declined message. Use a Stripe test card such as `4242 4242 4242 4242`, any future expiry, any 3-digit CVC, and any postal code.
+* A successful Creem browser return to `/orders` can include query parameters such as `request_id`, `checkout_id`, provider `order_id`, `customer_id`, `subscription_id`, `product_id`, and `signature`.
 * The local `data/app.db` check on 2026-06-08 found one payment channel:
   * `channel_code`: `123`
   * `adapter_key`: `payment.creem.hosted_checkout`
@@ -46,6 +48,7 @@ The local `products` table and `/api/products` endpoint are retained for legacy/
 * Duplicate webhooks/callbacks must not duplicate fulfillment or accounting side effects.
 * Missing Creem config must return safe business errors without leaking credentials.
 * `success_url` is only the browser return target. Final paid state still depends on webhook processing.
+* Query parameters returned on `success_url` are useful for manual diagnosis, but must not be trusted as the payment settlement signal.
 
 ## Acceptance Criteria
 
@@ -73,6 +76,18 @@ The local `products` table and `/api/products` endpoint are retained for legacy/
 * Current checkout adapter sends the configured Creem `product_id`; provider product/price decides the actual charge.
 * `orders.amount = 0` is acceptable for a newly created Creem ledger order in this MVP because local amount is not the payment authority.
 * Historical order details may still return `order_items` and product display names when legacy rows exist.
+
+## Manual Test Notes
+
+* On 2026-06-08, attempting Creem test checkout with a non-test card produced a provider decline because the request was in test mode. This is expected; use Stripe test card data instead of a real card.
+* Valid happy-path card data for Creem test checkout:
+  * Card number: `4242 4242 4242 4242`
+  * Expiry: any future date, for example `12/34`
+  * CVC: any 3 digits, for example `123`
+  * ZIP/postal: any value, for example `10001`
+* Observed successful browser return shape:
+  * `/orders?request_id=<local-order-id>&checkout_id=<creem-checkout-id>&order_id=<creem-order-id>&customer_id=<creem-customer-id>&subscription_id=<creem-subscription-id>&product_id=<creem-product-id>&signature=<signature>`
+* The browser return confirms the user came back from checkout, but local fulfillment should still wait for the verified Creem webhook.
 
 ## Implementation Plan
 
