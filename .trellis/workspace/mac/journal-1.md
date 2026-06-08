@@ -702,3 +702,36 @@ Refined payment webhook ingress boundary: moved webhook orchestration into payme
 ### Next Steps
 
 - None - task complete
+
+
+## Session 22: OSS primary provider and settings logo
+
+**Date**: 2026-06-08
+**Task**: OSS primary provider and settings logo
+**Branch**: `master`
+
+### Summary
+
+Implemented OSS primary provider controls with backend uniqueness enforcement, plus included the settings/logo work that was committed in the same batch.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d1b8aef` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

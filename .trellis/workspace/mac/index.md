@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 22
 - **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~704 | Active |
+| `journal-1.md` | ~737 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-06-08 | OSS primary provider and settings logo | `d1b8aef` | `master` |
 | 21 | 2026-06-08 | Webhook architecture micro diagnosis | `29ab6f8` | `master` |
 | 20 | 2026-06-08 | Fix membership upgrade subscription cancellation | `3d68d7d` | `master` |
 | 19 | 2026-06-08 | Dockerfile Dokploy deployment | `d273c31` | `master` |
