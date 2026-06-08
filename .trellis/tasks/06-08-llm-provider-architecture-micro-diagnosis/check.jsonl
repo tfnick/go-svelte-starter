@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Verify the recommended LLM extension boundary remains aligned with project architecture."}
+{"file":".trellis/spec/backend/api-contracts.md","reason":"Verify the diagnosis does not contradict existing LLM/Parameter contracts."}
+{"file":".trellis/tasks/06-08-llm-provider-architecture-micro-diagnosis/research/llm-provider-webhook-and-extension-notes.md","reason":"Check final PRD conclusions against persisted research."}
