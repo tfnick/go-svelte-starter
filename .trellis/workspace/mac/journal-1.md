@@ -735,3 +735,38 @@ Implemented OSS primary provider controls with backend uniqueness enforcement, p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 23: Settings logo primary OSS
+
+**Date**: 2026-06-08
+**Task**: Settings logo primary OSS
+**Branch**: `master`
+
+### Summary
+
+Implemented settings logo upload through primary OSS provider, switched S3-compatible OSS adapter to AWS SDK Go v2, and moved Setting menu below Variable.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e50fe81` | (see git log) |
+| `4ca2801` | (see git log) |
+| `d3e2f96` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
