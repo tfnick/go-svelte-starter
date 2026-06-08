@@ -669,3 +669,36 @@ Fixed Creem scheduled cancellation when upgrading memberships, added regression 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: Webhook architecture micro diagnosis
+
+**Date**: 2026-06-08
+**Task**: Webhook architecture micro diagnosis
+**Branch**: `master`
+
+### Summary
+
+Refined payment webhook ingress boundary: moved webhook orchestration into payment_webhook.go, made webhook headers provider-agnostic, kept provider signature interpretation inside adapters, updated tests/spec, and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `29ab6f8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
