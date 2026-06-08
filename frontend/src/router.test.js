@@ -33,8 +33,8 @@ test('exposes logged-in app menu routes from one source', () => {
       ['/dictionary', 'Dictionary'],
       ['/parameters', 'Parameter'],
       ['/notifications', 'Notification'],
-      ['/settings', 'Setting'],
-      ['/variables', 'Variable']
+      ['/variables', 'Variable'],
+      ['/settings', 'Setting']
     ]
   );
 });

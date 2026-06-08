@@ -72,15 +72,15 @@ export const appRoutes = Object.freeze([
     adminOnly: true
   },
   {
+    path: '/variables',
+    label: 'Variable',
+    description: 'Global controls'
+  },
+  {
     path: '/settings',
     label: 'Setting',
     description: 'Site preferences',
     adminOnly: true
-  },
-  {
-    path: '/variables',
-    label: 'Variable',
-    description: 'Global controls'
   }
 ]);
 
