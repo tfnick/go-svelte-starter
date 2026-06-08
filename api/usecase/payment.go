@@ -109,6 +109,13 @@ func CreateOrderPaymentCheckout(ctx fwusecase.Context, cmd CreateOrderPaymentChe
 		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load payment customer", err)
 	}
 
+	if product.MembershipLevel != "" && product.MembershipLevel != MembershipLevelBasic {
+		effectiveLevel, _ := EffectiveMembership(user)
+		if effectiveLevel != MembershipLevelBasic && membershipLevelRank(effectiveLevel) >= membershipLevelRank(product.MembershipLevel) {
+			return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeConflict, "cannot purchase this product while current membership is active", nil)
+		}
+	}
+
 	providerCfg, err := paymentProviderConfig(config)
 	if err != nil {
 		return PaymentCheckoutCo{}, fwusecase.E(fwusecase.CodeInternal, "payment channel is not configured", err)
@@ -334,6 +341,29 @@ func HandlePaymentWebhookJob(ctx context.Context, message []byte) error {
 				return err
 			}
 			_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_subscription_update_failed")
+			return nil
+		}
+		return models.MarkIntegrationWebhookReceiptSucceeded(ctx, receipt.ID)
+	}
+	if normalized.BusinessEventType == payment.WebhookEventSubscriptionRenewed {
+		subscriptionID := strings.TrimSpace(normalized.ProviderSubscriptionID)
+		periodEnd := strings.TrimSpace(normalized.SubscriptionPeriodEnd)
+		if subscriptionID == "" || periodEnd == "" {
+			_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_subscription_missing")
+			return nil
+		}
+		order, err := models.GetOrderByProviderSubscriptionID(ctx, subscriptionID)
+		if err != nil {
+			_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_subscription_order_missing")
+			return nil
+		}
+		product, err := models.GetProductByID(ctx, order.ProductID)
+		if err != nil {
+			_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_product_missing")
+			return nil
+		}
+		if err := models.UpdateUserMembership(ctx, order.UserID, product.MembershipLevel, periodEnd); err != nil {
+			_ = models.MarkIntegrationWebhookReceiptFailed(ctx, receipt.ID, "payment_membership_update_failed")
 			return nil
 		}
 		return models.MarkIntegrationWebhookReceiptSucceeded(ctx, receipt.ID)

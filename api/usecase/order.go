@@ -118,16 +118,24 @@ func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error) {
 	if strings.TrimSpace(cmd.ProductID) == "" {
 		return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "product ID is required", nil)
 	}
-	if _, err := GetUser(ctx, UserDetailQry{ID: cmd.UserID}); err != nil {
-		if fwusecase.CodeOf(err) == fwusecase.CodeNotFound {
-			return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "user not found", err)
-		}
-		return OrderCo{}, err
-	}
 
 	product, err := loadCheckoutProduct(ctx, cmd.ProductID)
 	if err != nil {
 		return OrderCo{}, err
+	}
+
+	user, err := models.GetUserByID(ctx.Std(), cmd.UserID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return OrderCo{}, fwusecase.E(fwusecase.CodeValidation, "user not found", err)
+		}
+		return OrderCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load user", err)
+	}
+	if product.MembershipLevel != "" && product.MembershipLevel != MembershipLevelBasic {
+		effectiveLevel, _ := EffectiveMembership(user)
+		if effectiveLevel != MembershipLevelBasic && membershipLevelRank(effectiveLevel) >= membershipLevelRank(product.MembershipLevel) {
+			return OrderCo{}, fwusecase.E(fwusecase.CodeConflict, "cannot purchase this product while current membership is active", nil)
+		}
 	}
 
 	var order *models.Order
@@ -344,15 +352,7 @@ func ApplyOrderMembership(ctx fwusecase.Context, cmd ApplyOrderMembershipCmd) (A
 			}
 			return fwusecase.E(fwusecase.CodeInternal, "failed to load order product", err)
 		}
-		user, err := models.GetUserByID(txCtx.Std(), order.UserID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return fwusecase.E(fwusecase.CodeNotFound, "user not found", err)
-			}
-			return fwusecase.E(fwusecase.CodeInternal, "failed to load order user", err)
-		}
-
-		expiresAt, err := membershipExpiresAtForProduct(product, user.MembershipExpiresAt)
+		expiresAt, err := membershipExpiresAtForProduct(product)
 		if err != nil {
 			return err
 		}
@@ -424,7 +424,25 @@ func loadCheckoutProduct(ctx fwusecase.Context, productID string) (*models.Produ
 	return product, nil
 }
 
-func membershipExpiresAtForProduct(product *models.Product, currentExpiresAt string) (string, error) {
+func membershipLevelRank(level string) int {
+	switch level {
+	case MembershipLevelSuper:
+		return 3
+	case MembershipLevelPremium:
+		return 2
+	default:
+		return 1
+	}
+}
+
+func EffectiveMembership(user *models.User) (level string, expiresAt string) {
+	if expires, err := parseSQLiteTime(user.MembershipExpiresAt); err == nil && expires.Before(time.Now().UTC()) {
+		return MembershipLevelBasic, PermanentMembershipExpiresAt
+	}
+	return user.MembershipLevel, user.MembershipExpiresAt
+}
+
+func membershipExpiresAtForProduct(product *models.Product) (string, error) {
 	if product.BillingType == ProductBillingTypeOneTime {
 		return PermanentMembershipExpiresAt, nil
 	}
@@ -433,10 +451,6 @@ func membershipExpiresAtForProduct(product *models.Product, currentExpiresAt str
 	}
 
 	base := timefmt.NowUTC()
-	current, err := parseSQLiteTime(currentExpiresAt)
-	if err == nil && current.After(base) {
-		base = current
-	}
 
 	switch product.SubscriptionInterval {
 	case SubscriptionIntervalMonth:

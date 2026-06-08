@@ -301,3 +301,18 @@ func MarkOrderMembershipApplied(ctx context.Context, orderID string, appliedAt s
 	}
 	return nil
 }
+
+func GetOrderByProviderSubscriptionID(ctx context.Context, subscriptionID string) (*Order, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
+
+	var order Order
+	query := d.Rebind(`SELECT * FROM orders WHERE provider_subscription_id = ?`)
+	err = d.Get(&order, query, subscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("get order by subscription ID failed: %w", err)
+	}
+	return &order, nil
+}

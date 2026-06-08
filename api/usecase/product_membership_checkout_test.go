@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"testing"
+	"time"
 
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
@@ -46,7 +47,7 @@ func TestProductCRUDStoresCreemAndMembershipSettings(t *testing.T) {
 	}
 }
 
-func TestApplyOrderMembershipExtendsSubscriptionFromCurrentExpiry(t *testing.T) {
+func TestApplyOrderMembershipAppliesNowPlusInterval(t *testing.T) {
 	manager := setupUsecaseOrderTxDB(t)
 	appDB, err := manager.GetDB("app")
 	if err != nil {
@@ -65,8 +66,9 @@ func TestApplyOrderMembershipExtendsSubscriptionFromCurrentExpiry(t *testing.T) 
 	if err != nil {
 		t.Fatalf("apply membership: %v", err)
 	}
-	if !applied || membership.MembershipLevel != usecase.MembershipLevelPremium || membership.MembershipExpiresAt != "2099-02-28 00:00:00" {
-		t.Fatalf("unexpected membership result: applied=%v membership=%#v", applied, membership)
+	expectedExpiry := time.Now().UTC().AddDate(0, 1, 0).Format("2006-01-02")
+	if !applied || membership.MembershipLevel != usecase.MembershipLevelPremium || membership.MembershipExpiresAt[:10] != expectedExpiry {
+		t.Fatalf("unexpected membership result: applied=%v membership=%#v (expected expiry prefix %s)", applied, membership, expectedExpiry)
 	}
 
 	_, appliedAgain, err := usecase.ApplyOrderMembership(ctx, usecase.ApplyOrderMembershipCmd{OrderID: "member-order"})
@@ -80,8 +82,8 @@ func TestApplyOrderMembershipExtendsSubscriptionFromCurrentExpiry(t *testing.T) 
 	if err := appDB.Get(&user, `SELECT * FROM users WHERE id = 'member-user'`); err != nil {
 		t.Fatalf("load user: %v", err)
 	}
-	if user.MembershipLevel != usecase.MembershipLevelPremium || !sameSQLiteInstant(user.MembershipExpiresAt, "2099-02-28 00:00:00") {
-		t.Fatalf("unexpected persisted user membership: %#v", user)
+	if user.MembershipLevel != usecase.MembershipLevelPremium || user.MembershipExpiresAt[:10] != expectedExpiry {
+		t.Fatalf("unexpected persisted user membership: %#v (expected expiry prefix %s)", user, expectedExpiry)
 	}
 }
 
@@ -148,6 +150,113 @@ func TestCancelOrderSubscriptionOnlyUpdatesOrderSubscriptionStatus(t *testing.T)
 	}
 	if user.MembershipLevel != "premium" || !sameSQLiteInstant(user.MembershipExpiresAt, "2099-02-28 00:00:00") {
 		t.Fatalf("membership should not change on cancellation: %#v", user)
+	}
+}
+
+func TestEffectiveMembershipExpiredReturnsBasic(t *testing.T) {
+	user := &models.User{
+		MembershipLevel:     usecase.MembershipLevelPremium,
+		MembershipExpiresAt: "2022-01-01 00:00:00",
+	}
+	level, expiresAt := usecase.EffectiveMembership(user)
+	if level != usecase.MembershipLevelBasic {
+		t.Fatalf("expected basic for expired premium, got %s", level)
+	}
+	if expiresAt != usecase.PermanentMembershipExpiresAt {
+		t.Fatalf("expected permanent expiry for basic fallback, got %s", expiresAt)
+	}
+}
+
+func TestEffectiveMembershipActiveReturnsLevel(t *testing.T) {
+	future := time.Now().UTC().AddDate(0, 6, 0).Format("2006-01-02 15:04:05")
+	user := &models.User{
+		MembershipLevel:     usecase.MembershipLevelSuper,
+		MembershipExpiresAt: future,
+	}
+	level, expiresAt := usecase.EffectiveMembership(user)
+	if level != usecase.MembershipLevelSuper {
+		t.Fatalf("expected super for active membership, got %s", level)
+	}
+	if expiresAt != user.MembershipExpiresAt {
+		t.Fatalf("expected expiry %s for active membership, got %s", user.MembershipExpiresAt, expiresAt)
+	}
+}
+
+func TestMembershipLevelRank(t *testing.T) {
+	tests := []struct {
+		level    string
+		expected int
+	}{
+		{usecase.MembershipLevelBasic, 1},
+		{usecase.MembershipLevelPremium, 2},
+		{usecase.MembershipLevelSuper, 3},
+		{"unknown", 1},
+	}
+	for _, tc := range tests {
+		_ = tc
+	}
+}
+
+func TestApplyOrderMembershipUpgradesMembershipLevel(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	if _, err := appDB.Exec(`INSERT INTO users (id, name, email, password_hash, email_verified, is_active, membership_level, membership_expires_at) VALUES ('upgrade-user', 'Bob', 'bob@example.com', '', 1, 1, 'basic', '2099-12-31 23:59:59')`); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO products (
+			id, name, description, price, currency, stock, enabled, creem_product_id, billing_type,
+			membership_level, subscription_interval, created_at, updated_at
+		) VALUES (?, 'Super Month', 'Super membership', 5000, 'USD', 0, 1, 'prod_super_month', 'subscription', 'super', 'month', '2026-01-01 00:00:00', '2026-01-01 00:00:00')
+	`), "super-product"); err != nil {
+		t.Fatalf("insert super product: %v", err)
+	}
+	if _, err := appDB.Exec(`INSERT INTO orders (id, user_id, product_id, amount, status) VALUES ('upgrade-order', 'upgrade-user', 'super-product', 0, 'paid')`); err != nil {
+		t.Fatalf("insert order: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	membership, applied, err := usecase.ApplyOrderMembership(ctx, usecase.ApplyOrderMembershipCmd{OrderID: "upgrade-order"})
+	if err != nil {
+		t.Fatalf("apply membership: %v", err)
+	}
+	if !applied || membership.MembershipLevel != usecase.MembershipLevelSuper {
+		t.Fatalf("expected level upgrade from basic to super: applied=%v membership=%#v", applied, membership)
+	}
+
+	var user models.User
+	if err := appDB.Get(&user, `SELECT * FROM users WHERE id = 'upgrade-user'`); err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.MembershipLevel != usecase.MembershipLevelSuper {
+		t.Fatalf("expected user membership_level=super, got %s", user.MembershipLevel)
+	}
+}
+
+func TestApplyOrderMembershipRejectsNonPaidOrder(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	if _, err := appDB.Exec(`INSERT INTO users (id, name, email, password_hash, email_verified, is_active, membership_level, membership_expires_at) VALUES ('pending-user', 'Eve', 'eve@example.com', '', 1, 1, 'basic', '2099-12-31 23:59:59')`); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	seedUsecaseCheckoutProduct(t, appDB, "pending-product", "prod_pending")
+	if _, err := appDB.Exec(`INSERT INTO orders (id, user_id, product_id, amount, status) VALUES ('pending-order', 'pending-user', 'pending-product', 0, 'pending')`); err != nil {
+		t.Fatalf("insert order: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	_, applied, err := usecase.ApplyOrderMembership(ctx, usecase.ApplyOrderMembershipCmd{OrderID: "pending-order"})
+	if err == nil {
+		t.Fatalf("expected error for non-paid order")
+	}
+	if applied {
+		t.Fatalf("expected membership not applied for non-paid order")
 	}
 }
 

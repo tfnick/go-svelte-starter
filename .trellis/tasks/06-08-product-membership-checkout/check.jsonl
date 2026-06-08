@@ -1,4 +1,0 @@
-{"file":".trellis/spec/backend/route-handler-guidelines.md","reason":"Checked route handlers remain thin and delegate business behavior to usecases."}
-{"file":".trellis/spec/backend/eventing-guidelines.md","reason":"Checked fulfillment is event-driven and idempotent under duplicate delivery."}
-{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Checked product selection, payment adapter, webhook worker, orders, users, and frontend flows line up end to end."}
-{"file":".trellis/spec/frontend/svelte-vite-embed.md","reason":"Checked frontend route/API changes compile and fit the Svelte Vite shell."}

@@ -61,18 +61,20 @@ type webhookEvent struct {
 }
 
 type webhookCheckoutObject struct {
-	ID             string                    `json:"id"`
-	Object         string                    `json:"object"`
-	RequestID      string                    `json:"request_id"`
-	Status         string                    `json:"status"`
-	ProductID      string                    `json:"product_id"`
-	CustomerID     string                    `json:"customer_id"`
-	SubscriptionID string                    `json:"subscription_id"`
-	Order          webhookOrderObject        `json:"order"`
-	Product        webhookProductObject      `json:"product"`
-	Customer       webhookCustomerObject     `json:"customer"`
-	Subscription   webhookSubscriptionObject `json:"subscription"`
-	Metadata       map[string]interface{}    `json:"metadata"`
+	ID                     string                    `json:"id"`
+	Object                 string                    `json:"object"`
+	RequestID              string                    `json:"request_id"`
+	Status                 string                    `json:"status"`
+	ProductID              string                    `json:"product_id"`
+	CustomerID             string                    `json:"customer_id"`
+	SubscriptionID         string                    `json:"subscription_id"`
+	Order                  webhookOrderObject        `json:"order"`
+	Product                webhookProductObject      `json:"product"`
+	Customer               webhookCustomerObject     `json:"customer"`
+	Subscription           webhookSubscriptionObject `json:"subscription"`
+	CurrentPeriodStartDate string                    `json:"current_period_start_date"`
+	CurrentPeriodEndDate   string                    `json:"current_period_end_date"`
+	Metadata               map[string]interface{}    `json:"metadata"`
 }
 
 type webhookOrderObject struct {
@@ -142,10 +144,12 @@ func (c *webhookCustomerObject) UnmarshalJSON(data []byte) error {
 }
 
 type webhookSubscriptionObject struct {
-	ID       string `json:"id"`
-	Status   string `json:"status"`
-	Customer string `json:"customer"`
-	Product  string `json:"product"`
+	ID                     string `json:"id"`
+	Status                 string `json:"status"`
+	Customer               string `json:"customer"`
+	Product                string `json:"product"`
+	CurrentPeriodStartDate string `json:"current_period_start_date"`
+	CurrentPeriodEndDate   string `json:"current_period_end_date"`
 }
 
 func (a *Adapter) CreatePayment(ctx context.Context, cfg payment.ProviderConfig, req payment.CreatePaymentRequest) (payment.CreatePaymentResult, error) {
@@ -247,6 +251,9 @@ func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.Provide
 	case "subscription.canceled":
 		paymentStatus = "canceled"
 		businessEventType = payment.WebhookEventSubscriptionCanceled
+	case "subscription.paid":
+		paymentStatus = "succeeded"
+		businessEventType = payment.WebhookEventSubscriptionRenewed
 	}
 	providerOrderID := event.Object.Order.ID
 	providerSubscriptionID := firstNonEmpty(event.Object.SubscriptionID, event.Object.Subscription.ID)
@@ -255,6 +262,7 @@ func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.Provide
 	}
 	providerCustomerID := firstNonEmpty(event.Object.CustomerID, event.Object.Customer.ID, event.Object.Order.Customer, event.Object.Subscription.Customer)
 	productID := firstNonEmpty(event.Object.ProductID, event.Object.Product.ID, event.Object.Order.Product, event.Object.Subscription.Product)
+	periodEnd := firstNonEmpty(event.Object.CurrentPeriodEndDate, event.Object.Subscription.CurrentPeriodEndDate)
 
 	snapshot := map[string]interface{}{
 		"event_type":               event.EventType,
@@ -266,6 +274,7 @@ func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.Provide
 		"provider_customer_id":     providerCustomerID,
 		"provider_subscription_id": providerSubscriptionID,
 		"product_id":               productID,
+		"subscription_period_end":  periodEnd,
 	}
 
 	return payment.NormalizedWebhook{
@@ -279,6 +288,7 @@ func (a *Adapter) NormalizePaymentWebhook(_ context.Context, cfg payment.Provide
 		ProviderCustomerID:     providerCustomerID,
 		ProviderSubscriptionID: providerSubscriptionID,
 		ProviderProductID:      productID,
+		SubscriptionPeriodEnd:  periodEnd,
 		SafeSnapshot:           snapshot,
 	}, nil
 }

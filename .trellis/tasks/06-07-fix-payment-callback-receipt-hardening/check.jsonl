@@ -1,3 +1,0 @@
-{"file": ".trellis/tasks/06-06-external-integration-anticorruption-layer/prd.md", "reason": "Verify implementation remains aligned with anti-corruption-layer callback requirements."}
-{"file": ".trellis/tasks/06-07-creem-payment-integration-slice/prd.md", "reason": "Verify Creem slice behavior remains in scope while fixing hardening gaps."}
-{"file": ".trellis/spec/backend/index.md", "reason": "Quality check backend route/usecase/model boundary compliance."}

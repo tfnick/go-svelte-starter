@@ -8,6 +8,7 @@ const (
 
 	WebhookEventPaymentSucceeded     = "payment.succeeded"
 	WebhookEventSubscriptionCanceled = "subscription.canceled"
+	WebhookEventSubscriptionRenewed  = "subscription.renewed"
 )
 
 type ProviderConfig struct {
@@ -62,6 +63,7 @@ type NormalizedWebhook struct {
 	ProviderCustomerID     string
 	ProviderSubscriptionID string
 	ProviderProductID      string
+	SubscriptionPeriodEnd  string
 	SafeSnapshot           map[string]interface{}
 }
 
