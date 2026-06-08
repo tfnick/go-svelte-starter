@@ -25,7 +25,7 @@ func registerFrontendRoutes(router *echo.Echo, isDevelopment bool, frontendDevUR
 		})
 	})
 
-	router.GET("/*", func(c echo.Context) error {
+	frontendHandler := func(c echo.Context) error {
 		requestPath := c.Request().URL.Path
 		if strings.HasPrefix(requestPath, "/api/") {
 			return c.JSON(http.StatusNotFound, map[string]string{
@@ -38,7 +38,20 @@ func registerFrontendRoutes(router *echo.Echo, isDevelopment bool, frontendDevUR
 		}
 
 		return serveEmbeddedFrontend(c, dist)
+	}
+
+	router.GET("/app", frontendHandler)
+	router.GET("/app/*", frontendHandler)
+	router.GET("/assets/*", func(c echo.Context) error {
+		return serveEmbeddedFrontendAsset(c, dist)
 	})
+	router.GET("/logo.png", func(c echo.Context) error {
+		return serveEmbeddedFrontendAsset(c, dist)
+	})
+
+	for legacyPath, appPath := range legacyFrontendRedirects() {
+		router.GET(legacyPath, redirectLegacyFrontendRoute(appPath))
+	}
 }
 
 func redirectToFrontendDevServer(c echo.Context, frontendDevURL string) error {
@@ -47,23 +60,6 @@ func redirectToFrontendDevServer(c echo.Context, frontendDevURL string) error {
 }
 
 func serveEmbeddedFrontend(c echo.Context, dist fs.FS) error {
-	requestPath := strings.TrimPrefix(c.Request().URL.Path, "/")
-	if requestPath == "" {
-		requestPath = "index.html"
-	}
-
-	cleanPath := path.Clean(requestPath)
-	if cleanPath == "." || strings.HasPrefix(cleanPath, "../") {
-		return c.NoContent(http.StatusNotFound)
-	}
-
-	if file, err := dist.Open(cleanPath); err == nil {
-		defer file.Close()
-		if info, statErr := file.Stat(); statErr == nil && !info.IsDir() {
-			return c.Stream(http.StatusOK, contentType(cleanPath), file)
-		}
-	}
-
 	index, err := dist.Open("index.html")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -73,6 +69,75 @@ func serveEmbeddedFrontend(c echo.Context, dist fs.FS) error {
 	defer index.Close()
 
 	return c.Stream(http.StatusOK, "text/html; charset=utf-8", index)
+}
+
+func serveEmbeddedFrontendAsset(c echo.Context, dist fs.FS) error {
+	requestPath := strings.TrimPrefix(c.Request().URL.Path, "/")
+	cleanPath := path.Clean(requestPath)
+	if cleanPath == "." || strings.HasPrefix(cleanPath, "../") {
+		return c.NoContent(http.StatusNotFound)
+	}
+
+	file, err := dist.Open(cleanPath)
+	if err != nil {
+		return c.NoContent(http.StatusNotFound)
+	}
+	defer file.Close()
+
+	if info, statErr := file.Stat(); statErr != nil || info.IsDir() {
+		return c.NoContent(http.StatusNotFound)
+	}
+
+	return c.Stream(http.StatusOK, contentType(cleanPath), file)
+}
+
+func legacyFrontendRedirects() map[string]string {
+	return map[string]string{
+		"/index.html":                "/",
+		"/dashboard":                 "/app",
+		"/login":                     "/app/login",
+		"/login.html":                "/app/login",
+		"/login/oauth/callback":      "/app/login/oauth/callback",
+		"/login-oauth-callback.html": "/app/login/oauth/callback",
+		"/register":                  "/app/register",
+		"/register.html":             "/app/register",
+		"/forgot-password":           "/app/forgot-password",
+		"/forgot-password.html":      "/app/forgot-password",
+		"/reset-password":            "/app/reset-password",
+		"/reset-password.html":       "/app/reset-password",
+		"/orders":                    "/app/orders",
+		"/orders.html":               "/app/orders",
+		"/products":                  "/app/products",
+		"/products.html":             "/app/products",
+		"/users":                     "/app/users",
+		"/users.html":                "/app/users",
+		"/scheduler":                 "/app/scheduler",
+		"/scheduler.html":            "/app/scheduler",
+		"/events":                    "/app/events",
+		"/events.html":               "/app/events",
+		"/experiments":               "/app/experiments",
+		"/experiments.html":          "/app/experiments",
+		"/dictionary":                "/app/dictionary",
+		"/dictionary.html":           "/app/dictionary",
+		"/parameters":                "/app/parameters",
+		"/parameters.html":           "/app/parameters",
+		"/notifications":             "/app/notifications",
+		"/notifications.html":        "/app/notifications",
+		"/settings":                  "/app/settings",
+		"/settings.html":             "/app/settings",
+		"/variables":                 "/app/variables",
+		"/variables.html":            "/app/variables",
+	}
+}
+
+func redirectLegacyFrontendRoute(targetPath string) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		target := targetPath
+		if query := c.Request().URL.RawQuery; query != "" {
+			target += "?" + query
+		}
+		return c.Redirect(http.StatusTemporaryRedirect, target)
+	}
 }
 
 func contentType(name string) string {

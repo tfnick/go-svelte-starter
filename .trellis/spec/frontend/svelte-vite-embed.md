@@ -16,6 +16,111 @@
 
 ---
 
+## Scenario: Marketing-SaaS Boundary And Checkout Handoff
+
+### 1. Scope / Trigger
+
+Modify `frontend/src/router.js`, `App.svelte`, auth pages, `/app/checkout`, `static.go`, or marketing checkout links according to this section.
+
+### 2. Signatures
+
+Frontend route helpers:
+
+```js
+appHomePath = '/app'
+normalizePath(pathname)
+normalizeRouteTarget(pathWithQuery)
+navigate(path)
+isAuthRoute(path)
+isAppRoute(path)
+visibleAppRoutes(user)
+canAccessAppRoute(path, user)
+routeTitle(path)
+```
+
+App routes:
+
+```text
+/app
+/app/orders
+/app/products
+/app/users
+/app/scheduler
+/app/events
+/app/experiments
+/app/dictionary
+/app/parameters
+/app/notifications
+/app/variables
+/app/settings
+/app/checkout?product_id=<product-id>
+```
+
+Marketing-to-checkout contract:
+
+```text
+Marketing CTA -> /app/checkout?product_id=<product-id>
+Checkout page -> createOrder({ user_id, product_id }) -> createOrderPaymentCheckout(order.id)
+```
+
+### 3. Contracts
+
+* `/` is not a Svelte route. It is reserved for server-rendered marketing HTML.
+* The Svelte application entry is `/app`; logged-in menu routes use `/app/...`.
+* `appRoutes` remains the single source for the logged-in menu. Hidden app routes such as `/app/checkout` may be included with `hidden:true`.
+* Auth pages live under `/app/login`, `/app/register`, `/app/forgot-password`, `/app/reset-password`, and `/app/login/oauth/callback`.
+* Legacy paths such as `/login`, `/orders`, and `/products` normalize to their `/app/...` equivalents for compatibility.
+* Login, register, and OAuth callback must preserve safe redirect targets including query strings, especially `/app/checkout?product_id=<id>`.
+* `/app/checkout` must use shared API helpers from `frontend/src/api.js`; it must not introduce a parallel checkout API.
+* `/app/checkout` may automatically start checkout once the user is authenticated and `product_id` is present.
+* API routes remain relative `/api/*` calls; frontend routing must not change API helper paths.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| logged-out user opens `/app/checkout?product_id=p1` | app shell renders login while current URL preserves checkout intent |
+| login/register succeeds from checkout URL | navigate back to `/app/checkout?product_id=p1` |
+| OAuth returns `redirect_path=/app/checkout?product_id=p1` | exchange token then navigate to the same checkout URL |
+| unsafe redirect path such as `https://evil.test` or `//evil.test` | ignore and navigate to `/app` |
+| no `product_id` on checkout route | show local validation and link back to `/pricing` |
+| selected product unavailable or not checkout-enabled | show safe error; do not create order |
+| checkout returns `checkout_url` | call `globalThis.location.assign(checkout_url)` |
+
+### 5. Good/Base/Bad Cases
+
+Good: `/pricing` links to `/app/checkout?product_id=p1`; after login, checkout creates an order with `{ user_id, product_id:'p1' }` and opens the provider checkout URL.
+
+Base: User opens `/app/login` directly and signs in; they land on `/app`.
+
+Bad: `Login.svelte` always calls `navigate('/app')` after success; this loses marketing checkout intent.
+
+### 6. Tests Required
+
+* `frontend/src/router.test.js` covers `/app` routes, legacy aliases, hidden checkout route, admin filtering, and `normalizeRouteTarget` preserving query strings.
+* `frontend/src/api.test.js` keeps API paths relative and OAuth redirects under `/app/...`.
+* `cd frontend && npm test`
+* `cd frontend && npm run build`
+* Browser smoke: `/` is marketing HTML, `/app/login` is Svelte HTML, `/pricing` contains checkout CTA when products exist.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```js
+await login(payload);
+navigate('/app');
+```
+
+#### Correct
+
+```js
+await login(payload);
+navigate(redirectPath()); // preserves /app/checkout?product_id=...
+```
+
+---
+
 ## Development Contract
 
 开发模式：

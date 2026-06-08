@@ -20,10 +20,100 @@ routes -> usecase -> models -> db
 
 ---
 
+## Scenario: Marketing Pages And App Route Boundary
+
+### 1. Scope / Trigger
+
+Use this section when changing public marketing pages, `static.go`, `marketing.go`, or the route boundary between server-rendered pages, the Svelte app, and `/api/*`.
+
+### 2. Signatures
+
+```text
+GET /                         -> Go html/template marketing page
+GET /features                 -> Go html/template marketing page
+GET /pricing                  -> Go html/template marketing page
+GET /robots.txt               -> text/plain
+GET /sitemap.xml              -> application/xml
+GET /marketing/assets/*       -> embedded marketing asset
+GET /app, /app/*              -> embedded Svelte index.html
+GET /assets/*, /logo.png      -> embedded Svelte dist asset
+GET /api/* missing route      -> API 404, never frontend HTML
+```
+
+Code ownership:
+
+```text
+marketing.go                  -> marketing templates, SEO endpoints, product CTA view model
+marketing/templates/*.html    -> replaceable public page templates
+marketing/assets/*            -> replaceable public page assets
+static.go                     -> Svelte dist embed, /app app shell, legacy redirects, /api hard boundary
+```
+
+### 3. Contracts
+
+* Public SEO pages are server-rendered with `html/template`; do not serve the Svelte SPA at `/`.
+* The authenticated SaaS workspace starts at `/app`. New app pages should live under `/app/...`.
+* Legacy app URLs such as `/login`, `/orders`, and `/products` may redirect to `/app/login`, `/app/orders`, and `/app/products`, but they should not become new marketing routes.
+* `/api/*` remains an API namespace. Missing API paths must return API 404 rather than embedded `index.html`.
+* Marketing pages may read enabled products through usecase-layer functions and build CTAs as `/app/checkout?product_id=<id>`.
+* Marketing pages may use public site settings such as logo URL, but should fall back safely when settings storage is unavailable.
+* `APP_PUBLIC_BASE_URL`, when set, is the canonical marketing origin and OAuth public origin.
+* Production build still embeds both `frontend/dist` and `marketing/*` into the single Go executable.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| request `/` | server-rendered marketing HTML with SEO tags, no `<div id="app"></div>` |
+| request `/app/login` | embedded Svelte `index.html` |
+| request `/pricing` with enabled Creem products | product cards include `/app/checkout?product_id=<id>` |
+| request `/api/unknown` | 404 API response, not Svelte index |
+| marketing product lookup fails | page still renders with safe empty-offer state |
+| legacy `/login?redirect=...` | redirect to `/app/login?redirect=...` preserving query |
+
+### 5. Good/Base/Bad Cases
+
+Good: `/pricing` renders product cards from enabled products and links to `/app/checkout?product_id=...`.
+
+Base: Fresh install with no products renders marketing pages and an empty pricing state.
+
+Bad: Add a catch-all `router.GET("/*")` that serves Svelte `index.html`; this breaks SEO pages and hides missing public routes.
+
+### 6. Tests Required
+
+* Root route test asserts marketing HTML and canonical metadata.
+* `/app/*` route test asserts embedded Svelte index.
+* `/api/*` route test asserts API 404 is not swallowed by the frontend.
+* `robots.txt` and `sitemap.xml` tests assert canonical URLs.
+* Run `go test ./...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```go
+router.GET("/*", func(c echo.Context) error {
+	return serveEmbeddedFrontend(c, dist)
+})
+```
+
+#### Correct
+
+```go
+registerMarketingRoutes(router)
+registerFrontendRoutes(router, isDevelopment, frontendDevURL) // owns /app and frontend assets
+```
+
+---
+
 ## Directory Layout
 
 ```text
 index.go
+marketing.go
+marketing/
+  templates/
+  assets/
 static.go
 api/
   db/

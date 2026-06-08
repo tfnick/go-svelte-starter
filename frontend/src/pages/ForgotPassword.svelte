@@ -44,7 +44,7 @@
     </button>
   </form>
 
-  <button class="link link-hover self-start text-sm" type="button" onclick={() => navigate('/login')}>
+  <button class="link link-hover self-start text-sm" type="button" onclick={() => navigate('/app/login')}>
     返回登录
   </button>
 </AuthCard>

@@ -1,6 +1,6 @@
 <script>
   import { logout } from '../api.js';
-  import { navigate } from '../router.js';
+  import { appHomePath, navigate } from '../router.js';
 
   let { auth, siteSettings, onAuthChanged } = $props();
   let busy = $state(false);
@@ -17,7 +17,7 @@
     try {
       await logout();
       onAuthChanged?.();
-      navigate('/');
+      navigate(appHomePath);
     } catch (err) {
       error = err.message || '登出失败';
     } finally {
@@ -30,7 +30,7 @@
 <header class="border-b border-base-300 bg-base-100/90 shadow-sm">
   <div class="page-wrap navbar px-0">
     <div class="navbar-start">
-      <button class="btn btn-ghost px-2 text-lg font-bold" type="button" onclick={() => navigate('/')}>
+      <button class="btn btn-ghost px-2 text-lg font-bold" type="button" onclick={() => navigate(appHomePath)}>
         <img
           alt="Svelte Go Starter"
           class="h-[25px] w-[110px] object-contain"
@@ -58,8 +58,8 @@
           登出
         </button>
       {:else}
-        <button class="btn btn-ghost btn-sm" type="button" onclick={() => navigate('/login')}>登录</button>
-        <button class="btn btn-primary btn-sm" type="button" onclick={() => navigate('/register')}>注册</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick={() => navigate('/app/login')}>登录</button>
+        <button class="btn btn-primary btn-sm" type="button" onclick={() => navigate('/app/register')}>注册</button>
       {/if}
     </div>
   </div>

@@ -58,10 +58,29 @@ verify-build.bat
 
 Development and production serve the frontend differently:
 
-- Development: `dev.bat` starts Vite; browser updates come from Vite HMR.
+- Development: `dev.bat` starts Vite for the `/app` SaaS workspace; browser updates come from Vite HMR.
 - Production: running the executable directly uses embedded static files captured during `go build`.
 
 If you change Svelte source code and want those changes in the production executable, rerun the production build.
+
+## Marketing And SaaS Routes
+
+The public marketing site is rendered by Go templates from `marketing/templates/` with assets in `marketing/assets/`.
+It ships in the same executable as the app and owns these SEO-friendly routes:
+
+- `/`
+- `/features`
+- `/pricing`
+- `/robots.txt`
+- `/sitemap.xml`
+
+The authenticated Svelte SaaS workspace starts at `/app`. Legacy dashboard paths such as `/login`, `/orders`, and
+`/products` redirect to `/app/login`, `/app/orders`, and `/app/products` so existing links continue to work. The backend
+API remains under `/api/*`; marketing and SaaS page routing does not change API paths.
+
+Pricing CTAs are generated from enabled products that have a Creem product ID. They link to
+`/app/checkout?product_id=<id>`, where the user logs in or registers and then continues through the existing
+Create Order plus Create Payment Checkout flow.
 
 ## Docker / Dokploy Deployment
 
@@ -122,7 +141,7 @@ Runtime environment:
 
 - Set `APP_JWT_SECRET` to a stable secret so existing JWTs are not invalidated on every restart.
 - Set `APP_INTEGRATION_MASTER_KEY` to a stable secret so encrypted integration values remain decryptable across restarts.
-- Set `APP_PUBLIC_BASE_URL` to the browser-facing origin used by OAuth callbacks. In local development this is usually `http://127.0.0.1:5173`; in production it is your public site URL.
+- Set `APP_PUBLIC_BASE_URL` to the browser-facing origin used by OAuth callbacks and marketing canonical URLs. In local development this is usually `http://127.0.0.1:5173`; in production it is your public site URL.
 - To enable Google OAuth, set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, then configure the provider callback URL as `<APP_PUBLIC_BASE_URL>/api/auth/oauth/google/callback`.
 - To enable GitHub OAuth, set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`, then configure the provider callback URL as `<APP_PUBLIC_BASE_URL>/api/auth/oauth/github/callback`.
 - Do not put runtime secrets into Docker build args.

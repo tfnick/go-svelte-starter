@@ -2,7 +2,7 @@
   import { register } from '../api.js';
   import AuthCard from '../components/AuthCard.svelte';
   import Notice from '../components/Notice.svelte';
-  import { navigate } from '../router.js';
+  import { appHomePath, isAuthRoute, navigate, normalizeRouteTarget } from '../router.js';
 
   let { onSuccess } = $props();
   let name = $state('');
@@ -17,12 +17,34 @@
     try {
       await register({ name, email, password });
       onSuccess?.();
-      navigate('/');
+      navigate(redirectPath());
     } catch (err) {
       error = err.message || '注册失败';
     } finally {
       busy = false;
     }
+  }
+
+  function redirectPath() {
+    const pathname = globalThis.location?.pathname || '/';
+    const search = globalThis.location?.search || '';
+    const params = new URLSearchParams(search);
+    const explicitRedirect = safeRedirectPath(params.get('redirect_path') || params.get('redirect') || '');
+    if (explicitRedirect) {
+      return explicitRedirect;
+    }
+
+    if (isAuthRoute(pathname)) {
+      return appHomePath;
+    }
+    return `${pathname}${search}`;
+  }
+
+  function safeRedirectPath(value) {
+    if (!value || !value.startsWith('/') || value.startsWith('//')) {
+      return '';
+    }
+    return isAuthRoute(value) ? appHomePath : normalizeRouteTarget(value);
   }
 </script>
 
@@ -59,7 +81,7 @@
     </button>
   </form>
 
-  <button class="link link-hover self-start text-sm" type="button" onclick={() => navigate('/login')}>
+  <button class="link link-hover self-start text-sm" type="button" onclick={() => navigate('/app/login')}>
     已有账号？登录
   </button>
 </AuthCard>

@@ -1,0 +1,36 @@
+{{define "features"}}{{template "layout" .}}{{end}}
+
+{{define "features-content"}}
+<main>
+  <section class="page-hero compact">
+    <p class="eyebrow">Features</p>
+    <h1>A practical SaaS foundation with marketing pages in the same executable.</h1>
+    <p>The public site stays server-rendered for crawlers, while the authenticated workspace keeps the Svelte workflow users expect.</p>
+  </section>
+
+  <section class="band">
+    <div class="feature-list">
+      <article>
+        <span>01</span>
+        <h2>Server-rendered landing pages</h2>
+        <p>Native Go templates keep the public surface fast, inspectable, and easy to replace without changing the dashboard build.</p>
+      </article>
+      <article>
+        <span>02</span>
+        <h2>Embedded Svelte workspace</h2>
+        <p>Vite builds the SaaS UI into frontend/dist, and Go embeds it so production deployment remains a single binary.</p>
+      </article>
+      <article>
+        <span>03</span>
+        <h2>Integrated checkout continuation</h2>
+        <p>Visitors pick a plan on the marketing page, authenticate inside /app, and continue through the existing order and payment APIs.</p>
+      </article>
+      <article>
+        <span>04</span>
+        <h2>Hard API boundary</h2>
+        <p>/api remains an API-only namespace, so missing API routes return API errors instead of accidentally serving frontend HTML.</p>
+      </article>
+    </div>
+  </section>
+</main>
+{{end}}

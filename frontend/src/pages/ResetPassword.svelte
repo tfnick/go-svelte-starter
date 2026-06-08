@@ -18,7 +18,7 @@
     try {
       const result = await resetPassword({ token, password });
       message = result.message || '密码重置成功，请重新登录。';
-      setTimeout(() => navigate('/login'), 900);
+      setTimeout(() => navigate('/app/login'), 900);
     } catch (err) {
       error = err.message || '重置失败';
     } finally {

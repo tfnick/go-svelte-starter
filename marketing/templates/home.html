@@ -1,0 +1,70 @@
+{{define "home"}}{{template "layout" .}}{{end}}
+
+{{define "home-content"}}
+<main>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Go + Svelte + checkout</p>
+      <h1>{{.SiteName}}</h1>
+      <p class="hero-text">
+        A one-binary SaaS starter with server-rendered marketing pages, a Svelte dashboard,
+        authenticated checkout, and production-ready integration surfaces.
+      </p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="/pricing">View pricing</a>
+        <a class="button button-secondary" href="/app">Open dashboard</a>
+      </div>
+    </div>
+    <div class="hero-preview" aria-label="Application preview">
+      <div class="preview-bar">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="preview-grid">
+        <div class="metric">
+          <strong>Checkout</strong>
+          <span>Creem hosted payment</span>
+        </div>
+        <div class="metric">
+          <strong>Events</strong>
+          <span>SSE and delivery logs</span>
+        </div>
+        <div class="metric wide">
+          <strong>Operations</strong>
+          <span>Products, settings, users, LLM experiments, and audit-friendly APIs in one deployable executable.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="section-head">
+      <p class="eyebrow">Why this shape</p>
+      <h2>Marketing and SaaS share one deployment while keeping clear route ownership.</h2>
+    </div>
+    <div class="feature-grid">
+      <article>
+        <h3>SEO-native pages</h3>
+        <p>Landing pages render in Go with canonical URLs, meta tags, Open Graph data, JSON-LD, robots.txt, and sitemap.xml.</p>
+      </article>
+      <article>
+        <h3>Clean app boundary</h3>
+        <p>The Svelte application lives under /app, API routes stay under /api, and old dashboard links redirect for compatibility.</p>
+      </article>
+      <article>
+        <h3>Checkout handoff</h3>
+        <p>Pricing CTAs pass product_id into /app/checkout, then login or registration continues into the existing order and payment flow.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="band muted">
+    <div class="section-head">
+      <p class="eyebrow">Catalog powered</p>
+      <h2>Plans come from the product catalog.</h2>
+    </div>
+    {{template "product-list" .}}
+  </section>
+</main>
+{{end}}

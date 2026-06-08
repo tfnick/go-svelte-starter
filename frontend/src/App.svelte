@@ -1,6 +1,7 @@
 <script>
   import AppSidebar from './components/AppSidebar.svelte';
   import Header from './components/Header.svelte';
+  import AppCheckout from './pages/AppCheckout.svelte';
   import Dashboard from './pages/Dashboard.svelte';
   import DashboardHome from './pages/DashboardHome.svelte';
   import Dictionary from './pages/Dictionary.svelte';
@@ -19,7 +20,7 @@
   import Users from './pages/Users.svelte';
   import Variables from './pages/Variables.svelte';
   import { getAuthStatus, getSiteSettings } from './api.js';
-  import { isAuthRoute, normalizePath, routeTitle, visibleAppRoutes } from './router.js';
+  import { appHomePath, canAccessAppRoute, isAuthRoute, normalizePath, routeTitle } from './router.js';
   import { onMount } from 'svelte';
 
   let path = $state(normalizePath());
@@ -76,7 +77,7 @@
   }
 
   function canAccessCurrentPath() {
-    return visibleAppRoutes(auth.user).some((route) => route.path === path);
+    return canAccessAppRoute(path, auth.user);
   }
 
   onMount(() => {
@@ -96,15 +97,15 @@
 
   {#if isAuthRoute(path)}
     <main class="page-wrap py-8">
-      {#if path === '/login'}
+      {#if path === '/app/login'}
         <Login onSuccess={handleAuthChanged} />
-      {:else if path === '/login/oauth/callback'}
+      {:else if path === '/app/login/oauth/callback'}
         <OAuthCallback onSuccess={handleAuthChanged} />
-      {:else if path === '/register'}
+      {:else if path === '/app/register'}
         <Register onSuccess={handleAuthChanged} />
-      {:else if path === '/forgot-password'}
+      {:else if path === '/app/forgot-password'}
         <ForgotPassword />
-      {:else if path === '/reset-password'}
+      {:else if path === '/app/reset-password'}
         <ResetPassword />
       {/if}
     </main>
@@ -119,32 +120,34 @@
       <Login onSuccess={handleAuthChanged} />
     </main>
   {:else}
-    <AppSidebar path={canAccessCurrentPath() ? path : '/'} {auth}>
+    <AppSidebar path={canAccessCurrentPath() ? path : appHomePath} {auth}>
       {#snippet children()}
         {#if !canAccessCurrentPath()}
           <DashboardHome {auth} />
-        {:else if path === '/orders'}
+        {:else if path === '/app/orders'}
           <Dashboard {auth} />
-        {:else if path === '/products'}
+        {:else if path === '/app/products'}
           <Products />
-        {:else if path === '/users'}
+        {:else if path === '/app/users'}
           <Users {auth} />
-        {:else if path === '/scheduler'}
+        {:else if path === '/app/scheduler'}
           <Scheduler />
-        {:else if path === '/events'}
+        {:else if path === '/app/events'}
           <Events />
-        {:else if path === '/experiments'}
+        {:else if path === '/app/experiments'}
           <Experiments {auth} />
-        {:else if path === '/dictionary'}
+        {:else if path === '/app/dictionary'}
           <Dictionary />
-        {:else if path === '/parameters'}
+        {:else if path === '/app/parameters'}
           <Parameters />
-        {:else if path === '/notifications'}
+        {:else if path === '/app/notifications'}
           <Notifications />
-        {:else if path === '/settings'}
+        {:else if path === '/app/settings'}
           <Settings settings={siteSettings} onSettingsChanged={refreshSiteSettings} />
-        {:else if path === '/variables'}
+        {:else if path === '/app/variables'}
           <Variables />
+        {:else if path === '/app/checkout'}
+          <AppCheckout {auth} />
         {:else}
           <DashboardHome {auth} />
         {/if}

@@ -260,6 +260,7 @@ func main() {
 		protectedOpenAPI.GET("/account/me", user.GetOpenAPIAccountMe)
 	}
 
+	registerMarketingRoutes(router)
 	registerFrontendRoutes(router, *isDevelopment, *frontendDevURL)
 
 	logger.Info().Str("port", *port).Msg("server starting")

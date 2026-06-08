@@ -3,7 +3,7 @@
   import { exchangeOAuthLoginResult } from '../api.js';
   import AuthCard from '../components/AuthCard.svelte';
   import Notice from '../components/Notice.svelte';
-  import { navigate } from '../router.js';
+  import { appHomePath, isAuthRoute, navigate, normalizeRouteTarget } from '../router.js';
 
   let { onSuccess } = $props();
   let error = $state('');
@@ -11,9 +11,9 @@
 
   function safeRedirectPath(value) {
     if (!value || !value.startsWith('/') || value.startsWith('//')) {
-      return '/';
+      return appHomePath;
     }
-    return value === '/login/oauth/callback' ? '/' : value;
+    return isAuthRoute(value) ? appHomePath : normalizeRouteTarget(value);
   }
 
   onMount(async () => {
@@ -47,7 +47,7 @@
   <Notice type="error" message={error} />
 
   {#if error}
-    <button class="btn btn-primary w-full" type="button" onclick={() => navigate('/login')}>
+    <button class="btn btn-primary w-full" type="button" onclick={() => navigate('/app/login')}>
       Back to login
     </button>
   {/if}

@@ -50,7 +50,7 @@ func TestOAuthLoginCreatesVerifiedUserAndExchangesResultOnce(t *testing.T) {
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	start, err := usecase.StartOAuthLogin(ctx, usecase.OAuthStartCmd{
 		Provider:       "google",
-		RedirectPath:   "/orders?tab=mine",
+		RedirectPath:   "/app/orders?tab=mine",
 		RequestBaseURL: "http://127.0.0.1:3000",
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ func TestOAuthLoginCreatesVerifiedUserAndExchangesResultOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("complete oauth login: %v", err)
 	}
-	if callback.ResultToken == "" || callback.RedirectPath != "/orders?tab=mine" {
+	if callback.ResultToken == "" || callback.RedirectPath != "/app/orders?tab=mine" {
 		t.Fatalf("unexpected oauth callback result: %#v", callback)
 	}
 

@@ -302,7 +302,8 @@ func normalizeOAuthRedirectPath(value string) string {
 		return "/"
 	}
 	switch parsed.Path {
-	case "/login", "/register", "/forgot-password", "/reset-password", "/login/oauth/callback":
+	case "/login", "/register", "/forgot-password", "/reset-password", "/login/oauth/callback",
+		"/app/login", "/app/register", "/app/forgot-password", "/app/reset-password", "/app/login/oauth/callback":
 		return "/"
 	default:
 		return parsed.RequestURI()

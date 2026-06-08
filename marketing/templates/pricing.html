@@ -1,0 +1,41 @@
+{{define "pricing"}}{{template "layout" .}}{{end}}
+
+{{define "pricing-content"}}
+<main>
+  <section class="page-hero compact">
+    <p class="eyebrow">Pricing</p>
+    <h1>Checkout-ready products, rendered before the app loads.</h1>
+    <p>Each enabled product with a Creem product ID can become a public marketing offer and continue into authenticated checkout.</p>
+  </section>
+
+  <section class="band">
+    {{template "product-list" .}}
+  </section>
+</main>
+{{end}}
+
+{{define "product-list"}}
+{{if .Products}}
+  <div class="pricing-grid">
+    {{range .Products}}
+      <article class="price-card">
+        <div>
+          <h3>{{.Name}}</h3>
+          <p>{{.Description}}</p>
+        </div>
+        <div class="price">
+          <strong>{{.PriceLabel}}</strong>
+          <span>{{.BillingLabel}}</span>
+        </div>
+        <a class="button button-primary" href="{{.CheckoutURL}}">Start checkout</a>
+      </article>
+    {{end}}
+  </div>
+{{else}}
+  <div class="empty-offers">
+    <h3>No public plans yet</h3>
+    <p>Create an enabled product with a Creem product ID in the app, then this section will publish checkout CTAs automatically.</p>
+    <a class="button button-secondary" href="/app/products">Manage products</a>
+  </div>
+{{end}}
+{{end}}

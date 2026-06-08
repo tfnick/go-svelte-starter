@@ -2,7 +2,7 @@
   import { login, startOAuthLogin } from '../api.js';
   import AuthCard from '../components/AuthCard.svelte';
   import Notice from '../components/Notice.svelte';
-  import { navigate } from '../router.js';
+  import { appHomePath, isAuthRoute, navigate, normalizeRouteTarget } from '../router.js';
   import { onMount } from 'svelte';
 
   let { onSuccess } = $props();
@@ -17,7 +17,7 @@
     try {
       await login({ email, password });
       onSuccess?.();
-      navigate('/');
+      navigate(redirectPath());
     } catch (err) {
       error = err.message || '登录失败';
     } finally {
@@ -27,11 +27,24 @@
 
   function redirectPath() {
     const pathname = globalThis.location?.pathname || '/';
-    if (['/login', '/register', '/forgot-password', '/reset-password', '/login/oauth/callback'].includes(pathname)) {
-      return '/';
-    }
     const search = globalThis.location?.search || '';
+    const params = new URLSearchParams(search);
+    const explicitRedirect = safeRedirectPath(params.get('redirect_path') || params.get('redirect') || '');
+    if (explicitRedirect) {
+      return explicitRedirect;
+    }
+
+    if (isAuthRoute(pathname)) {
+      return appHomePath;
+    }
     return `${pathname}${search}`;
+  }
+
+  function safeRedirectPath(value) {
+    if (!value || !value.startsWith('/') || value.startsWith('//')) {
+      return '';
+    }
+    return isAuthRoute(value) ? appHomePath : normalizeRouteTarget(value);
   }
 
   function continueWith(provider) {
@@ -85,7 +98,7 @@
   </form>
 
   <div class="flex items-center justify-between text-sm">
-    <button class="link link-hover" type="button" onclick={() => navigate('/register')}>注册账号</button>
-    <button class="link link-hover" type="button" onclick={() => navigate('/forgot-password')}>忘记密码？</button>
+    <button class="link link-hover" type="button" onclick={() => navigate('/app/register')}>注册账号</button>
+    <button class="link link-hover" type="button" onclick={() => navigate('/app/forgot-password')}>忘记密码？</button>
   </div>
 </AuthCard>

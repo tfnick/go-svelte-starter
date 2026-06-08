@@ -261,7 +261,7 @@ func CompleteOAuthLogin(c echo.Context) error {
 	values := url.Values{}
 	values.Set("token", result.ResultToken)
 	values.Set("redirect_path", result.RedirectPath)
-	return c.Redirect(http.StatusFound, "/login/oauth/callback?"+values.Encode())
+	return c.Redirect(http.StatusFound, "/app/login/oauth/callback?"+values.Encode())
 }
 
 func ExchangeOAuthLoginResult(c echo.Context) error {
@@ -310,7 +310,7 @@ func requestBaseURL(c echo.Context) string {
 func oauthErrorRedirect(err error) string {
 	values := url.Values{}
 	values.Set("oauth_error", usecaseMessage(err, "OAuth login failed"))
-	return "/login?" + values.Encode()
+	return "/app/login?" + values.Encode()
 }
 
 func usecaseMessage(err error, fallback string) string {

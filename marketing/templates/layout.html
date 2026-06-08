@@ -1,0 +1,51 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Page.Title}}</title>
+    <meta name="description" content="{{.Page.Description}}">
+    <link rel="canonical" href="{{.CanonicalURL}}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{.SiteName}}">
+    <meta property="og:title" content="{{.Page.Title}}">
+    <meta property="og:description" content="{{.Page.Description}}">
+    <meta property="og:url" content="{{.CanonicalURL}}">
+    <meta property="og:image" content="{{.BaseURL}}{{.LogoURL}}">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" href="{{.LogoURL}}">
+    <link rel="stylesheet" href="{{.CSSPath}}">
+    <script type="application/ld+json">{{.JSONLD}}</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="{{.SiteName}}">
+        <img src="{{.LogoURL}}" alt="{{.SiteName}}" width="110" height="25">
+      </a>
+      <nav class="nav" aria-label="Primary navigation">
+        <a href="/features"{{if eq .Page.Path "/features"}} aria-current="page"{{end}}>Features</a>
+        <a href="/pricing"{{if eq .Page.Path "/pricing"}} aria-current="page"{{end}}>Pricing</a>
+        <a class="nav-cta" href="/app">Open app</a>
+      </nav>
+    </header>
+
+    {{if eq .Page.Key "home"}}
+      {{template "home-content" .}}
+    {{else if eq .Page.Key "pricing"}}
+      {{template "pricing-content" .}}
+    {{else if eq .Page.Key "features"}}
+      {{template "features-content" .}}
+    {{end}}
+
+    <footer class="site-footer">
+      <div>{{.SiteName}} © {{.Year}}</div>
+      <div class="footer-links">
+        <a href="/features">Features</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/app">App</a>
+      </div>
+    </footer>
+  </body>
+</html>
+{{end}}

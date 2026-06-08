@@ -288,11 +288,11 @@ test('oauth api helpers build start URL and store exchanged token', async () => 
   });
 
   assert.equal(
-    oauthLoginURL('google', '/orders?tab=mine'),
-    '/api/auth/oauth/google/start?redirect_path=%2Forders%3Ftab%3Dmine'
+    oauthLoginURL('google', '/app/orders?tab=mine'),
+    '/api/auth/oauth/google/start?redirect_path=%2Fapp%2Forders%3Ftab%3Dmine'
   );
-  startOAuthLogin('github', '/products');
-  assert.equal(assignedURL, '/api/auth/oauth/github/start?redirect_path=%2Fproducts');
+  startOAuthLogin('github', '/app/products');
+  assert.equal(assignedURL, '/api/auth/oauth/github/start?redirect_path=%2Fapp%2Fproducts');
 
   const result = await exchangeOAuthLoginResult('one-time-token');
   assert.equal(result.access_token, 'jwt-oauth');

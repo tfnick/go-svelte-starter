@@ -30,9 +30,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "  }" ^
   "  if (-not $ready) { throw 'server did not become ready' }" ^
   "  $root = Invoke-WebRequest -Uri 'http://127.0.0.1:%VERIFY_PORT%/' -UseBasicParsing;" ^
-  "  $login = Invoke-WebRequest -Uri 'http://127.0.0.1:%VERIFY_PORT%/login' -UseBasicParsing;" ^
+  "  $login = Invoke-WebRequest -Uri 'http://127.0.0.1:%VERIFY_PORT%/app/login' -UseBasicParsing;" ^
   "  $api = Invoke-WebRequest -Uri 'http://127.0.0.1:%VERIFY_PORT%/api/auth/status' -UseBasicParsing;" ^
-  "  if (-not $root.Content.Contains('<div id=\"app\"></div>')) { throw 'root did not serve embedded Svelte index' }" ^
+  "  if ($root.Content.Contains('<div id=\"app\"></div>')) { throw 'root should serve server-rendered marketing HTML' }" ^
+  "  if (-not $root.Content.Contains('<link rel=\"canonical\"')) { throw 'root did not serve marketing SEO tags' }" ^
   "  if (-not $login.Content.Contains('<div id=\"app\"></div>')) { throw 'SPA route did not serve embedded Svelte index' }" ^
   "  if ($api.Content -notmatch 'logged_in') { throw 'API status endpoint did not respond as expected' }" ^
   "} finally {" ^
