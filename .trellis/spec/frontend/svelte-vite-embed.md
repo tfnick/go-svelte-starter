@@ -139,14 +139,15 @@ import { formatLocalDateTime } from '../helpers/dateTime.js';
 
 ### 1. Scope / Trigger
 
-订单管理页面涉及创建订单、支付、商品列表、积分查询和 SSE 实时积分。任何修改 `Dashboard.svelte`、`frontend/src/api.js` 或 `frontend/vite.config.js` 的相关行为时，都要遵守本节。
+订单管理页面涉及创建 Creem checkout 台账订单、发起支付、积分查询和 SSE 实时积分。任何修改 `Dashboard.svelte`、`frontend/src/api.js` 或 `frontend/vite.config.js` 的相关行为时，都要遵守本节。`GET /api/products` helper 仍存在，但当前 Creem checkout 页面不依赖本地商品列表。
 
 ### 2. Signatures
 
 前端 API helper：
 
 ```js
-createOrder({ user_id, items: [{ product_id, quantity }] })
+createOrder({ user_id })
+createOrderPaymentCheckout(orderId)
 getUserOrders(userId, { page, pageSize })
 payOrder(orderId)
 getMyPoints()
@@ -170,6 +171,9 @@ proxy: {
 ### 3. Contracts
 
 * Svelte 组件必须通过 `frontend/src/api.js` helper 调用内部 `/api/*`，不要直接 `fetch('/api/...')`。
+* Creem checkout 页面通过 `createOrder({ user_id })` 创建本地 `pending` 订单台账，然后调用 `createOrderPaymentCheckout(order.id)` 获取 `checkout_url` 并跳转。
+* 当前 Creem checkout 页面不加载 `getProducts()`，不展示本地商品选择器，不提交 `product_id` 或 `quantity`。本地 `products` 只保留给 legacy/demo/admin 视图。
+* 如果订单列表中的 `order.amount` 为 `0`，页面不要格式化成实际货币金额；应显示 provider/Creem 价格来源，避免把本地占位金额误认为实收金额。
 * `pointsSSEURL()` 根据当前页面协议和 host 生成相对部署可用的 `http://host/api/points/sse` 或 `https://host/api/points/sse`，并在本地存在 token 时附加 `access_token` query。
 * 开发模式下 `/api/points/sse` 通过普通 Vite HTTP proxy 转发，不需要 `ws: true`。
 * SSE message 使用 realtime envelope；后端把 envelope 写入 SSE `data:`，Svelte 页面通过 `frontend/src/helpers/realtimeMessages.js` 解析和分发，不要在页面里 hard-code 单个消息 shape：
@@ -195,28 +199,32 @@ proxy: {
 | Condition | Expected behavior |
 | --- | --- |
 | user not logged in | order form and refresh/pay controls disabled |
-| product list empty | create button disabled |
-| quantity <= 0 | show safe UI error and do not call API |
-| `payOrder` API fails | show API client safe message |
+| user clicks create/pay | call `createOrder({ user_id })`, then `createOrderPaymentCheckout(order.id)` |
+| create order API fails | show API client safe message and stay on the page |
+| checkout API returns `checkout_url` | redirect with `globalThis.location.assign(checkout_url)` |
+| pending order row is clicked | call `createOrderPaymentCheckout(order.id)` again |
+| `order.amount` is `0` | display provider/Creem amount label, not `$0.00` as a charge |
 | SSE message malformed | ignore message; keep page usable |
 | SSE disconnected | show disconnected/error status; HTTP refresh remains available |
 | local access token missing or invalid | API throws safe unauthorized message; EventSource fails to connect |
 
 ### 5. Good/Base/Bad Cases
 
-Good: `Dashboard.svelte` calls `payOrder(order.id)`, updates the order row, and receives `points` + `refresh` over SSE.
+Good: `Dashboard.svelte` calls `createOrder({ user_id })`, then `createOrderPaymentCheckout(order.id)`, redirects to Creem, and later receives `points` + `refresh` over SSE after webhook-confirmed payment.
 
-Base: If SSE is unavailable, successful payment still updates order state; points display waits for reconnect or an explicit user refresh instead of an implicit payment-time `getMyPoints()` call.
+Base: If checkout creation fails after local order creation, the pending order remains visible and can be retried from the order list.
 
 Bad: Hard-code `http://localhost:3000/api/points/sse`; this breaks Vite dev proxy, non-local hosts, HTTPS deployments, and JWT token propagation.
 
-Bad: Call `loadPoints()` inside `markPaid`; this hides whether the points update came from SSE and makes payment-time UI state depend on an extra HTTP query.
+Bad: Load `getProducts()` and require a selected local product before creating Creem checkout; Creem product/price is configured in the payment channel for this MVP.
+
+Bad: Call `loadPoints()` inside payment completion handling; this hides whether the points update came from SSE and makes payment-time UI state depend on an extra HTTP query.
 
 ### 6. Tests Required
 
 * `cd frontend && npm test`：assert helper paths and `pointsSSEURL` scheme/host behavior。
 * `cd frontend && npm run build`：assert Svelte page compiles and `frontend/dist` is regenerated for Go embed。
-* Browser smoke check：打开生产服务首页，确认 `订单列表`、`下订单`、`积分余额` 可见。
+* Browser smoke check：打开生产服务首页，确认 `Orders`、`Creem Checkout`、`Points balance` 可见。
 
 ### 7. Wrong vs Correct
 

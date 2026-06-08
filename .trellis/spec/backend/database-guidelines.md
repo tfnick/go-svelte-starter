@@ -97,7 +97,7 @@ err := fwusecase.WithAppTx(ctx, func(txCtx fwusecase.Context) error {
 * callback 返回 error 会 rollback；返回 nil 会 commit。
 * commit 后才执行 `RegisterAfterCommit` 注册的 callback。
 
-`products` 属于 `app` DB；`CreateOrder` 必须在同一个 `WithAppTx` 中扣减 `products.stock` 并写入 `orders/order_items`，失败时依靠 app transaction rollback 恢复库存。
+`orders` 属于 `app` DB。当前 Creem checkout MVP 中，`CreateOrder` 使用同一个 `WithAppTx` 插入 `pending` 本地订单台账，`amount=0`，不写入 `order_items`，也不扣减 `products.stock`；Creem channel 的 `product_id` 和 provider 价格才是支付商品/价格来源。`products` 与历史 `order_items` 仍可保留用于 demo、admin 或历史详情展示。如果未来重新引入本地商品下单流，该流的库存扣减与 `orders/order_items` 写入必须仍放在同一个 `WithAppTx` 中，以便失败时回滚。
 
 ---
 

@@ -211,8 +211,10 @@ names, err := translate.Resolve(ctx.Std(), func(batch *namelookup.Batch) {
 * `OrderDetailResponse` 是 detail route 的 wrapper，包含 `order` 和 `items`。
 * 订单 list 使用 `GET /api/orders/user/:user_id?page=1&page_size=10`，返回 `UserOrdersResponse`，其中 `items` 为 `[]OrderResponse`，`pagination` 遵守 [Pagination Contract](#pagination-contract)。
 * `UpdateOrderStatus` 返回 `data.message`。
+* Creem checkout MVP 中，`POST /api/orders` 只要求 `user_id`，创建 `pending` 本地订单台账；`items` 可作为 legacy payload 被接受，但当前支付流不使用本地 `product_id`、`quantity`、`products.stock` 或本地价格。
+* 新建 Creem checkout 台账订单的 `amount` 可以为 `0`；真实收费金额由 Creem checkout 的配置产品决定，前端不应把本地 `0` 渲染成实际收费金额。
 
-产品列表通过 `GET /api/products` 返回 `[]ProductResponse`，用于下单页面展示可选商品。产品 DTO 只暴露 `id`、`name`、`description`、`price`、`stock`，不返回 `models.Product`。
+产品列表通过 `GET /api/products` 返回 `[]ProductResponse`，用于 legacy/demo/admin 商品展示。产品 DTO 只暴露 `id`、`name`、`description`、`price`、`stock`，不返回 `models.Product`。
 
 积分相关内部响应当前规则：
 
@@ -1082,6 +1084,8 @@ return httpresponse.Created(c, toVariableResponse(variable))
 后端 API：
 
 ```text
+POST /api/orders
+POST /api/orders/:id/payment-checkout
 POST /api/orders/:id/pay
 GET  /api/points/me
 GET  /api/points/sse?access_token=<jwt>
@@ -1092,10 +1096,17 @@ GET  /api/products
 usecase：
 
 ```go
+type CreateOrderCmd struct {
+    UserID string
+    Items  []CreateOrderItemCmd // legacy-compatible; ignored by current Creem checkout flow
+}
+
 type PayOrderCmd struct {
     OrderID string
 }
 
+func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error)
+func CreateOrderPaymentCheckout(ctx fwusecase.Context, cmd CreateOrderPaymentCheckoutCmd) (PaymentCheckoutCo, error)
 func PayOrder(ctx fwusecase.Context, cmd PayOrderCmd) (OrderCo, error)
 func GetUserPoints(ctx fwusecase.Context, qry PointsBalanceQry) (PointsCo, error)
 func ListProducts(ctx fwusecase.Context) ([]ProductCo, error)
@@ -1109,6 +1120,30 @@ point_transactions(id TEXT PRIMARY KEY, user_id TEXT, order_id TEXT, points INTE
 ```
 
 ### 3. Contracts
+
+`POST /api/orders` Creem checkout MVP request:
+
+```json
+{"user_id":"u001"}
+```
+
+`POST /api/orders` 成功：
+
+```json
+{"success":true,"data":{"message":"order created","order":{"id":"...","user_id":"u001","user_name":"Ada","amount":0,"status":"pending","created_at":"..."}}}
+```
+
+Legacy `items` payload may still be accepted but must not be used as the current Creem payment source of truth:
+
+```json
+{"user_id":"u001","items":[{"product_id":"p001","quantity":1}]}
+```
+
+`POST /api/orders/:id/payment-checkout` 成功：
+
+```json
+{"success":true,"data":{"order":{"id":"...","status":"pending"},"checkout_id":"chk_...","checkout_url":"https://...","provider":"creem","status":"open"}}
+```
 
 `POST /api/orders/:id/pay` 成功：
 
@@ -1150,6 +1185,13 @@ point_transactions(id TEXT PRIMARY KEY, user_id TEXT, order_id TEXT, points INTE
 
 | Condition | Expected behavior |
 | --- | --- |
+| empty `user_id` in `CreateOrderCmd` | `CodeValidation`, safe message `user ID is required` |
+| `user_id` does not exist | `CodeValidation`, safe message `user not found`; no order inserted |
+| `CreateOrderCmd.Items` empty | create a pending Creem ledger order |
+| `CreateOrderCmd.Items` present | ignore legacy items for current Creem checkout flow; do not write `order_items` or reserve stock |
+| pending order has `amount=0` | valid for Creem checkout ledger; provider product/price is authoritative |
+| empty `order_id` in `CreateOrderPaymentCheckoutCmd` | `CodeValidation`, safe message `order ID is required` |
+| missing payment channel/config/credential | safe usecase error; do not leak credential values |
 | empty `order_id` in `PayOrderCmd` | `CodeValidation`, safe message `order ID is required` |
 | order not found | `CodeNotFound`, safe message `order not found` |
 | order status is `pending` | update to `paid`, publish `order.paid`, award points |
@@ -1162,16 +1204,18 @@ point_transactions(id TEXT PRIMARY KEY, user_id TEXT, order_id TEXT, points INTE
 
 ### 5. Good/Base/Bad Cases
 
-Good: 下单页面调用 `createOrder(...)` 创建 `pending` 订单，再调用 `payOrder(order.id)` 完成支付，页面通过 SSE 收到 `points` + `refresh` envelope。
+Good: Creem 下单页面调用 `createOrder({ user_id })` 创建 `pending` 台账订单，再调用 `createOrderPaymentCheckout(order.id)` 跳转 provider checkout；支付完成后由 webhook 触发 `PayOrder`，页面通过 SSE 收到 `points` + `refresh` envelope。
 
-Base: SSE 断开时，页面仍可通过 `getMyPoints()` HTTP 查询恢复当前积分。
+Base: 已存在的 pending 订单仍可从订单列表再次调用 `createOrderPaymentCheckout(order.id)` 获取 checkout URL；SSE 断开时，页面仍可通过 `getMyPoints()` HTTP 查询恢复当前积分。
+
+Bad: 前端把本地 `products.price` 或 `orders.amount=0` 当成 Creem 实收金额展示或计算；真实收费金额只能来自 provider checkout/后续 webhook 归一化。
 
 Bad: 前端或后台直接 `PATCH /api/orders/:id/status` 为 `paid`，这会绕过积分同步，必须被 usecase 拒绝。
 
 ### 6. Tests Required
 
-* `go test ./...`：覆盖 `PayOrder` 支付送积分、重复支付幂等、积分失败回滚订单状态、普通状态接口拒绝 `paid`。
-* `cd frontend && npm test`：覆盖 `createOrder`、`payOrder`、`getMyPoints`、`getProducts`、`pointsSSEURL` helper。
+* `go test ./...`：覆盖 `CreateOrder` 无商品创建台账、legacy items 不写入 `order_items`、missing user 不落单、`CreateOrderPaymentCheckout` 配置读取、`PayOrder` 支付送积分、重复支付幂等、积分失败回滚订单状态、普通状态接口拒绝 `paid`。
+* `cd frontend && npm test`：覆盖 `createOrder` 只发送 `user_id`、`createOrderPaymentCheckout`、`payOrder`、`getMyPoints`、`getProducts`、`pointsSSEURL` helper。
 * `cd frontend && npm run build`：确认订单管理页面和 embed 产物可构建。
 
 ### 7. Wrong vs Correct
