@@ -33,22 +33,26 @@ export const appRoutes = Object.freeze([
   {
     path: '/products',
     label: 'Product',
-    description: 'Checkout catalog'
+    description: 'Checkout catalog',
+    adminOnly: true
   },
   {
     path: '/users',
     label: 'User',
-    description: 'Accounts'
+    description: 'Accounts',
+    adminOnly: true
   },
   {
     path: '/scheduler',
     label: 'Scheduler',
-    description: 'Reserved'
+    description: 'Reserved',
+    adminOnly: true
   },
   {
     path: '/events',
     label: 'Event',
-    description: 'Domain deliveries'
+    description: 'Domain deliveries',
+    adminOnly: true
   },
   {
     path: '/experiments',
@@ -58,7 +62,8 @@ export const appRoutes = Object.freeze([
   {
     path: '/dictionary',
     label: 'Dictionary',
-    description: 'Selectable values'
+    description: 'Selectable values',
+    adminOnly: true
   },
   {
     path: '/parameters',
@@ -75,7 +80,8 @@ export const appRoutes = Object.freeze([
   {
     path: '/variables',
     label: 'Variable',
-    description: 'Global controls'
+    description: 'Global controls',
+    adminOnly: true
   },
   {
     path: '/settings',

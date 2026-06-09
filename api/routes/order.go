@@ -159,10 +159,44 @@ func CreateOrder(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return httpresponse.BadRequest(c, "invalid request data")
 	}
+	currentUser := middleware.GetCurrentUser(c)
+	if currentUser == nil {
+		return httpresponse.Unauthorized(c, "not logged in")
+	}
+	if currentUser.IsAdmin != 1 && currentUser.ID != req.UserID {
+		return httpresponse.Forbidden(c, "cannot create order for another user")
+	}
 
 	ctx := fwcontext.InternalUsecaseContext(c)
 	order, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{
 		UserID:    req.UserID,
+		ProductID: req.ProductID,
+	})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.Created(c, CreateOrderResponse{
+		Message: "order created",
+		Order:   ToOrderResponse(order),
+	})
+}
+
+// CreateMyOrder creates a pending order for the current authenticated user.
+func CreateMyOrder(c echo.Context) error {
+	currentUser := middleware.GetCurrentUser(c)
+	if currentUser == nil {
+		return httpresponse.Unauthorized(c, "not logged in")
+	}
+
+	var req CreateOrderRequest
+	if err := c.Bind(&req); err != nil {
+		return httpresponse.BadRequest(c, "invalid request data")
+	}
+
+	ctx := fwcontext.InternalUsecaseContext(c)
+	order, err := usecase.CreateOrder(ctx, usecase.CreateOrderCmd{
+		UserID:    currentUser.ID,
 		ProductID: req.ProductID,
 	})
 	if err != nil {

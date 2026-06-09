@@ -40,11 +40,23 @@ test('exposes logged-in app menu routes from one source', () => {
 });
 
 test('filters admin-only routes from the menu for regular users', () => {
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/products'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/users'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/scheduler'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/events'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/dictionary'), false);
   assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/parameters'), false);
   assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/notifications'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/variables'), false);
   assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/settings'), false);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/products'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/users'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/scheduler'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/events'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/dictionary'), true);
   assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/parameters'), true);
   assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/notifications'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/variables'), true);
   assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/settings'), true);
   assert.equal(visibleAppRoutes({ is_admin: 1 }).some((route) => route.path === '/notifications'), true);
   assert.equal(visibleAppRoutes({ is_admin: '1' }).some((route) => route.path === '/notifications'), true);

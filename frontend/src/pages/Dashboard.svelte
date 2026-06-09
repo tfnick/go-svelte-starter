@@ -144,7 +144,7 @@
     error = '';
     message = '';
     try {
-      const result = await createOrder({ user_id: userId, product_id: selectedProductId });
+      const result = await createOrder({ product_id: selectedProductId });
       const order = result?.order;
       if (!order?.id) {
         throw new Error('Order was created without an id');

@@ -208,6 +208,7 @@ func TestCreateOrderAcceptsSelectedProductLedgerRequest(t *testing.T) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := router.NewContext(req, rec)
+	fwcontext.SetCurrentUser(c, &models.User{ID: seedUserID, Name: "Ada", IsAdmin: 0})
 
 	if err := routes.CreateOrder(c); err != nil {
 		t.Fatalf("create order: %v", err)
@@ -235,6 +236,72 @@ func TestCreateOrderAcceptsSelectedProductLedgerRequest(t *testing.T) {
 	}
 	if envelope.Data.Order.ProductID != "route-product" || envelope.Data.Order.ProductName != "Route Product" {
 		t.Fatalf("expected selected product in order response, got %#v", envelope.Data.Order)
+	}
+}
+
+func TestCreateOrderRejectsCrossUserForNonAdmin(t *testing.T) {
+	setupRouteTestDBs(t)
+
+	const currentUserID = "019ea0c1-0001-7000-8000-000000000001"
+	const requestUserID = "019ea0c1-0002-7000-8000-000000000002"
+	appDB, err := db.DefaultManager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	ensureRouteTestUser(t, appDB, requestUserID)
+	seedRouteCheckoutProduct(t, appDB, "route-product", "prod_route")
+
+	router := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/orders", strings.NewReader(`{"user_id":"`+requestUserID+`","product_id":"route-product"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+	fwcontext.SetCurrentUser(c, &models.User{ID: currentUserID, Name: "Ada", IsAdmin: 0})
+
+	if err := routes.CreateOrder(c); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusForbidden, rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateMyOrderUsesCurrentUserInsteadOfRequestUserID(t *testing.T) {
+	setupRouteTestDBs(t)
+
+	const currentUserID = "019ea0c1-0001-7000-8000-000000000001"
+	const requestUserID = "019ea0c1-0002-7000-8000-000000000002"
+	appDB, err := db.DefaultManager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	ensureRouteTestUser(t, appDB, requestUserID)
+	seedRouteCheckoutProduct(t, appDB, "route-product", "prod_route")
+
+	router := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/user/orders", strings.NewReader(`{"user_id":"`+requestUserID+`","product_id":"route-product"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+	fwcontext.SetCurrentUser(c, &models.User{ID: currentUserID, Name: "Ada", IsAdmin: 0})
+
+	if err := routes.CreateMyOrder(c); err != nil {
+		t.Fatalf("create my order: %v", err)
+	}
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, rec.Code, rec.Body.String())
+	}
+
+	var envelope struct {
+		Success bool                       `json:"success"`
+		Data    routes.CreateOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Data.Order.UserID != currentUserID {
+		t.Fatalf("expected order owner to come from current user, got %#v", envelope.Data.Order)
 	}
 }
 
