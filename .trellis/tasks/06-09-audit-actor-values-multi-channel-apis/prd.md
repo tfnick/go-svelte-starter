@@ -720,11 +720,19 @@ updator_type / updator_id
 * 前端订单页面已迁移到 `getMyOrders()` / `/api/user/orders`。
 * model 层订单列表改为 `OrderQuery` + `#[ ... ]` 动态 SQL 条件查询。
 
+追加落地 Batch 1/2 的低风险路径迁移与权限收紧：
+
+* 新增 `GET /api/user/me`，并保留 legacy `GET /api/auth/me`。
+* 新增 `GET /api/user/points`、`GET /api/user/points/sse`、`POST /api/user/notifications/test-export-toast`，前端 helper 已迁移。
+* 新增 `GET /api/public/dictionaries`、`GET /api/public/settings/site`、`GET /api/public/settings/logo`，前端 helper 与站点 logo URL 已迁移。
+* 新增并迁移前端管理 helper 到 `/api/admin/users`、`/api/admin/dictionary`、`/api/admin/products` 写接口、`/api/admin/scheduler/tasks`、`/api/admin/events`、`/api/admin/messages`、`/api/admin/parameters`、`/api/admin/notifications`、`/api/admin/settings/site/logo`、`/api/admin/variables`。
+* 旧管理路径迁移期保留，但已挂到 `RequireAdmin()` 后，避免普通登录用户继续访问管理能力。
+* 新增 `POST /api/user/orders` 当前用户下单入口，route 从 current user 推导 owner；legacy `POST /api/orders` 已增加 owner/admin 保护。
+* 前端普通用户菜单隐藏管理页面：products、users、scheduler、events、dictionary、parameters、notifications、settings、variables。
+
 本轮未落地、仍属于后续批次：
 
-* `/api/user/points`、`/api/user/points/sse`、`/api/user/me` 别名。
-* `/api/admin/users`、`/api/admin/scheduler/tasks`、`/api/admin/events`、`/api/admin/messages` 等管理端路径迁移。
-* `/api/public/...` namespace cleanup。
+* `/api/user/orders/:id/payment-checkout` 和 `/api/user/orders/:id/pay` 仍未新增，因为 usecase 尚未补齐订单 owner/admin 校验；当前前端仍使用 legacy payment/checkout path。
 * `/open-api/v1/orders`。
 
 #### Batch 1: Add aliases and migrate frontend user/admin reads
