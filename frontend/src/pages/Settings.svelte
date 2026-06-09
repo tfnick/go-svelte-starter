@@ -1,7 +1,8 @@
 <script>
-  import { uploadSiteLogo } from '../api.js';
+  import { uploadSiteLogo, getWorkerLimit, saveWorkerLimit } from '../api.js';
   import Notice from '../components/Notice.svelte';
   import { formatLocalDateTime } from '../helpers/dateTime.js';
+  import { onMount } from 'svelte';
 
   let { settings, onSettingsChanged } = $props();
   let activeTab = $state('general');
@@ -10,6 +11,37 @@
   let error = $state('');
   let message = $state('');
   let fileInput;
+  let workerLimit = $state(1);
+  let workerLimitDirty = $state(false);
+
+  async function loadWorkerLimit() {
+    try {
+      const result = await getWorkerLimit();
+      workerLimit = result?.limit || 1;
+    } catch {
+      workerLimit = 1;
+    }
+  }
+
+  async function saveWorker() {
+    saving = true;
+    error = '';
+    message = '';
+    try {
+      const result = await saveWorkerLimit(workerLimit);
+      workerLimit = result?.limit || workerLimit;
+      workerLimitDirty = false;
+      message = 'Worker limit updated';
+    } catch (err) {
+      error = err.message || 'Failed to update worker limit';
+    } finally {
+      saving = false;
+    }
+  }
+
+  onMount(() => {
+    loadWorkerLimit();
+  });
 
   function logoURL() {
     return settings?.logo_url || '/logo.png';
@@ -169,6 +201,51 @@
                 Upload logo
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <input
+      type="radio"
+      name="setting_tabs"
+      class="tab"
+      aria-label="Worker"
+      checked={activeTab === 'worker'}
+      onchange={() => (activeTab = 'worker')}
+    />
+    <div class="tab-content border-base-300 bg-base-100 p-4">
+      <div class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body gap-4">
+          <h2 class="card-title text-lg">Heavy Task Worker</h2>
+          <p class="text-sm text-base-content/60">
+            Number of concurrent workers that process heavy tasks. Changes take effect on next server restart.
+          </p>
+
+          <label class="form-control">
+            <span class="label"><span class="label-text">Worker limit (1-10)</span></span>
+            <input
+              type="number"
+              class="input input-bordered w-32"
+              min="1"
+              max="10"
+              bind:value={workerLimit}
+              oninput={() => (workerLimitDirty = true)}
+            />
+          </label>
+
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <button
+              class="btn btn-primary"
+              disabled={saving || !workerLimitDirty}
+              onclick={saveWorker}
+              type="button"
+            >
+              {#if saving}
+                <span class="loading loading-spinner loading-sm"></span>
+              {/if}
+              Save
+            </button>
           </div>
         </div>
       </div>
