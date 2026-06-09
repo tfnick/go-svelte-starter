@@ -151,14 +151,33 @@ func GetOrderByID(ctx context.Context, orderID string) (*Order, error) {
 }
 
 func CountOrdersByUserID(ctx context.Context, userID string) (int, error) {
-	d, err := db.ExecutorFor(ctx, "app")
+	total, err := CountOrders(ctx, OrderQuery{UserID: userID})
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+type OrderQuery struct {
+	UserID string `db:"user_id"`
+	Status string `db:"status"`
+	Limit  int    `db:"limit"`
+	Offset int    `db:"offset"`
+}
+
+func CountOrders(ctx context.Context, query OrderQuery) (int, error) {
+	eng, err := db.DynamicExecutorFor(ctx, "app")
 	if err != nil {
 		return 0, fmt.Errorf("database unavailable: %w", err)
 	}
 
 	var total int
-	query := d.Rebind(`SELECT COUNT(*) FROM orders WHERE user_id = ?`)
-	err = d.Get(&total, query, userID)
+	err = eng.Get(&total, `
+		SELECT COUNT(*) FROM orders
+		WHERE 1=1
+			#[ AND user_id = :user_id ]
+			#[ AND status = :status ]
+	`, query)
 	if err != nil {
 		return 0, fmt.Errorf("count orders failed: %w", err)
 	}
@@ -166,14 +185,24 @@ func CountOrdersByUserID(ctx context.Context, userID string) (int, error) {
 }
 
 func GetOrdersByUserID(ctx context.Context, userID string, limit int, offset int) ([]Order, error) {
-	d, err := db.ExecutorFor(ctx, "app")
+	return ListOrders(ctx, OrderQuery{UserID: userID, Limit: limit, Offset: offset})
+}
+
+func ListOrders(ctx context.Context, query OrderQuery) ([]Order, error) {
+	eng, err := db.DynamicExecutorFor(ctx, "app")
 	if err != nil {
 		return nil, fmt.Errorf("database unavailable: %w", err)
 	}
 
 	var orders []Order
-	query := d.Rebind(`SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
-	err = d.Select(&orders, query, userID, limit, offset)
+	err = eng.Select(&orders, `
+		SELECT * FROM orders
+		WHERE 1=1
+			#[ AND user_id = :user_id ]
+			#[ AND status = :status ]
+		ORDER BY created_at DESC, id DESC
+		LIMIT :limit OFFSET :offset
+	`, query)
 	if err != nil {
 		return nil, fmt.Errorf("list orders failed: %w", err)
 	}

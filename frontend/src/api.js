@@ -247,6 +247,39 @@ export function getUserOrders(userId, pagination = {}) {
   return request(`/api/orders/user/${encodeURIComponent(userId)}${query ? `?${query}` : ''}`);
 }
 
+export function getMyOrders(pagination = {}) {
+  const params = new URLSearchParams();
+  if (pagination.page) {
+    params.set('page', String(pagination.page));
+  }
+  if (pagination.pageSize) {
+    params.set('page_size', String(pagination.pageSize));
+  }
+  if (pagination.status) {
+    params.set('status', String(pagination.status));
+  }
+  const query = params.toString();
+  return request(`/api/user/orders${query ? `?${query}` : ''}`);
+}
+
+export function listAdminOrders(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.userId) {
+    params.set('user_id', String(filters.userId));
+  }
+  if (filters.status) {
+    params.set('status', String(filters.status));
+  }
+  if (filters.page) {
+    params.set('page', String(filters.page));
+  }
+  if (filters.pageSize) {
+    params.set('page_size', String(filters.pageSize));
+  }
+  const query = params.toString();
+  return request(`/api/admin/orders${query ? `?${query}` : ''}`);
+}
+
 export function createOrder(payload) {
   return request('/api/orders', {
     method: 'POST',

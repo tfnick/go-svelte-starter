@@ -4,9 +4,9 @@
   import {
     createOrder,
     createOrderPaymentCheckout,
+    getMyOrders,
     getMyPoints,
     getProducts,
-    getUserOrders,
     pointsSSEURL
   } from '../api.js';
   import Notice from '../components/Notice.svelte';
@@ -103,7 +103,7 @@
     loadingOrders = true;
     error = '';
     try {
-      const result = await getUserOrders(userId, {
+      const result = await getMyOrders({
         page,
         pageSize: orderPageSize
       });

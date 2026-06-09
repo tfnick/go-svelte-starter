@@ -40,6 +40,19 @@ type UserOrdersQry struct {
 	PageSize int
 }
 
+type ListMyOrdersQry struct {
+	Status   string
+	Page     int
+	PageSize int
+}
+
+type ListAdminOrdersQry struct {
+	UserID   string
+	Status   string
+	Page     int
+	PageSize int
+}
+
 type OrderDetailQry struct {
 	OrderID string
 }
@@ -161,24 +174,66 @@ func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error) {
 }
 
 func GetUserOrders(ctx fwusecase.Context, qry UserOrdersQry) (UserOrdersCo, error) {
-	if qry.UserID == "" {
+	userID := strings.TrimSpace(qry.UserID)
+	if userID == "" {
 		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeValidation, "user ID is required", nil)
+	}
+	if !ctx.Actor.Authenticated {
+		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeUnauthorized, "not logged in", nil)
+	}
+	if !ctx.Actor.IsAdmin && ctx.Actor.UserID != userID {
+		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeForbidden, "cannot view another user's orders", nil)
+	}
+
+	return listOrders(ctx, models.OrderQuery{UserID: userID}, qry.Page, qry.PageSize)
+}
+
+func ListMyOrders(ctx fwusecase.Context, qry ListMyOrdersQry) (UserOrdersCo, error) {
+	if !ctx.Actor.Authenticated || strings.TrimSpace(ctx.Actor.UserID) == "" {
+		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeUnauthorized, "not logged in", nil)
+	}
+
+	return listOrders(ctx, models.OrderQuery{
+		UserID: strings.TrimSpace(ctx.Actor.UserID),
+		Status: strings.TrimSpace(qry.Status),
+	}, qry.Page, qry.PageSize)
+}
+
+func ListAdminOrders(ctx fwusecase.Context, qry ListAdminOrdersQry) (UserOrdersCo, error) {
+	if !ctx.Actor.Authenticated {
+		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeUnauthorized, "not logged in", nil)
+	}
+	if !ctx.Actor.IsAdmin {
+		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeForbidden, "admin access is required", nil)
+	}
+
+	return listOrders(ctx, models.OrderQuery{
+		UserID: strings.TrimSpace(qry.UserID),
+		Status: strings.TrimSpace(qry.Status),
+	}, qry.Page, qry.PageSize)
+}
+
+func listOrders(ctx fwusecase.Context, query models.OrderQuery, page int, pageSize int) (UserOrdersCo, error) {
+	if query.Status != "" && !isValidOrderStatus(query.Status) {
+		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeValidation, "invalid order status", nil)
 	}
 
 	pageQuery, err := fwusecase.NormalizePageQuery(fwusecase.PageQuery{
-		Page:     qry.Page,
-		PageSize: qry.PageSize,
+		Page:     page,
+		PageSize: pageSize,
 	})
 	if err != nil {
 		return UserOrdersCo{}, err
 	}
+	query.Limit = pageQuery.Limit()
+	query.Offset = pageQuery.Offset()
 
-	total, err := models.CountOrdersByUserID(ctx.Std(), qry.UserID)
+	total, err := models.CountOrders(ctx.Std(), query)
 	if err != nil {
 		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to count orders", err)
 	}
 
-	orders, err := models.GetOrdersByUserID(ctx.Std(), qry.UserID, pageQuery.Limit(), pageQuery.Offset())
+	orders, err := models.ListOrders(ctx.Std(), query)
 	if err != nil {
 		return UserOrdersCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load orders", err)
 	}

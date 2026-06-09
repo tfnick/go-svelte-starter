@@ -85,7 +85,9 @@ listDictionaryValues(typeId)
 createDictionaryValue(typeId, payload)
 updateDictionaryValue(typeId, id, payload)
 setDictionaryValueEnabled(id, enabled)
-getUserOrders(userId, { page, pageSize })
+getMyOrders({ page, pageSize, status })
+listAdminOrders({ userId, status, page, pageSize })
+getUserOrders(userId, { page, pageSize }) // legacy guarded path only
 createOrder(payload)
 payOrder(orderId)
 getMyPoints()
@@ -233,7 +235,9 @@ import { formatLocalDateTime } from '../helpers/dateTime.js';
 ```js
 createOrder({ user_id })
 createOrderPaymentCheckout(orderId)
-getUserOrders(userId, { page, pageSize })
+getMyOrders({ page, pageSize, status })
+listAdminOrders({ userId, status, page, pageSize })
+getUserOrders(userId, { page, pageSize }) // legacy guarded path only
 payOrder(orderId)
 getMyPoints()
 getProducts()
@@ -256,6 +260,9 @@ proxy: {
 ### 3. Contracts
 
 * Svelte 组件必须通过 `frontend/src/api.js` helper 调用内部 `/api/*`，不要直接 `fetch('/api/...')`。
+* 当前登录用户订单列表必须调用 `getMyOrders(...)`，它使用 `/api/user/orders`，不接受任意 `user_id`。
+* 管理端跨用户订单列表必须调用 `listAdminOrders(...)`，它使用 `/api/admin/orders`，可选传 `userId` 和 `status`。
+* `getUserOrders(userId, ...)` 只用于 legacy 迁移兼容；新页面不要继续依赖 `/api/orders/user/:user_id`。
 * Creem checkout 页面通过 `createOrder({ user_id })` 创建本地 `pending` 订单台账，然后调用 `createOrderPaymentCheckout(order.id)` 获取 `checkout_url` 并跳转。
 * 当前 Creem checkout 页面不加载 `getProducts()`，不展示本地商品选择器，不提交 `product_id` 或 `quantity`。本地 `products` 只保留给 legacy/demo/admin 视图。
 * 如果订单列表中的 `order.amount` 为 `0`，页面不要格式化成实际货币金额；应显示 provider/Creem 价格来源，避免把本地占位金额误认为实收金额。
@@ -284,6 +291,7 @@ proxy: {
 | Condition | Expected behavior |
 | --- | --- |
 | user not logged in | order form and refresh/pay controls disabled |
+| order list loads for current user | call `getMyOrders({ page, pageSize })`, not `getUserOrders(auth.user.id, ...)` |
 | user clicks create/pay | call `createOrder({ user_id })`, then `createOrderPaymentCheckout(order.id)` |
 | create order API fails | show API client safe message and stay on the page |
 | checkout API returns `checkout_url` | redirect with `globalThis.location.assign(checkout_url)` |
@@ -295,7 +303,7 @@ proxy: {
 
 ### 5. Good/Base/Bad Cases
 
-Good: `Dashboard.svelte` calls `createOrder({ user_id })`, then `createOrderPaymentCheckout(order.id)`, redirects to Creem, and later receives `points` + `refresh` over SSE after webhook-confirmed payment.
+Good: `Dashboard.svelte` calls `getMyOrders({ page, pageSize })` for the current user's list, then `createOrder({ user_id })` and `createOrderPaymentCheckout(order.id)` for checkout, redirects to Creem, and later receives `points` + `refresh` over SSE after webhook-confirmed payment.
 
 Base: If checkout creation fails after local order creation, the pending order remains visible and can be retried from the order list.
 

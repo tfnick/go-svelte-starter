@@ -191,7 +191,8 @@ func main() {
 			protected.POST("/orders", user.CreateOrder)
 			protected.POST("/orders/:id/pay", user.PayOrder)
 			protected.POST("/orders/:id/payment-checkout", user.CreateOrderPaymentCheckout)
-			protected.GET("/orders/user/:user_id", user.GetUserOrders)
+			protected.GET("/user/orders", user.ListMyOrders)
+			protected.GET("/orders/user/:user_id", user.GetUserOrders, user.RequireLegacyUserOrdersAccess)
 			protected.GET("/orders/:id", user.GetOrderDetail)
 			protected.PATCH("/orders/:id/status", user.UpdateOrderStatus)
 
@@ -228,6 +229,7 @@ func main() {
 
 			admin := protected.Group("")
 			admin.Use(authMiddleware.RequireAdmin())
+			admin.GET("/admin/orders", user.ListAdminOrders)
 			admin.GET("/parameters/integration-schemas", user.ListParameterIntegrationSchemas)
 			admin.GET("/parameters/integration-channels", user.ListParameterIntegrationChannels)
 			admin.POST("/parameters/integration-channels", user.CreateParameterIntegrationChannel)

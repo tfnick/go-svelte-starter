@@ -3,6 +3,7 @@ package routes
 import (
 	"github.com/labstack/echo/v4"
 	fwcontext "github.com/tfnick/go-svelte-starter/api/framework/http/context"
+	"github.com/tfnick/go-svelte-starter/api/framework/http/middleware"
 	fwrequest "github.com/tfnick/go-svelte-starter/api/framework/http/request"
 	httpresponse "github.com/tfnick/go-svelte-starter/api/framework/http/response"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
@@ -205,6 +206,53 @@ func GetUserOrders(c echo.Context) error {
 	}
 
 	return httpresponse.OK(c, ToUserOrdersResponse(orders))
+}
+
+// ListMyOrders returns paginated orders owned by the current authenticated user.
+func ListMyOrders(c echo.Context) error {
+	page := fwrequest.PageQuery(c)
+	ctx := fwcontext.InternalUsecaseContext(c)
+	orders, err := usecase.ListMyOrders(ctx, usecase.ListMyOrdersQry{
+		Status:   c.QueryParam("status"),
+		Page:     page.Page,
+		PageSize: page.PageSize,
+	})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.OK(c, ToUserOrdersResponse(orders))
+}
+
+// ListAdminOrders returns paginated orders across users for admin operators.
+func ListAdminOrders(c echo.Context) error {
+	page := fwrequest.PageQuery(c)
+	ctx := fwcontext.InternalUsecaseContext(c)
+	orders, err := usecase.ListAdminOrders(ctx, usecase.ListAdminOrdersQry{
+		UserID:   c.QueryParam("user_id"),
+		Status:   c.QueryParam("status"),
+		Page:     page.Page,
+		PageSize: page.PageSize,
+	})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.OK(c, ToUserOrdersResponse(orders))
+}
+
+// RequireLegacyUserOrdersAccess keeps the old user-id path safe during migration.
+func RequireLegacyUserOrdersAccess(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		currentUser := middleware.GetCurrentUser(c)
+		if currentUser == nil {
+			return httpresponse.Unauthorized(c, "not logged in")
+		}
+		if currentUser.IsAdmin != 1 && currentUser.ID != c.Param("user_id") {
+			return httpresponse.Forbidden(c, "cannot view another user's orders")
+		}
+		return next(c)
+	}
 }
 
 // GetOrderDetail returns an order and its items.

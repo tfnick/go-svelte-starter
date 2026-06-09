@@ -322,7 +322,9 @@ return c.Redirect(http.StatusFound, "/login/oauth/callback?"+values.Encode())
 * `CreateOrderResponse` 是 create route 的 wrapper，包含 `message` 和 `order`。
 * `PayOrderResponse` 是 pay route 的 wrapper，包含 `message` 和 `order`。支付成功必须通过 `POST /api/orders/:id/pay`，不能通过 `PATCH /api/orders/:id/status` 直接设置 `paid`。
 * `OrderDetailResponse` 是 detail route 的 wrapper，包含 `order` 和 `items`。
-* 订单 list 使用 `GET /api/orders/user/:user_id?page=1&page_size=10`，返回 `UserOrdersResponse`，其中 `items` 为 `[]OrderResponse`，`pagination` 遵守 [Pagination Contract](#pagination-contract)。
+* 当前用户订单 list 使用 `GET /api/user/orders?page=1&page_size=10&status=pending`，返回 `UserOrdersResponse`，其中 `items` 为 `[]OrderResponse`，`pagination` 遵守 [Pagination Contract](#pagination-contract)。owner 过滤必须来自当前 `ctx.Actor.UserID`，不能由客户端传入。
+* 管理端订单 list 使用 `GET /api/admin/orders?user_id=<id>&status=pending&page=1&page_size=10`，必须 admin，可选按 `user_id` 和 `status` 筛选。
+* Legacy 订单 list 路径 `GET /api/orders/user/:user_id` 仅迁移期保留，必须限制为 `:user_id == ctx.Actor.UserID` 或 `ctx.Actor.IsAdmin == true`。
 * `UpdateOrderStatus` 返回 `data.message`。
 * Creem checkout MVP 中，`POST /api/orders` 只要求 `user_id`，创建 `pending` 本地订单台账；`items` 可作为 legacy payload 被接受，但当前支付流不使用本地 `product_id`、`quantity`、`products.stock` 或本地价格。
 * 新建 Creem checkout 台账订单的 `amount` 可以为 `0`；真实收费金额由 Creem checkout 的配置产品决定，前端不应把本地 `0` 渲染成实际收费金额。
@@ -1413,6 +1415,9 @@ return httpresponse.Created(c, toVariableResponse(variable))
 后端 API：
 
 ```text
+GET  /api/user/orders?page=1&page_size=10&status=pending
+GET  /api/admin/orders?user_id=<id>&status=pending&page=1&page_size=10
+GET  /api/orders/user/:user_id?page=1&page_size=10        # legacy guarded
 POST /api/orders
 POST /api/orders/:id/payment-checkout
 POST /api/orders/:id/pay
@@ -1435,6 +1440,9 @@ type PayOrderCmd struct {
 }
 
 func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error)
+func ListMyOrders(ctx fwusecase.Context, qry ListMyOrdersQry) (UserOrdersCo, error)
+func ListAdminOrders(ctx fwusecase.Context, qry ListAdminOrdersQry) (UserOrdersCo, error)
+func GetUserOrders(ctx fwusecase.Context, qry UserOrdersQry) (UserOrdersCo, error) // legacy guarded
 func CreateOrderPaymentCheckout(ctx fwusecase.Context, cmd CreateOrderPaymentCheckoutCmd) (PaymentCheckoutCo, error)
 func PayOrder(ctx fwusecase.Context, cmd PayOrderCmd) (OrderCo, error)
 func GetUserPoints(ctx fwusecase.Context, qry PointsBalanceQry) (PointsCo, error)
@@ -1515,6 +1523,10 @@ Legacy `items` payload may still be accepted but must not be used as the current
 | Condition | Expected behavior |
 | --- | --- |
 | empty `user_id` in `CreateOrderCmd` | `CodeValidation`, safe message `user ID is required` |
+| `GET /api/user/orders` without authenticated actor | `CodeUnauthorized`, safe message `not logged in` |
+| `GET /api/user/orders?status=<invalid>` | `CodeValidation`, safe message `invalid order status` |
+| `GET /api/admin/orders` by non-admin actor | `CodeForbidden`, safe message `admin access is required` |
+| legacy `GET /api/orders/user/:user_id` with another user's ID by non-admin actor | `CodeForbidden`, safe message `cannot view another user's orders` |
 | `user_id` does not exist | `CodeValidation`, safe message `user not found`; no order inserted |
 | `CreateOrderCmd.Items` empty | create a pending Creem ledger order |
 | `CreateOrderCmd.Items` present | ignore legacy items for current Creem checkout flow; do not write `order_items` or reserve stock |

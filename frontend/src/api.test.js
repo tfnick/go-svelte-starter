@@ -13,10 +13,12 @@ import {
   exchangeOAuthLoginResult,
   getAccessToken,
   getDictionaries,
+  getMyOrders,
   getMyPoints,
   getProducts,
   getSiteSettings,
   getUserOrders,
+  listAdminOrders,
   listUsers,
   listEventDeliveries,
   listEvents,
@@ -318,6 +320,8 @@ test('dictionary and order api helpers use relative api paths', async () => {
   };
 
   await getDictionaries(['product_category', 'product_category', 'region']);
+  await getMyOrders({ page: 2, pageSize: 10, status: 'pending' });
+  await listAdminOrders({ userId: '019ea0c1-0001-7000-8000-000000000001', status: 'paid', page: 1, pageSize: 20 });
   await getUserOrders('019ea0c1-0001-7000-8000-000000000001', { page: 2, pageSize: 10 });
   await createOrder({
     user_id: '019ea0c1-0001-7000-8000-000000000001',
@@ -343,22 +347,24 @@ test('dictionary and order api helpers use relative api paths', async () => {
 
   assert.equal(calls[0].path, '/api/dictionaries?types=product_category,region');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
-  assert.equal(calls[1].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
-  assert.equal(calls[2].path, '/api/orders');
-  assert.equal(calls[2].options.method, 'POST');
-  assert.equal(calls[2].options.body, '{"user_id":"019ea0c1-0001-7000-8000-000000000001","product_id":"product-1"}');
-  assert.equal(calls[3].path, '/api/orders/o001/payment-checkout');
-  assert.equal(calls[3].options.method, 'POST');
-  assert.equal(calls[4].path, '/api/orders/o001/pay');
+  assert.equal(calls[1].path, '/api/user/orders?page=2&page_size=10&status=pending');
+  assert.equal(calls[2].path, '/api/admin/orders?user_id=019ea0c1-0001-7000-8000-000000000001&status=paid&page=1&page_size=20');
+  assert.equal(calls[3].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
+  assert.equal(calls[4].path, '/api/orders');
   assert.equal(calls[4].options.method, 'POST');
-  assert.equal(calls[5].path, '/api/points/me');
-  assert.equal(calls[6].path, '/api/products');
-  assert.equal(calls[7].path, '/api/notifications/test-export-toast');
-  assert.equal(calls[7].options.method, 'POST');
-  assert.equal(calls[8].path, '/api/llm/summaries');
-  assert.equal(calls[8].options.method, 'POST');
-  assert.equal(calls[8].options.body, '{"text":"Source text","prompt":"Summarize briefly","dimensions":["summary"]}');
-  assert.equal(calls[9].path, '/api/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
+  assert.equal(calls[4].options.body, '{"user_id":"019ea0c1-0001-7000-8000-000000000001","product_id":"product-1"}');
+  assert.equal(calls[5].path, '/api/orders/o001/payment-checkout');
+  assert.equal(calls[5].options.method, 'POST');
+  assert.equal(calls[6].path, '/api/orders/o001/pay');
+  assert.equal(calls[6].options.method, 'POST');
+  assert.equal(calls[7].path, '/api/points/me');
+  assert.equal(calls[8].path, '/api/products');
+  assert.equal(calls[9].path, '/api/notifications/test-export-toast');
+  assert.equal(calls[9].options.method, 'POST');
+  assert.equal(calls[10].path, '/api/llm/summaries');
+  assert.equal(calls[10].options.method, 'POST');
+  assert.equal(calls[10].options.body, '{"text":"Source text","prompt":"Summarize briefly","dimensions":["summary"]}');
+  assert.equal(calls[11].path, '/api/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
 });
 
 test('dictionary management api helpers use relative api paths', async () => {
