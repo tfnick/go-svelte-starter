@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
-- **Last Active**: 2026-06-07
+- **Total Sessions**: 10
+- **Last Active**: 2026-06-10
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~311 | Active |
+| `journal-1.md` | ~350 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-06-10 | Replace SSE with WebSocket realtime | `c51a09e`, `16781ad` | `master` |
 | 9 | 2026-06-07 | DeepSeek LLM integration slice | `c674bd8` | `main` |
 | 8 | 2026-06-06 | Replace WebSocket realtime with SSE | `5e2dc3a` | `main` |
 | 7 | 2026-06-06 | User management | `c9c4a78`, `7d2124b` | `main` |

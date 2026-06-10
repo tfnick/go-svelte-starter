@@ -309,3 +309,42 @@ Implemented the first LLM external-integration vertical slice with DB-managed op
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: Replace SSE with WebSocket realtime
+
+**Date**: 2026-06-10
+**Task**: Replace SSE with WebSocket realtime
+**Branch**: `master`
+
+### Summary
+
+Replaced first-party SSE transport with WebSocket realtime and documented the new contract.
+
+### Main Changes
+
+﻿﻿- Replaced all current first-party SSE usage with `/api/user/realtime/ws` WebSocket realtime delivery.
+- Added backend WebSocket route, migration from notification type `sse` to `realtime`, and route/usecase tests.
+- Added frontend `realtimeWebSocketURL()` plus shared `createRealtimeWebSocketClient()` lifecycle helper with tests.
+- Updated App, Dashboard, Experiments, specs, PRD, and visible copy to WebSocket/realtime naming.
+- Verification passed: `go test ./...`, `cd frontend && npm test`, `cd frontend && npm run build`, `git diff --check`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c51a09e` | (see git log) |
+| `16781ad` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
