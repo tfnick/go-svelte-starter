@@ -195,8 +195,7 @@ func main() {
 
 			protected.GET("/points/me", user.GetMyPoints)
 			protected.GET("/user/points", user.GetMyPoints)
-			protected.GET("/points/sse", user.PointsSSE)
-			protected.GET("/user/points/sse", user.PointsSSE)
+			protected.GET("/user/realtime/ws", user.UserRealtimeWebSocket)
 
 			protected.POST("/notifications/test-export-toast", user.TriggerExportToast)
 			protected.POST("/user/notifications/test-export-toast", user.TriggerExportToast)
@@ -293,7 +292,6 @@ func main() {
 
 			protected.POST("/llm/summaries", user.SummarizeTextWithLLM)
 
-			protected.GET("/user/events", user.UserEventsSSE)
 			protected.POST("/user/tasks", user.EnqueueTask)
 			protected.GET("/user/tasks", user.ListMyTasks)
 		}

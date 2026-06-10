@@ -5,22 +5,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
+	"github.com/tfnick/sqlx"
 )
 
-func TestCreateNotificationSSECreatesLedgerAndPublishesSafeRealtimePayload(t *testing.T) {
+func TestCreateNotificationRealtimeCreatesLedgerAndPublishesSafeRealtimePayload(t *testing.T) {
 	setupUsecaseOrderTxDB(t)
 	sub := realtime.SubscribeClient("notify-user-1", "notify-client-1")
 	defer sub.Close()
 
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 	notification, err := usecase.CreateNotification(ctx, usecase.CreateNotificationCmd{
-		NotificationType: "sse",
+		NotificationType: "realtime",
 		SourceType:       "order",
 		SourceID:         "order-1",
 		UserID:           "notify-user-1",
@@ -29,12 +29,12 @@ func TestCreateNotificationSSECreatesLedgerAndPublishesSafeRealtimePayload(t *te
 		PayloadJSON:      `{"secret":"do-not-push","order_id":"order-1"}`,
 	})
 	if err != nil {
-		t.Fatalf("create SSE notification: %v", err)
+		t.Fatalf("create realtime notification: %v", err)
 	}
 	if notification.ID == "" || notification.Status != models.NotificationStatusSent || notification.SentAt == "" {
 		t.Fatalf("expected sent notification with timestamps, got %#v", notification)
 	}
-	if notification.NotificationTypeLabel != "SSE" {
+	if notification.NotificationTypeLabel != "Realtime" {
 		t.Fatalf("expected dictionary label, got %#v", notification)
 	}
 
@@ -73,7 +73,7 @@ func TestCreateNotificationSSECreatesLedgerAndPublishesSafeRealtimePayload(t *te
 	}
 }
 
-func TestCreateNotificationNonSSEStoresSkippedLedgerOnly(t *testing.T) {
+func TestCreateNotificationNonRealtimeStoresSkippedLedgerOnly(t *testing.T) {
 	setupUsecaseOrderTxDB(t)
 	sub := realtime.SubscribeClient("email-user-1", "email-client-1")
 	defer sub.Close()
@@ -89,7 +89,7 @@ func TestCreateNotificationNonSSEStoresSkippedLedgerOnly(t *testing.T) {
 		t.Fatalf("create email notification: %v", err)
 	}
 	if notification.Status != models.NotificationStatusSkipped {
-		t.Fatalf("expected skipped status for non-SSE MVP channel, got %#v", notification)
+		t.Fatalf("expected skipped status for non-realtime MVP channel, got %#v", notification)
 	}
 	if notification.NotificationTypeLabel != "Email" {
 		t.Fatalf("expected dictionary label, got %#v", notification)
@@ -109,7 +109,7 @@ func TestListNotificationsFiltersByTypeEmailAndPhone(t *testing.T) {
 		t.Fatalf("get app db: %v", err)
 	}
 
-	insertTestNotification(t, appDB, "list-notification-1", "sse", "sent", "ada@example.com", "13800000001", "2026-01-01 00:00:01")
+	insertTestNotification(t, appDB, "list-notification-1", "realtime", "sent", "ada@example.com", "13800000001", "2026-01-01 00:00:01")
 	insertTestNotification(t, appDB, "list-notification-2", "sms", "skipped", "grace@example.com", "13800000002", "2026-01-01 00:00:02")
 	insertTestNotification(t, appDB, "list-notification-3", "email", "skipped", "ada+alerts@example.com", "13900000003", "2026-01-01 00:00:03")
 

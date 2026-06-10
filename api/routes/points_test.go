@@ -2,66 +2,88 @@ package routes_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/coder/websocket"
 	"github.com/labstack/echo/v4"
 	fwcontext "github.com/tfnick/go-svelte-starter/api/framework/http/context"
+	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/go-svelte-starter/api/routes"
 )
 
-func TestPointsSSEStreamsInitialPointsMessage(t *testing.T) {
+func TestUserRealtimeWebSocketStreamsInitialPointsMessage(t *testing.T) {
 	setupRouteTestDBs(t)
 
-	router := echo.New()
-	reqCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-	req := httptest.NewRequest(http.MethodGet, "/api/points/sse?client_id=route-points-sse", nil).WithContext(reqCtx)
-	rec := httptest.NewRecorder()
-	c := router.NewContext(req, rec)
-	fwcontext.SetCurrentUser(c, &models.User{ID: "u1", Name: "Ada"})
+	server := newUserRealtimeTestServer(&models.User{ID: "u1", Name: "Ada"})
+	defer server.Close()
 
-	if err := routes.PointsSSE(c); err != nil {
-		t.Fatalf("points sse: %v", err)
-	}
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, rec.Code, rec.Body.String())
+	conn, _, err := websocket.Dial(ctx, strings.Replace(server.URL, "http://", "ws://", 1)+"/api/user/realtime/ws?client_id=route-realtime-client", nil)
+	if err != nil {
+		t.Fatalf("dial realtime websocket: %v", err)
 	}
-	if contentType := rec.Header().Get(echo.HeaderContentType); !strings.HasPrefix(contentType, "text/event-stream") {
-		t.Fatalf("expected text/event-stream content type, got %q", contentType)
-	}
-	if cacheControl := rec.Header().Get(echo.HeaderCacheControl); cacheControl != "no-cache" {
-		t.Fatalf("expected no-cache, got %q", cacheControl)
-	}
+	defer conn.CloseNow()
 
-	body := rec.Body.String()
-	expected := []string{
-		"data: ",
-		`"type":"points"`,
-		`"presentation":"refresh"`,
-		`"user_id":"u1"`,
-		`"client_id":"route-points-sse"`,
-		`"balance":0`,
+	message := readRealtimeTestMessage(t, ctx, conn)
+	if message.Type != "points" || message.Presentation != "refresh" {
+		t.Fatalf("unexpected realtime envelope: %#v", message)
 	}
-	for _, value := range expected {
-		if !strings.Contains(body, value) {
-			t.Fatalf("expected %s in SSE body, got %s", value, body)
-		}
+	if message.Payload["user_id"] != "u1" || message.Payload["client_id"] != "route-realtime-client" || message.Payload["balance"] != float64(0) {
+		t.Fatalf("unexpected points payload: %#v", message.Payload)
 	}
 }
 
-func TestPointsSSERequiresCurrentUser(t *testing.T) {
+func TestUserRealtimeWebSocketReceivesOnlyCurrentUserMessages(t *testing.T) {
+	setupRouteTestDBs(t)
+
+	server := newUserRealtimeTestServer(&models.User{ID: "u1", Name: "Ada"})
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, strings.Replace(server.URL, "http://", "ws://", 1)+"/api/user/realtime/ws?client_id=route-realtime-target", nil)
+	if err != nil {
+		t.Fatalf("dial realtime websocket: %v", err)
+	}
+	defer conn.CloseNow()
+
+	_ = readRealtimeTestMessage(t, ctx, conn)
+	if err := realtime.Publish("u2", realtime.NewNotificationMessage(realtime.NotificationPayload{
+		ID:    "other-notification",
+		Title: "Other user",
+	}, "")); err != nil {
+		t.Fatalf("publish other user message: %v", err)
+	}
+	if err := realtime.Publish("u1", realtime.NewNotificationMessage(realtime.NotificationPayload{
+		ID:    "current-notification",
+		Title: "Current user",
+	}, "")); err != nil {
+		t.Fatalf("publish current user message: %v", err)
+	}
+
+	message := readRealtimeTestMessage(t, ctx, conn)
+	if message.Type != "notification" || message.Payload["id"] != "current-notification" {
+		t.Fatalf("expected current-user notification, got %#v", message)
+	}
+}
+
+func TestUserRealtimeWebSocketRequiresCurrentUser(t *testing.T) {
 	router := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/api/points/sse", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/user/realtime/ws", nil)
 	rec := httptest.NewRecorder()
 	c := router.NewContext(req, rec)
 
-	if err := routes.PointsSSE(c); err != nil {
-		t.Fatalf("points sse: %v", err)
+	if err := routes.UserRealtimeWebSocket(c); err != nil {
+		t.Fatalf("realtime websocket: %v", err)
 	}
 
 	if rec.Code != http.StatusUnauthorized {
@@ -70,4 +92,37 @@ func TestPointsSSERequiresCurrentUser(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"message":"not logged in"`) {
 		t.Fatalf("expected unauthorized envelope, got %s", rec.Body.String())
 	}
+}
+
+func newUserRealtimeTestServer(user *models.User) *httptest.Server {
+	router := echo.New()
+	router.GET("/api/user/realtime/ws", func(c echo.Context) error {
+		fwcontext.SetCurrentUser(c, user)
+		return routes.UserRealtimeWebSocket(c)
+	})
+	return httptest.NewServer(router)
+}
+
+type realtimeTestMessage struct {
+	Type         string                 `json:"type"`
+	Presentation string                 `json:"presentation"`
+	Payload      map[string]interface{} `json:"payload"`
+}
+
+func readRealtimeTestMessage(t *testing.T, ctx context.Context, conn *websocket.Conn) realtimeTestMessage {
+	t.Helper()
+
+	typ, reader, err := conn.Reader(ctx)
+	if err != nil {
+		t.Fatalf("read websocket message: %v", err)
+	}
+	if typ != websocket.MessageText {
+		t.Fatalf("expected text message, got %v", typ)
+	}
+
+	var message realtimeTestMessage
+	if err := json.NewDecoder(reader).Decode(&message); err != nil {
+		t.Fatalf("decode websocket message: %v", err)
+	}
+	return message
 }

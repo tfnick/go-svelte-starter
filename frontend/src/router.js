@@ -75,7 +75,7 @@ export const appRoutes = Object.freeze([
   {
     path: '/app/experiments',
     label: 'Experiment',
-    description: 'LLM and SSE'
+    description: 'LLM and realtime'
   },
   {
     path: '/app/dictionary',

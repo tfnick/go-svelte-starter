@@ -2,18 +2,19 @@
   import { onDestroy } from 'svelte';
 
   import {
-    pointsSSEURL,
+    realtimeWebSocketURL,
     summarizeTextWithLLM,
     triggerExportToast
   } from '../api.js';
   import Notice from '../components/Notice.svelte';
   import { dispatchRealtimeMessage } from '../helpers/realtimeMessages.js';
+  import { createRealtimeWebSocketClient } from '../helpers/realtimeWebSocket.js';
 
   let { auth } = $props();
 
   const tabs = [
     { key: 'llm', label: 'LLM' },
-    { key: 'sse', label: 'SSE' }
+    { key: 'realtime', label: 'Realtime' }
   ];
   const defaultPrompt = 'Summarize the text in Chinese. Keep the result concise and list the most important conclusions.';
 
@@ -34,14 +35,39 @@
 
   let streamStatus = $state('Disconnected');
   let streamEvents = $state([]);
-  let sseError = $state('');
-  let sseMessage = $state('');
+  let realtimeError = $state('');
+  let realtimeMessage = $state('');
   let triggeringExportToast = $state(false);
-  let pointsStream;
   let loadedUserId = $state('');
+  const realtimeClient = createRealtimeWebSocketClient({
+    url: realtimeWebSocketURL,
+    shouldReconnect: () => false,
+    onStatusChange(nextStatus) {
+      streamStatus = nextStatus;
+    },
+    onOpen() {
+      appendStreamEvent('system', 'WebSocket connected');
+    },
+    onMessage(payload) {
+      dispatchRealtimeMessage(payload, {
+        refreshPoints(nextPoints) {
+          appendStreamEvent('points', `Points balance refreshed to ${nextPoints.balance ?? '--'}`);
+        },
+        toast(toast) {
+          appendStreamEvent('toast', toast.message || 'Realtime toast received');
+        }
+      });
+    },
+    onMalformedMessage() {
+      appendStreamEvent('error', 'Malformed realtime message ignored');
+    },
+    onError() {
+      realtimeError = 'WebSocket disconnected or failed to connect';
+    }
+  });
 
   onDestroy(() => {
-    closeSSEStream();
+    closeRealtimeStream();
   });
 
   $effect(() => {
@@ -49,14 +75,14 @@
     if (!userId) {
       loadedUserId = '';
       streamEvents = [];
-      closeSSEStream('Disconnected');
+      closeRealtimeStream('Disconnected');
       return;
     }
 
     if (userId !== loadedUserId) {
       loadedUserId = userId;
       streamEvents = [];
-      connectSSEStream();
+      connectRealtimeStream();
     }
   });
 
@@ -133,58 +159,28 @@
     llmMessage = '';
   }
 
-  function connectSSEStream() {
-    closeSSEStream();
+  function connectRealtimeStream() {
     if (!auth.logged_in) {
       return;
     }
 
-    streamStatus = 'Connecting';
-    sseError = '';
-
-    pointsStream = new EventSource(pointsSSEURL());
-    pointsStream.onopen = () => {
-      streamStatus = 'Connected';
-      appendStreamEvent('system', 'SSE stream connected');
-    };
-    pointsStream.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        dispatchRealtimeMessage(payload, {
-          refreshPoints(nextPoints) {
-            appendStreamEvent('points', `Points balance refreshed to ${nextPoints.balance ?? '--'}`);
-          },
-          toast(toast) {
-            appendStreamEvent('toast', toast.message || 'Realtime toast received');
-          }
-        });
-      } catch {
-        appendStreamEvent('error', 'Malformed realtime message ignored');
-      }
-    };
-    pointsStream.onerror = () => {
-      streamStatus = 'Error';
-      sseError = 'SSE stream disconnected or failed to connect';
-    };
+    realtimeError = '';
+    realtimeClient.connect();
   }
 
-  function closeSSEStream(nextStatus = 'Disconnected') {
-    if (pointsStream) {
-      pointsStream.close();
-      pointsStream = undefined;
-    }
-    streamStatus = nextStatus;
+  function closeRealtimeStream(nextStatus = 'Disconnected') {
+    realtimeClient.disconnect(nextStatus);
   }
 
   async function handleTriggerExportToast() {
     triggeringExportToast = true;
-    sseError = '';
-    sseMessage = '';
+    realtimeError = '';
+    realtimeMessage = '';
     try {
       await triggerExportToast();
-      sseMessage = 'Export completion event requested';
+      realtimeMessage = 'Export completion event requested';
     } catch (err) {
-      sseError = err.message || 'Failed to trigger export notification';
+      realtimeError = err.message || 'Failed to trigger export notification';
     } finally {
       triggeringExportToast = false;
     }
@@ -213,7 +209,7 @@
   <div class="flex flex-wrap items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold leading-tight">Experiment</h1>
-      <p class="mt-1 text-sm text-base-content/60">Functional research demos for LLM summaries and server-sent events.</p>
+      <p class="mt-1 text-sm text-base-content/60">Functional research demos for LLM summaries and realtime WebSocket delivery.</p>
     </div>
   </div>
 
@@ -234,7 +230,7 @@
             <div class="rounded border border-base-300 p-3">
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <div class="text-xs font-semibold uppercase tracking-wide text-base-content/50">SSE</div>
+                  <div class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Realtime</div>
                   <div class="mt-1 text-sm">Realtime notification stream</div>
                 </div>
                 <span class="badge {streamStatusClass()}">{streamStatus}</span>
@@ -248,7 +244,7 @@
         <div class="card-body gap-4">
           <h2 class="card-title text-lg">Controls</h2>
           <button class="btn btn-outline btn-sm justify-start" type="button" onclick={() => (activeTab = 'llm')}>Open LLM</button>
-          <button class="btn btn-outline btn-sm justify-start" type="button" onclick={() => (activeTab = 'sse')}>Open SSE</button>
+          <button class="btn btn-outline btn-sm justify-start" type="button" onclick={() => (activeTab = 'realtime')}>Open Realtime</button>
         </div>
       </div>
     </div>
@@ -330,14 +326,14 @@
               <div class="space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 class="text-lg font-semibold">Server-Sent Events</h2>
-                    <p class="text-sm text-base-content/60">Simulate backend event delivery through the existing realtime stream.</p>
+                    <h2 class="text-lg font-semibold">Realtime WebSocket</h2>
+                    <p class="text-sm text-base-content/60">Simulate backend event delivery through the realtime stream.</p>
                   </div>
                   <span class="badge {streamStatusClass()}">{streamStatus}</span>
                 </div>
 
-                <Notice type="success" message={sseMessage} />
-                <Notice type="error" message={sseError} />
+                <Notice type="success" message={realtimeMessage} />
+                <Notice type="error" message={realtimeError} />
 
                 <div class="flex flex-wrap gap-2">
                   <button class="btn btn-secondary" type="button" onclick={handleTriggerExportToast} disabled={triggeringExportToast || streamStatus !== 'Connected'}>
@@ -346,7 +342,7 @@
                     {/if}
                     Trigger export completed
                   </button>
-                  <button class="btn btn-outline" type="button" onclick={connectSSEStream}>Reconnect</button>
+                  <button class="btn btn-outline" type="button" onclick={connectRealtimeStream}>Reconnect</button>
                   <button class="btn btn-outline" type="button" onclick={() => (streamEvents = [])}>Clear log</button>
                 </div>
 

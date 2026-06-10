@@ -21,9 +21,10 @@
   import Settings from './pages/Settings.svelte';
   import Users from './pages/Users.svelte';
   import Variables from './pages/Variables.svelte';
-  import { getAuthStatus, getSiteSettings, eventsSSEURL } from './api.js';
+  import { getAuthStatus, getSiteSettings, realtimeWebSocketURL } from './api.js';
   import { appHomePath, canAccessAppRoute, isAuthRoute, normalizePath, routeTitle, visibleAppRoutes } from './router.js';
   import { normalizeRealtimeMessage, toastFromRealtimeMessage } from './helpers/realtimeMessages.js';
+  import { createRealtimeWebSocketClient } from './helpers/realtimeWebSocket.js';
   import { onMount } from 'svelte';
 
   let path = $state(normalizePath());
@@ -42,55 +43,27 @@
   let siteSettings = $state(defaultSiteSettings());
   let notifications = $state([]);
   let taskRefreshTrigger = $state(0);
-  let eventSource;
+  const realtimeClient = createRealtimeWebSocketClient({
+    url: realtimeWebSocketURL,
+    shouldReconnect: () => auth.logged_in,
+    onMessage(data) {
+      const message = normalizeRealtimeMessage(data);
+      if (!message) return;
+      if (message.presentation === 'toast') {
+        const toast = toastFromRealtimeMessage(message);
+        addNotification(toast);
+      }
+      if (message.type === 'heavy_task') {
+        taskRefreshTrigger++;
+      }
+    },
+    onMalformedMessage() {
+      // ignore malformed messages
+    }
+  });
 
   function addNotification(msg) {
     notifications = [{ ...msg, id: msg.id || Date.now() }, ...notifications].slice(0, 50);
-  }
-
-  function connectEventsSSE() {
-    if (eventSource) {
-      eventSource.close();
-    }
-
-    const url = eventsSSEURL();
-    const es = new EventSource(url);
-
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        const message = normalizeRealtimeMessage(data);
-        if (message) {
-          if (message.presentation === 'toast') {
-            const toast = toastFromRealtimeMessage(message);
-            addNotification(toast);
-          }
-          if (message.type === 'heavy_task') {
-            taskRefreshTrigger++;
-          }
-        }
-      } catch {
-        // ignore malformed messages
-      }
-    };
-
-    es.onerror = () => {
-      es.close();
-      setTimeout(() => {
-        if (auth.logged_in) {
-          connectEventsSSE();
-        }
-      }, 5000);
-    };
-
-    eventSource = es;
-  }
-
-  function disconnectEventsSSE() {
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
-    }
   }
 
   async function refreshAuth() {
@@ -103,13 +76,13 @@
         user: status.user || null
       };
       if (auth.logged_in) {
-        connectEventsSSE();
+        realtimeClient.connect();
       } else {
-        disconnectEventsSSE();
+        realtimeClient.disconnect();
       }
     } catch {
       auth = { loading: false, logged_in: false, user: null };
-      disconnectEventsSSE();
+      realtimeClient.disconnect();
     }
   }
 
@@ -149,6 +122,7 @@
 
     return () => {
       window.removeEventListener('popstate', syncRoute);
+      realtimeClient.disconnect();
     };
   });
 </script>

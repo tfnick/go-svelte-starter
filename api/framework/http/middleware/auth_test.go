@@ -65,7 +65,7 @@ func TestRequireAuthAuthenticatesBearerToken(t *testing.T) {
 	}
 }
 
-func TestRequireAuthAuthenticatesQueryTokenForSSE(t *testing.T) {
+func TestRequireAuthAuthenticatesQueryTokenForWebSocket(t *testing.T) {
 	setupAuthMiddlewareDB(t)
 	t.Setenv(fwauth.EnvJWTSecret, "test-secret")
 
@@ -76,7 +76,7 @@ func TestRequireAuthAuthenticatesQueryTokenForSSE(t *testing.T) {
 
 	router := echo.New()
 	router.Use(RequireAuth())
-	router.GET("/api/points/sse", func(c echo.Context) error {
+	router.GET("/api/user/realtime/ws", func(c echo.Context) error {
 		user := fwcontext.GetCurrentUser(c)
 		if user == nil || user.ID != authSeedUserID {
 			t.Fatalf("expected current user %s, got %#v", authSeedUserID, user)
@@ -84,7 +84,7 @@ func TestRequireAuthAuthenticatesQueryTokenForSSE(t *testing.T) {
 		return c.NoContent(http.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/points/sse?access_token="+token.AccessToken, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/user/realtime/ws?access_token="+token.AccessToken, nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 

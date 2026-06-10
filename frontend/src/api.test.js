@@ -37,7 +37,7 @@ import {
   logout,
   oauthLoginURL,
   payOrder,
-  pointsSSEURL,
+  realtimeWebSocketURL,
   request,
   setAccessToken,
   setDictionaryTypeEnabled,
@@ -663,23 +663,23 @@ test('product api helpers use relative api paths', async () => {
   assert.equal(calls[1].options.body, JSON.stringify(payload));
 });
 
-test('points SSE helper uses the current host and HTTP scheme', () => {
+test('realtime websocket helper uses the current host and websocket scheme', () => {
   assert.equal(
-    pointsSSEURL({ protocol: 'http:', host: '127.0.0.1:5173' }),
-    'http://127.0.0.1:5173/api/user/points/sse'
+    realtimeWebSocketURL({ protocol: 'http:', host: '127.0.0.1:5173' }),
+    'ws://127.0.0.1:5173/api/user/realtime/ws'
   );
   assert.equal(
-    pointsSSEURL({ protocol: 'https:', host: 'example.com' }),
-    'https://example.com/api/user/points/sse'
+    realtimeWebSocketURL({ protocol: 'https:', host: 'example.com' }),
+    'wss://example.com/api/user/realtime/ws'
   );
 });
 
-test('points SSE helper includes stored access token', () => {
+test('realtime websocket helper includes stored access token and client id', () => {
   installMemoryStorage();
   setAccessToken('jwt socket');
 
   assert.equal(
-    pointsSSEURL({ protocol: 'http:', host: '127.0.0.1:5173' }),
-    'http://127.0.0.1:5173/api/user/points/sse?access_token=jwt+socket'
+    realtimeWebSocketURL({ protocol: 'http:', host: '127.0.0.1:5173' }, { clientId: 'client 1' }),
+    'ws://127.0.0.1:5173/api/user/realtime/ws?access_token=jwt+socket&client_id=client+1'
   );
 });

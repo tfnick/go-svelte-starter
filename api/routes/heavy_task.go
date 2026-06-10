@@ -1,17 +1,11 @@
 package routes
 
 import (
-	"fmt"
-	"net/http"
-	"time"
-
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	fwcontext "github.com/tfnick/go-svelte-starter/api/framework/http/context"
 	"github.com/tfnick/go-svelte-starter/api/framework/http/middleware"
 	fwrequest "github.com/tfnick/go-svelte-starter/api/framework/http/request"
 	httpresponse "github.com/tfnick/go-svelte-starter/api/framework/http/response"
-	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
 )
 
@@ -39,8 +33,8 @@ type TaskResponse struct {
 }
 
 type TasksResponse struct {
-	Items      []TaskResponse    `json:"items"`
-	Pagination paginationResult  `json:"pagination"`
+	Items      []TaskResponse   `json:"items"`
+	Pagination paginationResult `json:"pagination"`
 }
 
 type paginationResult struct {
@@ -130,51 +124,4 @@ func ListMyTasks(c echo.Context) error {
 	}
 
 	return httpresponse.OK(c, ToTasksResponse(tasks))
-}
-
-func UserEventsSSE(c echo.Context) error {
-	currentUser := middleware.GetCurrentUser(c)
-	if currentUser == nil {
-		return httpresponse.Unauthorized(c, "not logged in")
-	}
-
-	clientID := c.QueryParam("client_id")
-	if clientID == "" {
-		clientID = uuid.Must(uuid.NewV7()).String()
-	}
-
-	res := c.Response()
-	res.Header().Set(echo.HeaderContentType, "text/event-stream")
-	res.Header().Set(echo.HeaderCacheControl, "no-cache")
-	res.Header().Set("Connection", "keep-alive")
-	res.Header().Set("X-Accel-Buffering", "no")
-
-	flusher, ok := res.Writer.(http.Flusher)
-	if !ok {
-		return httpresponse.InternalServerError(c, fmt.Errorf("response writer does not support streaming"), "streaming unsupported")
-	}
-
-	sub := realtime.SubscribeClient(currentUser.ID, clientID)
-	defer sub.Close()
-
-	res.WriteHeader(http.StatusOK)
-
-	heartbeat := time.NewTicker(25 * time.Second)
-	defer heartbeat.Stop()
-
-	for {
-		select {
-		case message, ok := <-sub.Messages:
-			if !ok {
-				return nil
-			}
-			fmt.Fprintf(res, "data: %s\n\n", message)
-			flusher.Flush()
-		case <-heartbeat.C:
-			fmt.Fprintf(res, ": keepalive\n\n")
-			flusher.Flush()
-		case <-c.Request().Context().Done():
-			return nil
-		}
-	}
 }

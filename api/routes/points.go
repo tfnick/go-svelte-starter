@@ -1,14 +1,12 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/coder/websocket"
 	"github.com/labstack/echo/v4"
 	fwcontext "github.com/tfnick/go-svelte-starter/api/framework/http/context"
 	"github.com/tfnick/go-svelte-starter/api/framework/http/middleware"
@@ -43,7 +41,7 @@ func GetMyPoints(c echo.Context) error {
 	return httpresponse.OK(c, ToPointsResponse(points))
 }
 
-func PointsSSE(c echo.Context) error {
+func UserRealtimeWebSocket(c echo.Context) error {
 	currentUser := middleware.GetCurrentUser(c)
 	if currentUser == nil {
 		return httpresponse.Unauthorized(c, "not logged in")
@@ -56,26 +54,16 @@ func PointsSSE(c echo.Context) error {
 	}
 
 	clientID := strings.TrimSpace(c.QueryParam("client_id"))
-	if clientID == "" {
-		clientID = uuid.Must(uuid.NewV7()).String()
+
+	conn, err := websocket.Accept(c.Response(), c.Request(), &websocket.AcceptOptions{
+		OriginPatterns: []string{"127.0.0.1:5173", "localhost:5173"},
+	})
+	if err != nil {
+		return nil
 	}
+	defer conn.CloseNow()
 
-	return streamPointsSSE(c, currentUser.ID, clientID, initialPoints)
-}
-
-func streamPointsSSE(c echo.Context, userID string, clientID string, initialPoints usecase.PointsCo) error {
-	res := c.Response()
-	res.Header().Set(echo.HeaderContentType, "text/event-stream")
-	res.Header().Set(echo.HeaderCacheControl, "no-cache")
-	res.Header().Set("Connection", "keep-alive")
-	res.Header().Set("X-Accel-Buffering", "no")
-
-	flusher, ok := res.Writer.(http.Flusher)
-	if !ok {
-		return httpresponse.InternalServerError(c, fmt.Errorf("response writer does not support streaming"), "streaming unsupported")
-	}
-
-	sub := realtime.SubscribeClient(userID, clientID)
+	sub := realtime.SubscribeClient(currentUser.ID, clientID)
 	defer sub.Close()
 
 	initialMessage, err := json.Marshal(realtime.NewPointsMessage(realtime.PointsPayload{
@@ -84,14 +72,14 @@ func streamPointsSSE(c echo.Context, userID string, clientID string, initialPoin
 		Balance:  initialPoints.Balance,
 	}, ""))
 	if err != nil {
-		return httpresponse.InternalServerError(c, err, "failed to create points event")
-	}
-
-	res.WriteHeader(http.StatusOK)
-	if err := writeSSEData(res, initialMessage); err != nil {
+		_ = conn.Close(websocket.StatusInternalError, "failed to create points event")
 		return nil
 	}
-	flusher.Flush()
+
+	wsCtx := conn.CloseRead(c.Request().Context())
+	if err := writeRealtimeWebSocketMessage(wsCtx, conn, initialMessage); err != nil {
+		return nil
+	}
 
 	heartbeat := time.NewTicker(25 * time.Second)
 	defer heartbeat.Stop()
@@ -102,27 +90,19 @@ func streamPointsSSE(c echo.Context, userID string, clientID string, initialPoin
 			if !ok {
 				return nil
 			}
-			if err := writeSSEData(res, message); err != nil {
+			if err := writeRealtimeWebSocketMessage(wsCtx, conn, message); err != nil {
 				return nil
 			}
-			flusher.Flush()
 		case <-heartbeat.C:
-			if err := writeSSEComment(res, "keepalive"); err != nil {
+			if err := conn.Ping(wsCtx); err != nil {
 				return nil
 			}
-			flusher.Flush()
-		case <-c.Request().Context().Done():
+		case <-wsCtx.Done():
 			return nil
 		}
 	}
 }
 
-func writeSSEData(w io.Writer, payload []byte) error {
-	_, err := fmt.Fprintf(w, "data: %s\n\n", payload)
-	return err
-}
-
-func writeSSEComment(w io.Writer, comment string) error {
-	_, err := fmt.Fprintf(w, ": %s\n\n", comment)
-	return err
+func writeRealtimeWebSocketMessage(ctx context.Context, conn *websocket.Conn, payload []byte) error {
+	return conn.Write(ctx, websocket.MessageText, payload)
 }

@@ -12,7 +12,7 @@ import (
 
 const (
 	DictionaryTypeNotificationType = "notification_type"
-	NotificationTypeSSE            = "sse"
+	NotificationTypeRealtime       = "realtime"
 )
 
 type CreateNotificationCmd struct {
@@ -65,7 +65,7 @@ func CreateNotification(ctx fwusecase.Context, cmd CreateNotificationCmd) (Notif
 		return NotificationCo{}, err
 	}
 
-	if notification.NotificationType != NotificationTypeSSE {
+	if notification.NotificationType != NotificationTypeRealtime {
 		notification.Status = models.NotificationStatusSkipped
 	}
 
@@ -73,8 +73,8 @@ func CreateNotification(ctx fwusecase.Context, cmd CreateNotificationCmd) (Notif
 		return NotificationCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to create notification", err)
 	}
 
-	if notification.NotificationType == NotificationTypeSSE {
-		published, err := publishSSENotification(notification)
+	if notification.NotificationType == NotificationTypeRealtime {
+		published, err := publishRealtimeNotification(notification)
 		if err != nil {
 			notification.Status = models.NotificationStatusFailed
 			notification.LastError = "failed to publish realtime notification"
@@ -155,8 +155,8 @@ func notificationInput(ctx fwusecase.Context, cmd CreateNotificationCmd) (models
 	}
 
 	userID := strings.TrimSpace(cmd.UserID)
-	if notificationType == NotificationTypeSSE && userID == "" {
-		return models.Notification{}, nil, fwusecase.E(fwusecase.CodeValidation, "user ID is required for SSE notification", nil)
+	if notificationType == NotificationTypeRealtime && userID == "" {
+		return models.Notification{}, nil, fwusecase.E(fwusecase.CodeValidation, "user ID is required for realtime notification", nil)
 	}
 
 	title := strings.TrimSpace(cmd.Title)
@@ -219,7 +219,7 @@ func normalizeNotificationPayloadJSON(value string) (string, error) {
 	return string(normalized), nil
 }
 
-func publishSSENotification(notification models.Notification) (string, error) {
+func publishRealtimeNotification(notification models.Notification) (string, error) {
 	sentAt := timefmt.NowSQLiteDateTime()
 	err := realtime.Publish(notification.UserID, realtime.NewNotificationMessage(realtime.NotificationPayload{
 		ID:         notification.ID,

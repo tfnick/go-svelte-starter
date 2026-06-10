@@ -7,12 +7,13 @@
     getMyOrders,
     getMyPoints,
     getProducts,
-    pointsSSEURL
+    realtimeWebSocketURL
   } from '../api.js';
   import Notice from '../components/Notice.svelte';
   import { orderStatusLabel } from '../enums/orderStatus.ts';
   import { formatLocalDateTime } from '../helpers/dateTime.js';
   import { dispatchRealtimeMessage } from '../helpers/realtimeMessages.js';
+  import { createRealtimeWebSocketClient } from '../helpers/realtimeWebSocket.js';
 
   let { auth } = $props();
 
@@ -39,7 +40,26 @@
   let realtimeToasts = $state([]);
   let streamStatus = $state('Disconnected');
   let loadedUserId = $state('');
-  let pointsStream;
+  const pointsRealtimeClient = createRealtimeWebSocketClient({
+    url: realtimeWebSocketURL,
+    shouldReconnect: () => Boolean(loadedUserId),
+    onStatusChange(nextStatus) {
+      streamStatus = nextStatus;
+    },
+    onMessage(payload) {
+      dispatchRealtimeMessage(payload, {
+        refreshPoints(nextPoints) {
+          if (Number.isFinite(Number(nextPoints.balance))) {
+            points = Number(nextPoints.balance);
+          }
+        },
+        toast: addRealtimeToast
+      });
+    },
+    onMalformedMessage() {
+      // Ignore malformed realtime messages; HTTP refresh remains available.
+    }
+  });
 
   onDestroy(() => {
     closePointsStream();
@@ -204,39 +224,11 @@
   }
 
   function connectPointsStream() {
-    closePointsStream();
-    streamStatus = 'Connecting';
-
-    pointsStream = new EventSource(pointsSSEURL());
-    pointsStream.onopen = () => {
-      streamStatus = 'Connected';
-    };
-    pointsStream.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        dispatchRealtimeMessage(payload, {
-          refreshPoints(nextPoints) {
-            if (Number.isFinite(Number(nextPoints.balance))) {
-              points = Number(nextPoints.balance);
-            }
-          },
-          toast: addRealtimeToast
-        });
-      } catch {
-        // Ignore malformed realtime messages; HTTP refresh remains available.
-      }
-    };
-    pointsStream.onerror = () => {
-      streamStatus = 'Error';
-    };
+    pointsRealtimeClient.connect();
   }
 
   function closePointsStream(nextStatus = 'Disconnected') {
-    if (pointsStream) {
-      pointsStream.close();
-      pointsStream = undefined;
-    }
-    streamStatus = nextStatus;
+    pointsRealtimeClient.disconnect(nextStatus);
   }
 
   function addRealtimeToast(toast) {

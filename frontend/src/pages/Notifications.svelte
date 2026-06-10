@@ -141,7 +141,7 @@
   <div class="flex flex-wrap items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold leading-tight">Notification</h1>
-      <p class="mt-1 text-sm text-base-content/60">Business notification ledger and SSE delivery slice.</p>
+      <p class="mt-1 text-sm text-base-content/60">Business notification ledger and realtime delivery slice.</p>
     </div>
     <button class="btn btn-outline btn-sm" type="button" onclick={() => loadNotifications(notificationPagination.page)} disabled={loadingNotifications}>
       {#if loadingNotifications}

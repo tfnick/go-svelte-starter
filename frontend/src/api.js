@@ -478,13 +478,16 @@ export function setVariableEnabled(id, enabled) {
   });
 }
 
-export function eventsSSEURL(locationObject = globalThis.location) {
-  const protocol = locationObject?.protocol === 'https:' ? 'https:' : 'http:';
+export function realtimeWebSocketURL(locationObject = globalThis.location, options = {}) {
+  const protocol = locationObject?.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = locationObject?.host || '127.0.0.1:5173';
-  const url = new URL(`${protocol}//${host}/api/user/events`);
+  const url = new URL(`${protocol}//${host}/api/user/realtime/ws`);
   const token = getAccessToken();
   if (token) {
     url.searchParams.set('access_token', token);
+  }
+  if (options.clientId) {
+    url.searchParams.set('client_id', options.clientId);
   }
   return url.toString();
 }
@@ -517,15 +520,4 @@ export function saveWorkerLimit(limit) {
     method: 'PUT',
     body: { limit }
   });
-}
-
-export function pointsSSEURL(locationObject = globalThis.location) {
-  const protocol = locationObject?.protocol === 'https:' ? 'https:' : 'http:';
-  const host = locationObject?.host || '127.0.0.1:5173';
-  const url = new URL(`${protocol}//${host}/api/user/points/sse`);
-  const token = getAccessToken();
-  if (token) {
-    url.searchParams.set('access_token', token);
-  }
-  return url.toString();
 }

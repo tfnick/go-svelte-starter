@@ -47,7 +47,7 @@ type TaskCo struct {
 }
 
 type TasksCo struct {
-	Items      []TaskCo          `json:"items"`
+	Items      []TaskCo             `json:"items"`
 	Pagination fwusecase.PageResult `json:"pagination"`
 }
 
@@ -132,14 +132,14 @@ func HandleHeavyTaskMessage(ctx context.Context, message []byte) error {
 
 		if task.RetryCount+1 >= models.MaxAsyncTaskRetries {
 			_ = models.UpdateAsyncTaskStatus(ctx, task.ID, models.AsyncTaskStatusFailed, "{}", err.Error())
-			publishTaskSSE(task.UserID, task.ID, models.AsyncTaskStatusFailed, err.Error())
+			publishTaskRealtime(task.UserID, task.ID, models.AsyncTaskStatusFailed, err.Error())
 			return nil
 		}
 		return err
 	}
 
 	_ = models.UpdateAsyncTaskStatus(ctx, task.ID, models.AsyncTaskStatusCompleted, "{}", "")
-	publishTaskSSE(task.UserID, task.ID, models.AsyncTaskStatusCompleted, "Task completed")
+	publishTaskRealtime(task.UserID, task.ID, models.AsyncTaskStatusCompleted, "Task completed")
 	return nil
 }
 
@@ -152,7 +152,7 @@ func executeHeavyTask(ctx context.Context, msg HeavyTaskMessage) error {
 	}
 }
 
-func publishTaskSSE(userID string, taskID string, status string, message string) {
+func publishTaskRealtime(userID string, taskID string, status string, message string) {
 	_ = realtime.Publish(userID, realtime.NewMessage("heavy_task", realtime.PresentationToast, map[string]interface{}{
 		"task_id": taskID,
 		"status":  status,
