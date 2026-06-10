@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend quality checklist entry point"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend quality checklist entry point"}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Verify internal realtime API contract changes"}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Verify frontend helper and Svelte changes"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality and test expectations"}
+{"file": ".trellis/tasks/06-10-replace-sse-with-websocket/research/websocket-library-selection.md", "reason": "Verify implementation follows chosen WebSocket approach"}

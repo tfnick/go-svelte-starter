@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend guideline index for route/framework/usecase migration"}
+{"file": ".trellis/spec/backend/api-contracts.md", "reason": "Internal API contract and realtime envelope expectations"}
+{"file": ".trellis/tasks/06-10-replace-sse-with-websocket/research/websocket-library-selection.md", "reason": "Chosen WebSocket library and transport migration notes"}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Frontend API helper and Svelte/Vite conventions"}
+{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "Internal API route handler conventions for WebSocket endpoint"}
