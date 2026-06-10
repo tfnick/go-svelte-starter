@@ -91,6 +91,10 @@ export function getAuthStatus() {
   return request('/api/auth/status');
 }
 
+export function getCurrentUser() {
+  return request('/api/user/me');
+}
+
 export function login(payload) {
   return request('/api/auth/login', {
     method: 'POST',
@@ -157,7 +161,7 @@ export function resetPassword(payload) {
 }
 
 export function getUser(id) {
-  return request(`/api/users/${encodeURIComponent(id)}`);
+  return request(`/api/admin/users/${encodeURIComponent(id)}`);
 }
 
 export function listUsers(pagination = {}) {
@@ -169,11 +173,11 @@ export function listUsers(pagination = {}) {
     params.set('page_size', String(pagination.pageSize));
   }
   const query = params.toString();
-  return request(`/api/users${query ? `?${query}` : ''}`);
+  return request(`/api/admin/users${query ? `?${query}` : ''}`);
 }
 
 export function setUserActive(id, active) {
-  return request(`/api/users/${encodeURIComponent(id)}/active`, {
+  return request(`/api/admin/users/${encodeURIComponent(id)}/active`, {
     method: 'PATCH',
     body: { active }
   });
@@ -182,54 +186,54 @@ export function setUserActive(id, active) {
 export function getDictionaries(types) {
   const uniqueTypes = [...new Set((types || []).filter(Boolean))];
   const query = uniqueTypes.map((type) => encodeURIComponent(type)).join(',');
-  return request(`/api/dictionaries?types=${query}`);
+  return request(`/api/public/dictionaries?types=${query}`);
 }
 
 export function listDictionaryTypes() {
-  return request('/api/dictionary/types');
+  return request('/api/admin/dictionary/types');
 }
 
 export function createDictionaryType(payload) {
-  return request('/api/dictionary/types', {
+  return request('/api/admin/dictionary/types', {
     method: 'POST',
     body: payload
   });
 }
 
 export function updateDictionaryType(id, payload) {
-  return request(`/api/dictionary/types/${encodeURIComponent(id)}`, {
+  return request(`/api/admin/dictionary/types/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: payload
   });
 }
 
 export function setDictionaryTypeEnabled(id, enabled) {
-  return request(`/api/dictionary/types/${encodeURIComponent(id)}/enabled`, {
+  return request(`/api/admin/dictionary/types/${encodeURIComponent(id)}/enabled`, {
     method: 'PATCH',
     body: { enabled }
   });
 }
 
 export function listDictionaryValues(typeId) {
-  return request(`/api/dictionary/types/${encodeURIComponent(typeId)}/values`);
+  return request(`/api/admin/dictionary/types/${encodeURIComponent(typeId)}/values`);
 }
 
 export function createDictionaryValue(typeId, payload) {
-  return request(`/api/dictionary/types/${encodeURIComponent(typeId)}/values`, {
+  return request(`/api/admin/dictionary/types/${encodeURIComponent(typeId)}/values`, {
     method: 'POST',
     body: payload
   });
 }
 
 export function updateDictionaryValue(typeId, id, payload) {
-  return request(`/api/dictionary/types/${encodeURIComponent(typeId)}/values/${encodeURIComponent(id)}`, {
+  return request(`/api/admin/dictionary/types/${encodeURIComponent(typeId)}/values/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: payload
   });
 }
 
 export function setDictionaryValueEnabled(id, enabled) {
-  return request(`/api/dictionary/values/${encodeURIComponent(id)}/enabled`, {
+  return request(`/api/admin/dictionary/values/${encodeURIComponent(id)}/enabled`, {
     method: 'PATCH',
     body: { enabled }
   });
@@ -247,8 +251,41 @@ export function getUserOrders(userId, pagination = {}) {
   return request(`/api/orders/user/${encodeURIComponent(userId)}${query ? `?${query}` : ''}`);
 }
 
+export function getMyOrders(pagination = {}) {
+  const params = new URLSearchParams();
+  if (pagination.page) {
+    params.set('page', String(pagination.page));
+  }
+  if (pagination.pageSize) {
+    params.set('page_size', String(pagination.pageSize));
+  }
+  if (pagination.status) {
+    params.set('status', String(pagination.status));
+  }
+  const query = params.toString();
+  return request(`/api/user/orders${query ? `?${query}` : ''}`);
+}
+
+export function listAdminOrders(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.userId) {
+    params.set('user_id', String(filters.userId));
+  }
+  if (filters.status) {
+    params.set('status', String(filters.status));
+  }
+  if (filters.page) {
+    params.set('page', String(filters.page));
+  }
+  if (filters.pageSize) {
+    params.set('page_size', String(filters.pageSize));
+  }
+  const query = params.toString();
+  return request(`/api/admin/orders${query ? `?${query}` : ''}`);
+}
+
 export function createOrder(payload) {
-  return request('/api/orders', {
+  return request('/api/user/orders', {
     method: 'POST',
     body: payload
   });
@@ -267,7 +304,7 @@ export function createOrderPaymentCheckout(orderId) {
 }
 
 export function getMyPoints() {
-  return request('/api/points/me');
+  return request('/api/user/points');
 }
 
 export function getProducts() {
@@ -275,21 +312,21 @@ export function getProducts() {
 }
 
 export function createProduct(payload) {
-  return request('/api/products', {
+  return request('/api/admin/products', {
     method: 'POST',
     body: payload
   }).then((result) => result?.product || result);
 }
 
 export function updateProduct(id, payload) {
-  return request(`/api/products/${encodeURIComponent(id)}`, {
+  return request(`/api/admin/products/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: payload
   }).then((result) => result?.product || result);
 }
 
 export function triggerExportToast() {
-  return request('/api/notifications/test-export-toast', {
+  return request('/api/user/notifications/test-export-toast', {
     method: 'POST'
   });
 }
@@ -319,36 +356,36 @@ export function listNotifications(filters = {}) {
     params.set('phone', String(filters.phone));
   }
   const query = params.toString();
-  return request(`/api/notifications${query ? `?${query}` : ''}`);
+  return request(`/api/admin/notifications${query ? `?${query}` : ''}`);
 }
 
 export function listScheduledTasks() {
-  return request('/api/scheduler/tasks');
+  return request('/api/admin/scheduler/tasks');
 }
 
 export function createScheduledTask(payload) {
-  return request('/api/scheduler/tasks', {
+  return request('/api/admin/scheduler/tasks', {
     method: 'POST',
     body: payload
   });
 }
 
 export function updateScheduledTask(id, payload) {
-  return request(`/api/scheduler/tasks/${encodeURIComponent(id)}`, {
+  return request(`/api/admin/scheduler/tasks/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: payload
   });
 }
 
 export function setScheduledTaskEnabled(id, enabled) {
-  return request(`/api/scheduler/tasks/${encodeURIComponent(id)}/enabled`, {
+  return request(`/api/admin/scheduler/tasks/${encodeURIComponent(id)}/enabled`, {
     method: 'PATCH',
     body: { enabled }
   });
 }
 
 export function listScheduledTaskHistory(id) {
-  return request(`/api/scheduler/tasks/${encodeURIComponent(id)}/history`);
+  return request(`/api/admin/scheduler/tasks/${encodeURIComponent(id)}/history`);
 }
 
 export function listEvents(pagination = {}) {
@@ -360,91 +397,132 @@ export function listEvents(pagination = {}) {
     params.set('page_size', String(pagination.pageSize));
   }
   const query = params.toString();
-  return request(`/api/events${query ? `?${query}` : ''}`);
+  return request(`/api/admin/events${query ? `?${query}` : ''}`);
 }
 
 export function listEventDeliveries(eventId) {
-  return request(`/api/events/${encodeURIComponent(eventId)}/deliveries`);
+  return request(`/api/admin/events/${encodeURIComponent(eventId)}/deliveries`);
 }
 
 export function listMessages(queue = '') {
   const query = queue ? `?queue=${encodeURIComponent(queue)}` : '';
-  return request(`/api/messages${query}`);
+  return request(`/api/admin/messages${query}`);
 }
 
 export function listParameterIntegrationChannels(scenario) {
   const query = scenario ? `?scenario=${encodeURIComponent(scenario)}` : '';
-  return request(`/api/parameters/integration-channels${query}`);
+  return request(`/api/admin/parameters/integration-channels${query}`);
 }
 
 export function listParameterIntegrationSchemas(scenario) {
   const query = scenario ? `?scenario=${encodeURIComponent(scenario)}` : '';
-  return request(`/api/parameters/integration-schemas${query}`);
+  return request(`/api/admin/parameters/integration-schemas${query}`);
 }
 
 export function createParameterIntegrationChannel(payload) {
-  return request('/api/parameters/integration-channels', {
+  return request('/api/admin/parameters/integration-channels', {
     method: 'POST',
     body: payload
   });
 }
 
 export function updateParameterIntegrationChannel(id, payload) {
-  return request(`/api/parameters/integration-channels/${encodeURIComponent(id)}`, {
+  return request(`/api/admin/parameters/integration-channels/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: payload
   });
 }
 
 export function setParameterIntegrationChannelEnabled(id, enabled) {
-  return request(`/api/parameters/integration-channels/${encodeURIComponent(id)}/enabled`, {
+  return request(`/api/admin/parameters/integration-channels/${encodeURIComponent(id)}/enabled`, {
     method: 'PATCH',
     body: { enabled }
   });
 }
 
 export function getSiteSettings() {
-  return request('/api/settings/site');
+  return request('/api/public/settings/site');
 }
 
 export function uploadSiteLogo(file) {
   const form = new FormData();
   form.set('logo', file);
-  return request('/api/settings/site/logo', {
+  return request('/api/admin/settings/site/logo', {
     method: 'POST',
     body: form
   });
 }
 
 export function listVariables() {
-  return request('/api/variables');
+  return request('/api/admin/variables');
 }
 
 export function createVariable(payload) {
-  return request('/api/variables', {
+  return request('/api/admin/variables', {
     method: 'POST',
     body: payload
   });
 }
 
 export function updateVariable(id, payload) {
-  return request(`/api/variables/${encodeURIComponent(id)}`, {
+  return request(`/api/admin/variables/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: payload
   });
 }
 
 export function setVariableEnabled(id, enabled) {
-  return request(`/api/variables/${encodeURIComponent(id)}/enabled`, {
+  return request(`/api/admin/variables/${encodeURIComponent(id)}/enabled`, {
     method: 'PATCH',
     body: { enabled }
+  });
+}
+
+export function eventsSSEURL(locationObject = globalThis.location) {
+  const protocol = locationObject?.protocol === 'https:' ? 'https:' : 'http:';
+  const host = locationObject?.host || '127.0.0.1:5173';
+  const url = new URL(`${protocol}//${host}/api/user/events`);
+  const token = getAccessToken();
+  if (token) {
+    url.searchParams.set('access_token', token);
+  }
+  return url.toString();
+}
+
+export function enqueueTask(payload) {
+  return request('/api/user/tasks', {
+    method: 'POST',
+    body: payload
+  });
+}
+
+export function listMyTasks(pagination = {}) {
+  const params = new URLSearchParams();
+  if (pagination.page) {
+    params.set('page', String(pagination.page));
+  }
+  if (pagination.pageSize) {
+    params.set('page_size', String(pagination.pageSize));
+  }
+  const query = params.toString();
+  return request(`/api/user/tasks${query ? `?${query}` : ''}`);
+}
+
+export function getWorkerLimit() {
+  return request('/api/admin/settings/worker-limit');
+}
+
+export function saveWorkerLimit(limit) {
+  return request('/api/admin/settings/worker-limit', {
+    method: 'PUT',
+    body: { limit }
   });
 }
 
 export function pointsSSEURL(locationObject = globalThis.location) {
   const protocol = locationObject?.protocol === 'https:' ? 'https:' : 'http:';
   const host = locationObject?.host || '127.0.0.1:5173';
-  const url = new URL(`${protocol}//${host}/api/points/sse`);
+  const url = new URL(`${protocol}//${host}/api/user/points/sse`);
   const token = getAccessToken();
   if (token) {
     url.searchParams.set('access_token', token);

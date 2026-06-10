@@ -168,8 +168,11 @@ func main() {
 
 		api.GET("/auth/status", user.GetAuthStatus, authMiddleware.OptionalAuth())
 		api.GET("/dictionaries", user.GetDictionaries)
+		api.GET("/public/dictionaries", user.GetDictionaries)
 		api.GET("/settings/site", user.GetSiteSettings)
+		api.GET("/public/settings/site", user.GetSiteSettings)
 		api.GET("/settings/public/logo", user.GetPublicSiteLogo)
+		api.GET("/public/settings/logo", user.GetPublicSiteLogo)
 
 		// integration webhooks 是一类特殊的api接口，通常是按照第三方的标准来设计的，不走api routes的认证
 		api.POST("/integrations/payment/:channel_code/webhooks/creem", user.ReceivePaymentWebhook)
@@ -180,68 +183,119 @@ func main() {
 		{
 			protected.POST("/auth/logout", user.Logout)
 			protected.GET("/auth/me", user.GetCurrentUser)
-
-			protected.GET("/users", user.GetAllUsers)
-			protected.GET("/users/:id", user.GetUser)
-			protected.POST("/users", user.CreateUser)
-			protected.PUT("/users/:id", user.UpdateUser)
-			protected.PATCH("/users/:id/active", user.SetUserActive)
-			protected.DELETE("/users/:id", user.DeleteUser)
+			protected.GET("/user/me", user.GetCurrentUser)
 
 			protected.POST("/orders", user.CreateOrder)
+			protected.POST("/user/orders", user.CreateMyOrder)
 			protected.POST("/orders/:id/pay", user.PayOrder)
 			protected.POST("/orders/:id/payment-checkout", user.CreateOrderPaymentCheckout)
-			protected.GET("/orders/user/:user_id", user.GetUserOrders)
+			protected.GET("/user/orders", user.ListMyOrders)
+			protected.GET("/orders/user/:user_id", user.GetUserOrders, user.RequireLegacyUserOrdersAccess)
 			protected.GET("/orders/:id", user.GetOrderDetail)
-			protected.PATCH("/orders/:id/status", user.UpdateOrderStatus)
 
 			protected.GET("/points/me", user.GetMyPoints)
+			protected.GET("/user/points", user.GetMyPoints)
 			protected.GET("/points/sse", user.PointsSSE)
+			protected.GET("/user/points/sse", user.PointsSSE)
 
 			protected.POST("/notifications/test-export-toast", user.TriggerExportToast)
+			protected.POST("/user/notifications/test-export-toast", user.TriggerExportToast)
 
 			protected.GET("/products", user.ListProducts)
-			protected.POST("/products", user.CreateProduct)
-			protected.PUT("/products/:id", user.UpdateProduct)
-
-			protected.POST("/admin/reload-shared-db", user.ReloadSharedDB)
-
-			protected.GET("/scheduler/tasks", user.ListScheduledTasks)
-			protected.POST("/scheduler/tasks", user.CreateScheduledTask)
-			protected.PUT("/scheduler/tasks/:id", user.UpdateScheduledTask)
-			protected.PATCH("/scheduler/tasks/:id/enabled", user.SetScheduledTaskEnabled)
-			protected.GET("/scheduler/tasks/:id/history", user.ListScheduledTaskHistory)
-
-			protected.GET("/events", user.ListDomainEvents)
-			protected.GET("/events/:id/deliveries", user.ListDomainEventDeliveries)
-
-			protected.GET("/messages", user.ListMessages)
-
-			protected.GET("/dictionary/types", user.ListDictionaryTypes)
-			protected.POST("/dictionary/types", user.CreateDictionaryType)
-			protected.PUT("/dictionary/types/:id", user.UpdateDictionaryType)
-			protected.PATCH("/dictionary/types/:id/enabled", user.SetDictionaryTypeEnabled)
-			protected.GET("/dictionary/types/:type_id/values", user.ListDictionaryValues)
-			protected.POST("/dictionary/types/:type_id/values", user.CreateDictionaryValue)
-			protected.PUT("/dictionary/types/:type_id/values/:id", user.UpdateDictionaryValue)
-			protected.PATCH("/dictionary/values/:id/enabled", user.SetDictionaryValueEnabled)
 
 			admin := protected.Group("")
 			admin.Use(authMiddleware.RequireAdmin())
+			admin.POST("/admin/reload-shared-db", user.ReloadSharedDB)
+
+			admin.GET("/admin/orders", user.ListAdminOrders)
+			admin.PATCH("/admin/orders/:id/status", user.UpdateOrderStatus)
+			admin.PATCH("/orders/:id/status", user.UpdateOrderStatus)
+
+			admin.GET("/admin/users", user.GetAllUsers)
+			admin.GET("/admin/users/:id", user.GetUser)
+			admin.POST("/admin/users", user.CreateUser)
+			admin.PUT("/admin/users/:id", user.UpdateUser)
+			admin.PATCH("/admin/users/:id/active", user.SetUserActive)
+			admin.DELETE("/admin/users/:id", user.DeleteUser)
+			admin.GET("/users", user.GetAllUsers)
+			admin.GET("/users/:id", user.GetUser)
+			admin.POST("/users", user.CreateUser)
+			admin.PUT("/users/:id", user.UpdateUser)
+			admin.PATCH("/users/:id/active", user.SetUserActive)
+			admin.DELETE("/users/:id", user.DeleteUser)
+
+			admin.POST("/products", user.CreateProduct)
+			admin.PUT("/products/:id", user.UpdateProduct)
+			admin.POST("/admin/products", user.CreateProduct)
+			admin.PUT("/admin/products/:id", user.UpdateProduct)
+
+			admin.GET("/admin/scheduler/tasks", user.ListScheduledTasks)
+			admin.POST("/admin/scheduler/tasks", user.CreateScheduledTask)
+			admin.PUT("/admin/scheduler/tasks/:id", user.UpdateScheduledTask)
+			admin.PATCH("/admin/scheduler/tasks/:id/enabled", user.SetScheduledTaskEnabled)
+			admin.GET("/admin/scheduler/tasks/:id/history", user.ListScheduledTaskHistory)
+			admin.GET("/scheduler/tasks", user.ListScheduledTasks)
+			admin.POST("/scheduler/tasks", user.CreateScheduledTask)
+			admin.PUT("/scheduler/tasks/:id", user.UpdateScheduledTask)
+			admin.PATCH("/scheduler/tasks/:id/enabled", user.SetScheduledTaskEnabled)
+			admin.GET("/scheduler/tasks/:id/history", user.ListScheduledTaskHistory)
+
+			admin.GET("/admin/events", user.ListDomainEvents)
+			admin.GET("/admin/events/:id/deliveries", user.ListDomainEventDeliveries)
+			admin.GET("/events", user.ListDomainEvents)
+			admin.GET("/events/:id/deliveries", user.ListDomainEventDeliveries)
+
+			admin.GET("/admin/messages", user.ListMessages)
+			admin.GET("/messages", user.ListMessages)
+
+			admin.GET("/admin/dictionary/types", user.ListDictionaryTypes)
+			admin.POST("/admin/dictionary/types", user.CreateDictionaryType)
+			admin.PUT("/admin/dictionary/types/:id", user.UpdateDictionaryType)
+			admin.PATCH("/admin/dictionary/types/:id/enabled", user.SetDictionaryTypeEnabled)
+			admin.GET("/admin/dictionary/types/:type_id/values", user.ListDictionaryValues)
+			admin.POST("/admin/dictionary/types/:type_id/values", user.CreateDictionaryValue)
+			admin.PUT("/admin/dictionary/types/:type_id/values/:id", user.UpdateDictionaryValue)
+			admin.PATCH("/admin/dictionary/values/:id/enabled", user.SetDictionaryValueEnabled)
+			admin.GET("/dictionary/types", user.ListDictionaryTypes)
+			admin.POST("/dictionary/types", user.CreateDictionaryType)
+			admin.PUT("/dictionary/types/:id", user.UpdateDictionaryType)
+			admin.PATCH("/dictionary/types/:id/enabled", user.SetDictionaryTypeEnabled)
+			admin.GET("/dictionary/types/:type_id/values", user.ListDictionaryValues)
+			admin.POST("/dictionary/types/:type_id/values", user.CreateDictionaryValue)
+			admin.PUT("/dictionary/types/:type_id/values/:id", user.UpdateDictionaryValue)
+			admin.PATCH("/dictionary/values/:id/enabled", user.SetDictionaryValueEnabled)
+
+			admin.GET("/admin/parameters/integration-schemas", user.ListParameterIntegrationSchemas)
+			admin.GET("/admin/parameters/integration-channels", user.ListParameterIntegrationChannels)
+			admin.POST("/admin/parameters/integration-channels", user.CreateParameterIntegrationChannel)
+			admin.PUT("/admin/parameters/integration-channels/:id", user.UpdateParameterIntegrationChannel)
+			admin.PATCH("/admin/parameters/integration-channels/:id/enabled", user.SetParameterIntegrationChannelEnabled)
 			admin.GET("/parameters/integration-schemas", user.ListParameterIntegrationSchemas)
 			admin.GET("/parameters/integration-channels", user.ListParameterIntegrationChannels)
 			admin.POST("/parameters/integration-channels", user.CreateParameterIntegrationChannel)
 			admin.PUT("/parameters/integration-channels/:id", user.UpdateParameterIntegrationChannel)
 			admin.PATCH("/parameters/integration-channels/:id/enabled", user.SetParameterIntegrationChannelEnabled)
+			admin.GET("/admin/notifications", user.ListNotifications)
 			admin.GET("/notifications", user.ListNotifications)
+			admin.POST("/admin/settings/site/logo", user.UploadSiteLogo)
 			admin.POST("/settings/site/logo", user.UploadSiteLogo)
+			admin.GET("/admin/settings/worker-limit", user.GetWorkerLimit)
+			admin.PUT("/admin/settings/worker-limit", user.SaveWorkerLimit)
 
-			protected.GET("/variables", user.ListVariables)
-			protected.POST("/variables", user.CreateVariable)
-			protected.PUT("/variables/:id", user.UpdateVariable)
-			protected.PATCH("/variables/:id/enabled", user.SetVariableEnabled)
+			admin.GET("/admin/variables", user.ListVariables)
+			admin.POST("/admin/variables", user.CreateVariable)
+			admin.PUT("/admin/variables/:id", user.UpdateVariable)
+			admin.PATCH("/admin/variables/:id/enabled", user.SetVariableEnabled)
+			admin.GET("/variables", user.ListVariables)
+			admin.POST("/variables", user.CreateVariable)
+			admin.PUT("/variables/:id", user.UpdateVariable)
+			admin.PATCH("/variables/:id/enabled", user.SetVariableEnabled)
 
 			protected.POST("/llm/summaries", user.SummarizeTextWithLLM)
+
+			protected.GET("/user/events", user.UserEventsSSE)
+			protected.POST("/user/tasks", user.EnqueueTask)
+			protected.GET("/user/tasks", user.ListMyTasks)
 		}
 
 	}
@@ -306,6 +360,18 @@ func startQueueRunners(ctx context.Context, queueManager *queue.Manager, logger 
 	}
 	webhookRunner.Register(appusecase.HandlePaymentWebhookJob)
 	go webhookRunner.Start(ctx)
+
+	workerLimit, loadErr := appusecase.GetWorkerLimit(fwusecase.NewContext(ctx, fwusecase.SurfaceSystem))
+	if loadErr != nil {
+		logger.Warn().Err(loadErr).Msg("failed to load worker limit, using default 1")
+		workerLimit = 1
+	}
+	heavyTaskRunner, err := queueManager.NewJSONRunner(queue.QueueHeavyTasks, workerLimit, 500*time.Millisecond)
+	if err != nil {
+		return err
+	}
+	heavyTaskRunner.Register(appusecase.HandleHeavyTaskMessage)
+	go heavyTaskRunner.Start(ctx)
 
 	go runSchedulerLoop(ctx, logger, time.Minute)
 	return nil

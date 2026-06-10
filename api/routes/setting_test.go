@@ -111,7 +111,7 @@ func TestUploadSiteLogoReturnsConfiguredLogoDTO(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if !envelope.Success || !envelope.Data.LogoConfigured || !strings.HasPrefix(envelope.Data.LogoURL, "/api/settings/public/logo?v=") {
+	if !envelope.Success || !envelope.Data.LogoConfigured || !strings.HasPrefix(envelope.Data.LogoURL, "/api/public/settings/logo?v=") {
 		t.Fatalf("unexpected upload response: %s", rec.Body.String())
 	}
 	if !envelope.Data.LogoUploadAvailable || envelope.Data.LogoUploadUnavailableReason != "" {

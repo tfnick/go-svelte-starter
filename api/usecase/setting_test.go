@@ -125,7 +125,7 @@ func TestSaveSiteLogoUsesOSSPortAndPersistsMetadata(t *testing.T) {
 	if adapter.putConfig.UsePathStyle == nil || !*adapter.putConfig.UsePathStyle {
 		t.Fatalf("expected primary OSS path-style config, got %#v", adapter.putConfig)
 	}
-	if !settings.LogoConfigured || !strings.HasPrefix(settings.LogoURL, "/api/settings/public/logo?v=") {
+	if !settings.LogoConfigured || !strings.HasPrefix(settings.LogoURL, "/api/public/settings/logo?v=") {
 		t.Fatalf("expected configured logo URL, got %#v", settings)
 	}
 	if !settings.LogoUploadAvailable || settings.LogoUploadUnavailableReason != "" {

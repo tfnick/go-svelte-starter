@@ -185,10 +185,10 @@ names, err := translate.Resolve(ctx.Std(), func(batch *namelookup.Batch) {
 
 * `POST /api/auth/logout` 返回 `data.message`，服务端不保存 JWT session，前端负责丢弃本地 token。
 * `GET /api/auth/status` 返回 `{logged_in:boolean, user?:{id,name}}`。
-* `GET /api/auth/me` 返回 `{user:{id,name,email,email_verified}}`。
+* `GET /api/user/me` 返回 `{user:{id,name,email,email_verified}}`；legacy `GET /api/auth/me` 迁移期保留。
 * User detail/create/update/delete 返回 `UserResponse` 或空响应；User 管理列表使用分页 envelope。
-* `GET /api/users?page=1&page_size=10` 返回 `UsersResponse`，其中 `items` 为 `[]UserResponse`，`pagination` 遵守 [Pagination Contract](#pagination-contract)。
-* `PATCH /api/users/:id/active` 用于启用/禁用用户，request body 为 `{active:boolean}`，返回更新后的 `UserResponse`。
+* `GET /api/admin/users?page=1&page_size=10` 返回 `UsersResponse`，其中 `items` 为 `[]UserResponse`，`pagination` 遵守 [Pagination Contract](#pagination-contract)。legacy `/api/users` 迁移期保留，但也必须走 admin gate。
+* `PATCH /api/admin/users/:id/active` 用于启用/禁用用户，request body 为 `{active:boolean}`，返回更新后的 `UserResponse`。legacy `/api/users/:id/active` 迁移期保留，但也必须走 admin gate。
 * 禁用用户沿用 `users.is_active=0` 语义；登录和受保护 API 已通过 auth/usecase/middleware 拒绝 disabled user。
 
 敏感字段永远不能出现在 DTO 中：
@@ -322,20 +322,23 @@ return c.Redirect(http.StatusFound, "/login/oauth/callback?"+values.Encode())
 * `CreateOrderResponse` 是 create route 的 wrapper，包含 `message` 和 `order`。
 * `PayOrderResponse` 是 pay route 的 wrapper，包含 `message` 和 `order`。支付成功必须通过 `POST /api/orders/:id/pay`，不能通过 `PATCH /api/orders/:id/status` 直接设置 `paid`。
 * `OrderDetailResponse` 是 detail route 的 wrapper，包含 `order` 和 `items`。
-* 订单 list 使用 `GET /api/orders/user/:user_id?page=1&page_size=10`，返回 `UserOrdersResponse`，其中 `items` 为 `[]OrderResponse`，`pagination` 遵守 [Pagination Contract](#pagination-contract)。
+* 当前用户下单使用 `POST /api/user/orders`，request 不接受 owner 语义的 `user_id`；route 必须从 current user 推导 `CreateOrderCmd.UserID`。legacy `POST /api/orders` 迁移期保留，但必须限制为 `body.user_id == current user` 或 admin。
+* 当前用户订单 list 使用 `GET /api/user/orders?page=1&page_size=10&status=pending`，返回 `UserOrdersResponse`，其中 `items` 为 `[]OrderResponse`，`pagination` 遵守 [Pagination Contract](#pagination-contract)。owner 过滤必须来自当前 `ctx.Actor.UserID`，不能由客户端传入。
+* 管理端订单 list 使用 `GET /api/admin/orders?user_id=<id>&status=pending&page=1&page_size=10`，必须 admin，可选按 `user_id` 和 `status` 筛选。
+* Legacy 订单 list 路径 `GET /api/orders/user/:user_id` 仅迁移期保留，必须限制为 `:user_id == ctx.Actor.UserID` 或 `ctx.Actor.IsAdmin == true`。
 * `UpdateOrderStatus` 返回 `data.message`。
-* Creem checkout MVP 中，`POST /api/orders` 只要求 `user_id`，创建 `pending` 本地订单台账；`items` 可作为 legacy payload 被接受，但当前支付流不使用本地 `product_id`、`quantity`、`products.stock` 或本地价格。
+* Creem checkout MVP 中，`POST /api/user/orders` 只要求 `product_id`，创建 `pending` 本地订单台账；`items` 可作为 legacy payload 被接受，但当前支付流不使用本地 `quantity`、`products.stock` 或本地价格。
 * 新建 Creem checkout 台账订单的 `amount` 可以为 `0`；真实收费金额由 Creem checkout 的配置产品决定，前端不应把本地 `0` 渲染成实际收费金额。
 
 产品列表通过 `GET /api/products` 返回 `[]ProductResponse`，用于 legacy/demo/admin 商品展示。产品 DTO 只暴露 `id`、`name`、`description`、`price`、`stock`，不返回 `models.Product`。
 
 积分相关内部响应当前规则：
 
-* `GET /api/points/me` 返回 `PointsResponse`，字段为 `user_id` 和 `balance`。
-* `GET /api/points/sse?access_token=<jwt>` 是 SSE stream endpoint，不使用 HTTP JSON envelope；连接成功后以 `data: ...` 推送 realtime envelope，例如 `{"type":"points","presentation":"refresh","payload":{"user_id":"...","client_id":"...","balance":10}}`。
-* `POST /api/notifications/test-export-toast` 是登录态验证入口，返回 `data.message`，并向当前用户发布 `async_export_task` + `toast` realtime envelope。
+* `GET /api/user/points` 返回 `PointsResponse`，字段为 `user_id` 和 `balance`；legacy `GET /api/points/me` 迁移期保留。
+* `GET /api/user/points/sse?access_token=<jwt>` 是 SSE stream endpoint，不使用 HTTP JSON envelope；legacy `GET /api/points/sse` 迁移期保留。连接成功后以 `data: ...` 推送 realtime envelope，例如 `{"type":"points","presentation":"refresh","payload":{"user_id":"...","client_id":"...","balance":10}}`。
+* `POST /api/user/notifications/test-export-toast` 是登录态验证入口，返回 `data.message`，并向当前用户发布 `async_export_task` + `toast` realtime envelope；legacy `/api/notifications/test-export-toast` 迁移期保留。
 
-Admin 当前只提供 `POST /api/admin/reload-shared-db`，返回 message。未来如果 admin 返回资源数据，再在 `api/routes/admin.go` 中新增明确 DTO。
+Admin routes 统一放在 `/api/admin/...`；legacy 管理路径迁移期可以保留，但必须挂在 `RequireAdmin()` 后。当前包括 users、orders status、dictionary management、products write、scheduler、events、messages、parameters、notifications、settings upload、variables 和 `POST /api/admin/reload-shared-db`。
 
 ---
 
@@ -450,15 +453,15 @@ return httpresponse.OK(c, ToLLMSummaryResponse(summary))
 
 ### 1. Scope / Trigger
 
-修改 User 管理页面、`GET /api/users` 分页契约、`users.is_active` 启禁用语义、或前端 `listUsers` / `setUserActive` helper 时，遵守本节。
+修改 User 管理页面、`GET /api/admin/users` 分页契约、`users.is_active` 启禁用语义、或前端 `listUsers` / `setUserActive` helper 时，遵守本节。
 
 ### 2. Signatures
 
 Backend API:
 
 ```text
-GET /api/users?page=1&page_size=10
-PATCH /api/users/:id/active
+GET /api/admin/users?page=1&page_size=10
+PATCH /api/admin/users/:id/active
 ```
 
 Patch request:
@@ -492,11 +495,11 @@ users(id, name, email, password_hash, email_verified, is_active, created_at, upd
 
 ### 3. Contracts
 
-* `GET /api/users` uses [Pagination Contract](#pagination-contract) and returns `UsersResponse`.
+* `GET /api/admin/users` uses [Pagination Contract](#pagination-contract) and returns `UsersResponse`.
 * `UsersResponse.items` is `[]UserResponse` with `id`, `name`, `email`, `email_verified`, `is_active`, `created_at`, and `updated_at`.
 * `UserResponse` must never include `password_hash`, reset tokens, sessions, or JWT details.
 * User list ordering must be stable: `ORDER BY created_at DESC, id DESC`.
-* `PATCH /api/users/:id/active` only mutates `users.is_active` and `updated_at`; it does not delete rows or change profile fields.
+* `PATCH /api/admin/users/:id/active` only mutates `users.is_active` and `updated_at`; it does not delete rows or change profile fields.
 * Disabling the current logged-in user is forbidden. Usecase checks `ctx.Actor.UserID` and returns validation error before touching storage.
 * A disabled user cannot log in and cannot continue using protected API requests because auth middleware reloads the user and checks `is_active`.
 * route layer uses route-local DTOs and `httpresponse.OK`; it must not return `models.User` directly.
@@ -513,11 +516,11 @@ users(id, name, email, password_hash, email_verified, is_active, created_at, upd
 
 ### 5. Good/Base/Bad Cases
 
-Good: User page calls `GET /api/users?page=1&page_size=10`, then calls `PATCH /api/users/:id/active` from a row action and refreshes the current page.
+Good: User page calls `GET /api/admin/users?page=1&page_size=10`, then calls `PATCH /api/admin/users/:id/active` from a row action and refreshes the current page.
 
 Base: Re-enabling a disabled user returns the updated `UserResponse` with `is_active:true`; the page refreshes the row/list.
 
-Bad: Use `DELETE /api/users/:id` to disable a user; this removes the row and breaks account history and foreign-key relationships.
+Bad: Use `DELETE /api/admin/users/:id` to disable a user; this removes the row and breaks account history and foreign-key relationships.
 
 ### 6. Tests Required
 
@@ -570,8 +573,8 @@ user, err := usecase.SetUserActive(ctx, usecase.SetUserActiveCmd{
 Backend API:
 
 ```text
-GET /api/events?page=1&page_size=10
-GET /api/events/:id/deliveries
+GET /api/admin/events?page=1&page_size=10
+GET /api/admin/events/:id/deliveries
 ```
 
 Usecase:
@@ -599,9 +602,9 @@ domain_event_deliveries(id, event_id, subscriber, message_id, status, attempts, 
 
 ### 3. Contracts
 
-* `GET /api/events` uses [Pagination Contract](#pagination-contract) and returns `DomainEventsResponse`.
+* `GET /api/admin/events` uses [Pagination Contract](#pagination-contract) and returns `DomainEventsResponse`.
 * `DomainEventsResponse.items` is `[]DomainEventResponse` with `id`, `topic`, `aggregate_type`, `aggregate_id`, `payload_json`, `metadata_json`, `occurred_at`, and `created_at`.
-* `GET /api/events/:id/deliveries` returns `[]DomainEventDeliveryResponse` with `id`, `event_id`, `subscriber`, `message_id`, `status`, `attempts`, `last_error`, `created_at`, and `updated_at`.
+* `GET /api/admin/events/:id/deliveries` returns `[]DomainEventDeliveryResponse` with `id`, `event_id`, `subscriber`, `message_id`, `status`, `attempts`, `last_error`, `created_at`, and `updated_at`.
 * Event management API is read-only: no replay, no retry, and no delivery state mutation.
 * Event list ordering must be stable: `ORDER BY created_at DESC, id DESC`.
 * Delivery list is queried by one event id and ordered for fan-out scanning: `ORDER BY created_at ASC, subscriber ASC`.
@@ -618,7 +621,7 @@ domain_event_deliveries(id, event_id, subscriber, message_id, status, attempts, 
 
 ### 5. Good/Base/Bad Cases
 
-Good: Event page calls `GET /api/events?page=1&page_size=10`, then lazy-loads `GET /api/events/:id/deliveries` when the user selects an event.
+Good: Event page calls `GET /api/admin/events?page=1&page_size=10`, then lazy-loads `GET /api/admin/events/:id/deliveries` when the user selects an event.
 
 Base: An event with no delivery rows returns an empty list and the page shows an empty state; do not treat this as 404.
 
@@ -798,14 +801,14 @@ notification, err := usecase.CreateNotification(ctx, usecase.CreateNotificationC
 
 ### 1. Scope / Trigger
 
-Modify Dictionary management, `/api/dictionary*` routes, `/api/dictionaries` lookup behavior, `dictionary_types` / `dictionary_values` DB schema, or frontend dictionary helpers according to this section. Dictionaries provide selectable values for UI and business forms; they are not credential or secret storage.
+Modify Dictionary management, `/api/dictionary*` routes, `/api/public/dictionaries` lookup behavior, `dictionary_types` / `dictionary_values` DB schema, or frontend dictionary helpers according to this section. Dictionaries provide selectable values for UI and business forms; they are not credential or secret storage.
 
 ### 2. Signatures
 
 Lookup API:
 
 ```text
-GET /api/dictionaries?types=product_category,region
+GET /api/public/dictionaries?types=product_category,region
 ```
 
 Management API:
@@ -854,7 +857,7 @@ dictionary_values(id, dictionary_type_id, value_code, label, sort_order, enabled
 
 ### 3. Contracts
 
-* Existing `GET /api/dictionaries?types=...` response shape stays `{dictionaries:{type:[{value,label}]}}`.
+* Existing `GET /api/public/dictionaries?types=...` response shape stays `{dictionaries:{type:[{value,label}]}}`.
 * Lookup API returns only enabled dictionary types and enabled dictionary values.
 * Lookup API returns an empty array for a requested missing or disabled type.
 * `type_key` and `value_code` are normalized to lowercase and must match `^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`.
@@ -916,18 +919,18 @@ return httpresponse.Created(c, toDictionaryValueResponse(value))
 
 ### 1. Scope / Trigger
 
-Modify `Parameter` management, external integration channel configuration, credential write boundaries, adapter schema registry, `/api/parameters/*` routes, or frontend parameter helpers according to this section. This scenario is the management-surface slice of the external integration anti-corruption layer.
+Modify `Parameter` management, external integration channel configuration, credential write boundaries, adapter schema registry, `/api/admin/parameters/*` routes, or frontend parameter helpers according to this section. This scenario is the management-surface slice of the external integration anti-corruption layer.
 
 ### 2. Signatures
 
 Backend API:
 
 ```text
-GET   /api/parameters/integration-schemas?scenario=payment|llm|sms|email|oss
-GET   /api/parameters/integration-channels?scenario=payment|llm|sms|email|oss
-POST  /api/parameters/integration-channels
-PUT   /api/parameters/integration-channels/:id
-PATCH /api/parameters/integration-channels/:id/enabled
+GET   /api/admin/parameters/integration-schemas?scenario=payment|llm|sms|email|oss
+GET   /api/admin/parameters/integration-channels?scenario=payment|llm|sms|email|oss
+POST  /api/admin/parameters/integration-channels
+PUT   /api/admin/parameters/integration-channels/:id
+PATCH /api/admin/parameters/integration-channels/:id/enabled
 ```
 
 Request DTO:
@@ -978,7 +981,7 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_acce
 
 #### Adapter Schema Contract
 
-* `GET /api/parameters/integration-schemas` 返回 code-owned adapter schema DTO；该 DTO 用于前端动态渲染，也用于后端保存时校验。
+* `GET /api/admin/parameters/integration-schemas` 返回 code-owned adapter schema DTO；该 DTO 用于前端动态渲染，也用于后端保存时校验。
 * schema 按 `adapter_key` 定义，DB 只存 `adapter_key` 字符串，不存可执行逻辑。
 * schema DTO 字段包括 `scenario`、`adapter_key`、`label`、`description`、`provider_code`、`credential_type`、`credential_format`、`advanced_json`、`config_fields`、`credential_fields`。
 * field DTO 字段包括 `key`、`label`、`kind`、`required`、`placeholder`、`help_text`、`default_value`、`dictionary_type`、`sensitive`、`options`。
@@ -1271,17 +1274,17 @@ http.NewRequestWithContext(ctx, http.MethodPost, cancelURL, body)
 
 ### 1. Scope / Trigger
 
-Modify Variable management, typed application configuration, `/api/variables*` routes, `variables` DB schema, or frontend variable helpers according to this section. Variables are app-level configuration records used as global parameters or logic-control inputs; they are not encrypted credentials and should not store secrets.
+Modify Variable management, typed application configuration, `/api/admin/variables*` routes, `variables` DB schema, or frontend variable helpers according to this section. Variables are app-level configuration records used as global parameters or logic-control inputs; they are not encrypted credentials and should not store secrets.
 
 ### 2. Signatures
 
 Backend API:
 
 ```text
-GET   /api/variables
-POST  /api/variables
-PUT   /api/variables/:id
-PATCH /api/variables/:id/enabled
+GET   /api/admin/variables
+POST  /api/admin/variables
+PUT   /api/admin/variables/:id
+PATCH /api/admin/variables/:id/enabled
 ```
 
 Request DTO:
@@ -1413,13 +1416,19 @@ return httpresponse.Created(c, toVariableResponse(variable))
 后端 API：
 
 ```text
-POST /api/orders
+GET  /api/user/orders?page=1&page_size=10&status=pending
+GET  /api/admin/orders?user_id=<id>&status=pending&page=1&page_size=10
+GET  /api/orders/user/:user_id?page=1&page_size=10        # legacy guarded
+POST /api/user/orders
+POST /api/orders                                           # legacy guarded
 POST /api/orders/:id/payment-checkout
 POST /api/orders/:id/pay
-GET  /api/points/me
-GET  /api/points/sse?access_token=<jwt>
-POST /api/notifications/test-export-toast
+GET  /api/user/points
+GET  /api/user/points/sse?access_token=<jwt>
+POST /api/user/notifications/test-export-toast
 GET  /api/products
+POST /api/admin/products
+PUT  /api/admin/products/:id
 ```
 
 usecase：
@@ -1435,6 +1444,9 @@ type PayOrderCmd struct {
 }
 
 func CreateOrder(ctx fwusecase.Context, cmd CreateOrderCmd) (OrderCo, error)
+func ListMyOrders(ctx fwusecase.Context, qry ListMyOrdersQry) (UserOrdersCo, error)
+func ListAdminOrders(ctx fwusecase.Context, qry ListAdminOrdersQry) (UserOrdersCo, error)
+func GetUserOrders(ctx fwusecase.Context, qry UserOrdersQry) (UserOrdersCo, error) // legacy guarded
 func CreateOrderPaymentCheckout(ctx fwusecase.Context, cmd CreateOrderPaymentCheckoutCmd) (PaymentCheckoutCo, error)
 func PayOrder(ctx fwusecase.Context, cmd PayOrderCmd) (OrderCo, error)
 func GetUserPoints(ctx fwusecase.Context, qry PointsBalanceQry) (PointsCo, error)
@@ -1450,13 +1462,13 @@ point_transactions(id TEXT PRIMARY KEY, user_id TEXT, order_id TEXT, points INTE
 
 ### 3. Contracts
 
-`POST /api/orders` Creem checkout MVP request:
+`POST /api/user/orders` Creem checkout MVP request:
 
 ```json
-{"user_id":"u001"}
+{"product_id":"p001"}
 ```
 
-`POST /api/orders` 成功：
+`POST /api/user/orders` 成功：
 
 ```json
 {"success":true,"data":{"message":"order created","order":{"id":"...","user_id":"u001","user_name":"Ada","amount":0,"status":"pending","created_at":"..."}}}
@@ -1480,7 +1492,7 @@ Legacy `items` payload may still be accepted but must not be used as the current
 {"success":true,"data":{"message":"order paid","order":{"id":"...","user_id":"...","user_name":"...","amount":1000,"status":"paid","created_at":"..."}}}
 ```
 
-`GET /api/points/me` 成功：
+`GET /api/user/points` 成功：
 
 ```json
 {"success":true,"data":{"user_id":"u001","balance":10}}
@@ -1492,13 +1504,13 @@ Legacy `items` payload may still be accepted but must not be used as the current
 {"success":true,"data":[{"id":"p001","name":"iPhone 15","description":"...","price":699900,"stock":100}]}
 ```
 
-`POST /api/notifications/test-export-toast` 成功：
+`POST /api/user/notifications/test-export-toast` 成功：
 
 ```json
 {"success":true,"data":{"message":"export notification sent"}}
 ```
 
-`GET /api/points/sse` SSE `data:` message：
+`GET /api/user/points/sse` SSE `data:` message：
 
 ```json
 {"type":"points","presentation":"refresh","payload":{"user_id":"u001","client_id":"...","balance":10}}
@@ -1515,6 +1527,12 @@ Legacy `items` payload may still be accepted but must not be used as the current
 | Condition | Expected behavior |
 | --- | --- |
 | empty `user_id` in `CreateOrderCmd` | `CodeValidation`, safe message `user ID is required` |
+| `POST /api/user/orders` request contains another `user_id` | ignored; owner must still come from current user |
+| legacy `POST /api/orders` with another user's `user_id` by non-admin actor | `CodeForbidden`, safe message `cannot create order for another user` |
+| `GET /api/user/orders` without authenticated actor | `CodeUnauthorized`, safe message `not logged in` |
+| `GET /api/user/orders?status=<invalid>` | `CodeValidation`, safe message `invalid order status` |
+| `GET /api/admin/orders` by non-admin actor | `CodeForbidden`, safe message `admin access is required` |
+| legacy `GET /api/orders/user/:user_id` with another user's ID by non-admin actor | `CodeForbidden`, safe message `cannot view another user's orders` |
 | `user_id` does not exist | `CodeValidation`, safe message `user not found`; no order inserted |
 | `CreateOrderCmd.Items` empty | create a pending Creem ledger order |
 | `CreateOrderCmd.Items` present | ignore legacy items for current Creem checkout flow; do not write `order_items` or reserve stock |
@@ -1577,9 +1595,9 @@ Modify site settings, app logo upload/display, `app_settings`, `/api/settings/*`
 Backend API:
 
 ```text
-GET  /api/settings/site
-POST /api/settings/site/logo
-GET  /api/settings/public/logo
+GET  /api/public/settings/site
+POST /api/admin/settings/site/logo
+GET  /api/public/settings/logo
 ```
 
 Usecase:
@@ -1619,7 +1637,7 @@ Stored `site.logo` JSON:
 
 ### 3. Contracts
 
-* `GET /api/settings/site` is safe to call before login and returns the internal success envelope.
+* `GET /api/public/settings/site` is safe to call before login and returns the internal success envelope.
 * Default response when no logo is configured:
 
 ```json
@@ -1629,12 +1647,12 @@ Stored `site.logo` JSON:
 * Configured response uses a cache-busting public image URL:
 
 ```json
-{"logo_url":"/api/settings/public/logo?v=2026-06-08T12%3A00%3A00.123456789Z","logo_configured":true,"logo_updated_at":"2026-06-08T12:00:00.123456789Z","logo_upload_available":true,"logo_upload_unavailable_reason":""}
+{"logo_url":"/api/public/settings/logo?v=2026-06-08T12%3A00%3A00.123456789Z","logo_configured":true,"logo_updated_at":"2026-06-08T12:00:00.123456789Z","logo_upload_available":true,"logo_upload_unavailable_reason":""}
 ```
 
-* `POST /api/settings/site/logo` is admin-only and accepts multipart form data with a `logo` file field.
+* `POST /api/admin/settings/site/logo` is admin-only and accepts multipart form data with a `logo` file field.
 * Logo bytes are stored through `api/usecase/integrations/oss.Adapter`; DB stores only safe metadata, not raw image bytes.
-* `GET /api/settings/public/logo` is unauthenticated because browser `<img>` requests cannot attach the app bearer token. It streams the configured object or redirects to `/logo.png` when no object is configured.
+* `GET /api/public/settings/logo` is unauthenticated because browser `<img>` requests cannot attach the app bearer token. It streams the configured object or redirects to `/logo.png` when no object is configured.
 * Site-logo upload resolves the enabled primary OSS channel (`scenario=oss`, `enabled=1`, `is_primary=1`) and its enabled credential, then maps channel `config_json` plus credential JSON to `oss.ProviderConfig`.
 * Site-logo storage must not use the local OSS adapter. `index.go` registers provider-backed OSS adapters such as `oss.cloudflare_r2.s3_compatible` and `oss.aliyun_oss.s3_compatible`; AWS SDK Go v2 configuration/signing details remain under `api/integrations/oss/<provider>`, and usecase depends only on the OSS port.
 * Persisted `site.logo` metadata includes `channel_code`, `provider_code`, and `adapter_key`; public logo read uses that persisted provider/channel metadata. Legacy metadata without channel/adapter fields may fall back to the current primary OSS provider.
@@ -1644,9 +1662,9 @@ Stored `site.logo` JSON:
 
 | Condition | Expected behavior |
 | --- | --- |
-| no `site.logo` setting | `GET /api/settings/site` returns `/logo.png`, `logo_configured:false`, and current upload availability fields |
-| no enabled primary OSS provider | `GET /api/settings/site` returns `logo_upload_available:false`; `POST /api/settings/site/logo` returns `CodeValidation`, safe message `primary OSS provider is not configured` |
-| no public logo object | `GET /api/settings/public/logo` redirects to `/logo.png` |
+| no `site.logo` setting | `GET /api/public/settings/site` returns `/logo.png`, `logo_configured:false`, and current upload availability fields |
+| no enabled primary OSS provider | `GET /api/public/settings/site` returns `logo_upload_available:false`; `POST /api/admin/settings/site/logo` returns `CodeValidation`, safe message `primary OSS provider is not configured` |
+| no public logo object | `GET /api/public/settings/logo` redirects to `/logo.png` |
 | missing upload file | `CodeValidation`, safe message `logo file is required` |
 | upload over 2 MiB | `CodeValidation`, safe message `logo file is too large` |
 | unsupported magic bytes | `CodeValidation`, safe message `logo image type is not supported` |
@@ -1661,7 +1679,7 @@ Base: Fresh install has no `site.logo` row and no primary OSS provider; header d
 
 Bad: Route writes uploaded bytes directly under `frontend/dist` or stores raw image bytes in SQLite; this bypasses the OSS port and breaks production/runtime separation.
 
-Bad: The frontend sets `<img src="/api/settings/site/logo">` behind `RequireAuth()`; browser image requests do not include bearer auth headers.
+Bad: The frontend sets `<img src="/api/admin/settings/site/logo">` behind `RequireAuth()`; browser image requests do not include bearer auth headers.
 
 Bad: `index.go` registers a site-logo-only local adapter key and settings usecase hard-codes it; this bypasses Parameter-owned OSS provider configuration.
 

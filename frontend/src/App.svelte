@@ -2,6 +2,8 @@
   import AppSidebar from './components/AppSidebar.svelte';
   import Header from './components/Header.svelte';
   import AppCheckout from './pages/AppCheckout.svelte';
+  import NotificationCenter from './components/NotificationCenter.svelte';
+  import TaskCenter from './components/TaskCenter.svelte';
   import Dashboard from './pages/Dashboard.svelte';
   import DashboardHome from './pages/DashboardHome.svelte';
   import Dictionary from './pages/Dictionary.svelte';
@@ -19,8 +21,9 @@
   import Settings from './pages/Settings.svelte';
   import Users from './pages/Users.svelte';
   import Variables from './pages/Variables.svelte';
-  import { getAuthStatus, getSiteSettings } from './api.js';
-  import { appHomePath, canAccessAppRoute, isAuthRoute, normalizePath, routeTitle } from './router.js';
+  import { getAuthStatus, getSiteSettings, eventsSSEURL } from './api.js';
+  import { appHomePath, canAccessAppRoute, isAuthRoute, normalizePath, routeTitle, visibleAppRoutes } from './router.js';
+  import { normalizeRealtimeMessage, toastFromRealtimeMessage } from './helpers/realtimeMessages.js';
   import { onMount } from 'svelte';
 
   let path = $state(normalizePath());
@@ -37,6 +40,58 @@
   }
 
   let siteSettings = $state(defaultSiteSettings());
+  let notifications = $state([]);
+  let taskRefreshTrigger = $state(0);
+  let eventSource;
+
+  function addNotification(msg) {
+    notifications = [{ ...msg, id: msg.id || Date.now() }, ...notifications].slice(0, 50);
+  }
+
+  function connectEventsSSE() {
+    if (eventSource) {
+      eventSource.close();
+    }
+
+    const url = eventsSSEURL();
+    const es = new EventSource(url);
+
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const message = normalizeRealtimeMessage(data);
+        if (message) {
+          if (message.presentation === 'toast') {
+            const toast = toastFromRealtimeMessage(message);
+            addNotification(toast);
+          }
+          if (message.type === 'heavy_task') {
+            taskRefreshTrigger++;
+          }
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    };
+
+    es.onerror = () => {
+      es.close();
+      setTimeout(() => {
+        if (auth.logged_in) {
+          connectEventsSSE();
+        }
+      }, 5000);
+    };
+
+    eventSource = es;
+  }
+
+  function disconnectEventsSSE() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+  }
 
   async function refreshAuth() {
     auth = { ...auth, loading: true };
@@ -47,8 +102,14 @@
         logged_in: Boolean(status.logged_in),
         user: status.user || null
       };
+      if (auth.logged_in) {
+        connectEventsSSE();
+      } else {
+        disconnectEventsSSE();
+      }
     } catch {
       auth = { loading: false, logged_in: false, user: null };
+      disconnectEventsSSE();
     }
   }
 
@@ -94,6 +155,11 @@
 
 <div class="app-shell">
   <Header {auth} {siteSettings} onAuthChanged={handleAuthChanged} />
+
+  {#if auth.logged_in}
+    <NotificationCenter {notifications} />
+    <TaskCenter refreshTrigger={taskRefreshTrigger} />
+  {/if}
 
   {#if isAuthRoute(path)}
     <main class="page-wrap py-8">

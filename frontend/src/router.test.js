@@ -51,12 +51,23 @@ test('exposes logged-in app menu routes from one source', () => {
 });
 
 test('filters admin-only routes from the menu for regular users', () => {
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/products'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/users'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/scheduler'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/events'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/dictionary'), false);
   assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/parameters'), false);
   assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/notifications'), false);
+  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/variables'), false);
   assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/settings'), false);
-  assert.equal(visibleAppRoutes({ is_admin: false }).some((route) => route.path === '/app/checkout'), false);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/products'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/users'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/scheduler'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/events'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/dictionary'), true);
   assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/parameters'), true);
   assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/notifications'), true);
+  assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/variables'), true);
   assert.equal(visibleAppRoutes({ is_admin: true }).some((route) => route.path === '/app/settings'), true);
   assert.equal(visibleAppRoutes({ is_admin: 1 }).some((route) => route.path === '/app/notifications'), true);
   assert.equal(visibleAppRoutes({ is_admin: '1' }).some((route) => route.path === '/app/notifications'), true);
@@ -71,7 +82,7 @@ test('classifies auth and app routes', () => {
   assert.equal(isAppRoute('/'), false);
   assert.equal(isAppRoute('/app'), true);
   assert.equal(isAppRoute('/app/checkout'), true);
-  assert.equal(isAppRoute('/orders'), true);
+  assert.equal(isAppRoute('/app/orders'), true);
   assert.equal(isAppRoute('/app/products'), true);
   assert.equal(isAppRoute('/app/users'), true);
   assert.equal(isAppRoute('/app/scheduler'), true);
@@ -91,7 +102,7 @@ test('classifies auth and app routes', () => {
 test('returns route titles for logged-in menu pages', () => {
   assert.equal(routeTitle('/app'), 'Dashboard');
   assert.equal(routeTitle('/app/checkout'), 'Checkout');
-  assert.equal(routeTitle('/orders'), 'Order');
+  assert.equal(routeTitle('/app/orders'), 'Order');
   assert.equal(routeTitle('/app/products'), 'Product');
   assert.equal(routeTitle('/app/users'), 'User');
   assert.equal(routeTitle('/app/scheduler'), 'Scheduler');

@@ -18,9 +18,13 @@ import (
 )
 
 const (
-	defaultSiteLogoURL = "/logo.png"
-	siteLogoSettingKey = "site.logo"
-	maxSiteLogoBytes   = 2 * 1024 * 1024
+	defaultSiteLogoURL     = "/logo.png"
+	siteLogoSettingKey     = "site.logo"
+	maxSiteLogoBytes       = 2 * 1024 * 1024
+	workerLimitSettingKey  = "heavy_task.worker_limit"
+	defaultWorkerLimit     = 1
+	minWorkerLimit         = 1
+	maxWorkerLimit         = 10
 )
 
 type SiteSettingsQry struct{}
@@ -211,7 +215,7 @@ func defaultSiteSettings() SiteSettingsCo {
 }
 
 func siteSettingsFromLogoMetadata(meta siteLogoMetadata) SiteSettingsCo {
-	logoURL := "/api/settings/public/logo"
+	logoURL := "/api/public/settings/logo"
 	if meta.UpdatedAt != "" {
 		logoURL += "?v=" + url.QueryEscape(meta.UpdatedAt)
 	}
@@ -332,6 +336,45 @@ func normalizeSiteLogoContentType(_ string, payload []byte) (string, error) {
 	}
 
 	return "", fwusecase.E(fwusecase.CodeValidation, "logo image type is not supported", nil)
+}
+
+func GetWorkerLimit(ctx fwusecase.Context) (int, error) {
+	setting, err := models.GetAppSetting(ctx.Std(), workerLimitSettingKey)
+	if err != nil {
+		if errors.Is(err, modelerror.ErrNotFound) {
+			return defaultWorkerLimit, nil
+		}
+		return 0, fwusecase.E(fwusecase.CodeInternal, "failed to load worker limit setting", err)
+	}
+
+	var limit int
+	if err := json.Unmarshal([]byte(setting.ValueJSON), &limit); err != nil {
+		return defaultWorkerLimit, nil
+	}
+	if limit < minWorkerLimit {
+		return minWorkerLimit, nil
+	}
+	if limit > maxWorkerLimit {
+		return maxWorkerLimit, nil
+	}
+	return limit, nil
+}
+
+func SaveWorkerLimit(ctx fwusecase.Context, limit int) (int, error) {
+	if limit < minWorkerLimit || limit > maxWorkerLimit {
+		return 0, fwusecase.E(fwusecase.CodeValidation, fmt.Sprintf("worker limit must be between %d and %d", minWorkerLimit, maxWorkerLimit), nil)
+	}
+
+	encoded, err := json.Marshal(limit)
+	if err != nil {
+		return 0, fwusecase.E(fwusecase.CodeInternal, "failed to encode worker limit", err)
+	}
+
+	if _, err := models.UpsertAppSetting(ctx.Std(), workerLimitSettingKey, string(encoded)); err != nil {
+		return 0, fwusecase.E(fwusecase.CodeInternal, "failed to save worker limit setting", err)
+	}
+
+	return limit, nil
 }
 
 func siteLogoExtension(contentType string) string {

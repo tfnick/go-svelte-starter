@@ -12,11 +12,15 @@ import {
   createScheduledTask,
   exchangeOAuthLoginResult,
   getAccessToken,
+  getCurrentUser,
   getDictionaries,
+  getMyOrders,
   getMyPoints,
   getProducts,
   getSiteSettings,
+  getUser,
   getUserOrders,
+  listAdminOrders,
   listUsers,
   listEventDeliveries,
   listEvents,
@@ -318,9 +322,10 @@ test('dictionary and order api helpers use relative api paths', async () => {
   };
 
   await getDictionaries(['product_category', 'product_category', 'region']);
+  await getMyOrders({ page: 2, pageSize: 10, status: 'pending' });
+  await listAdminOrders({ userId: '019ea0c1-0001-7000-8000-000000000001', status: 'paid', page: 1, pageSize: 20 });
   await getUserOrders('019ea0c1-0001-7000-8000-000000000001', { page: 2, pageSize: 10 });
   await createOrder({
-    user_id: '019ea0c1-0001-7000-8000-000000000001',
     product_id: 'product-1'
   });
   await createOrderPaymentCheckout('o001');
@@ -341,24 +346,42 @@ test('dictionary and order api helpers use relative api paths', async () => {
     phone: '13800000000'
   });
 
-  assert.equal(calls[0].path, '/api/dictionaries?types=product_category,region');
+  assert.equal(calls[0].path, '/api/public/dictionaries?types=product_category,region');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
-  assert.equal(calls[1].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
-  assert.equal(calls[2].path, '/api/orders');
-  assert.equal(calls[2].options.method, 'POST');
-  assert.equal(calls[2].options.body, '{"user_id":"019ea0c1-0001-7000-8000-000000000001","product_id":"product-1"}');
-  assert.equal(calls[3].path, '/api/orders/o001/payment-checkout');
-  assert.equal(calls[3].options.method, 'POST');
-  assert.equal(calls[4].path, '/api/orders/o001/pay');
+  assert.equal(calls[1].path, '/api/user/orders?page=2&page_size=10&status=pending');
+  assert.equal(calls[2].path, '/api/admin/orders?user_id=019ea0c1-0001-7000-8000-000000000001&status=paid&page=1&page_size=20');
+  assert.equal(calls[3].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
+  assert.equal(calls[4].path, '/api/user/orders');
   assert.equal(calls[4].options.method, 'POST');
-  assert.equal(calls[5].path, '/api/points/me');
-  assert.equal(calls[6].path, '/api/products');
-  assert.equal(calls[7].path, '/api/notifications/test-export-toast');
-  assert.equal(calls[7].options.method, 'POST');
-  assert.equal(calls[8].path, '/api/llm/summaries');
-  assert.equal(calls[8].options.method, 'POST');
-  assert.equal(calls[8].options.body, '{"text":"Source text","prompt":"Summarize briefly","dimensions":["summary"]}');
-  assert.equal(calls[9].path, '/api/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
+  assert.equal(calls[4].options.body, '{"product_id":"product-1"}');
+  assert.equal(calls[5].path, '/api/orders/o001/payment-checkout');
+  assert.equal(calls[5].options.method, 'POST');
+  assert.equal(calls[6].path, '/api/orders/o001/pay');
+  assert.equal(calls[6].options.method, 'POST');
+  assert.equal(calls[7].path, '/api/user/points');
+  assert.equal(calls[8].path, '/api/products');
+  assert.equal(calls[9].path, '/api/user/notifications/test-export-toast');
+  assert.equal(calls[9].options.method, 'POST');
+  assert.equal(calls[10].path, '/api/llm/summaries');
+  assert.equal(calls[10].options.method, 'POST');
+  assert.equal(calls[10].options.body, '{"text":"Source text","prompt":"Summarize briefly","dimensions":["summary"]}');
+  assert.equal(calls[11].path, '/api/admin/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
+});
+
+test('current user helper uses user persona path', async () => {
+  installMemoryStorage();
+  setAccessToken('jwt-api');
+  const calls = [];
+
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return jsonResponse({ success: true, data: { user: { id: 'user 1' } } });
+  };
+
+  await getCurrentUser();
+
+  assert.equal(calls[0].path, '/api/user/me');
+  assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
 });
 
 test('dictionary management api helpers use relative api paths', async () => {
@@ -395,23 +418,23 @@ test('dictionary management api helpers use relative api paths', async () => {
   await updateDictionaryValue('type 1', 'value 1', valuePayload);
   await setDictionaryValueEnabled('value 1', false);
 
-  assert.equal(calls[0].path, '/api/dictionary/types');
+  assert.equal(calls[0].path, '/api/admin/dictionary/types');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
-  assert.equal(calls[1].path, '/api/dictionary/types');
+  assert.equal(calls[1].path, '/api/admin/dictionary/types');
   assert.equal(calls[1].options.method, 'POST');
   assert.equal(calls[1].options.body, JSON.stringify(typePayload));
-  assert.equal(calls[2].path, '/api/dictionary/types/type%201');
+  assert.equal(calls[2].path, '/api/admin/dictionary/types/type%201');
   assert.equal(calls[2].options.method, 'PUT');
-  assert.equal(calls[3].path, '/api/dictionary/types/type%201/enabled');
+  assert.equal(calls[3].path, '/api/admin/dictionary/types/type%201/enabled');
   assert.equal(calls[3].options.method, 'PATCH');
   assert.equal(calls[3].options.body, '{"enabled":false}');
-  assert.equal(calls[4].path, '/api/dictionary/types/type%201/values');
-  assert.equal(calls[5].path, '/api/dictionary/types/type%201/values');
+  assert.equal(calls[4].path, '/api/admin/dictionary/types/type%201/values');
+  assert.equal(calls[5].path, '/api/admin/dictionary/types/type%201/values');
   assert.equal(calls[5].options.method, 'POST');
   assert.equal(calls[5].options.body, JSON.stringify(valuePayload));
-  assert.equal(calls[6].path, '/api/dictionary/types/type%201/values/value%201');
+  assert.equal(calls[6].path, '/api/admin/dictionary/types/type%201/values/value%201');
   assert.equal(calls[6].options.method, 'PUT');
-  assert.equal(calls[7].path, '/api/dictionary/values/value%201/enabled');
+  assert.equal(calls[7].path, '/api/admin/dictionary/values/value%201/enabled');
   assert.equal(calls[7].options.method, 'PATCH');
   assert.equal(calls[7].options.body, '{"enabled":false}');
 });
@@ -426,18 +449,20 @@ test('user management api helpers use relative api paths', async () => {
     return jsonResponse({ success: true, data: { ok: true } });
   };
 
+  await getUser('user 0');
   await listUsers({ page: 2, pageSize: 10 });
   await setUserActive('user 1', false);
   await setUserActive('user 2', true);
 
-  assert.equal(calls[0].path, '/api/users?page=2&page_size=10');
+  assert.equal(calls[0].path, '/api/admin/users/user%200');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
-  assert.equal(calls[1].path, '/api/users/user%201/active');
-  assert.equal(calls[1].options.method, 'PATCH');
-  assert.equal(calls[1].options.body, '{"active":false}');
-  assert.equal(calls[2].path, '/api/users/user%202/active');
+  assert.equal(calls[1].path, '/api/admin/users?page=2&page_size=10');
+  assert.equal(calls[2].path, '/api/admin/users/user%201/active');
   assert.equal(calls[2].options.method, 'PATCH');
-  assert.equal(calls[2].options.body, '{"active":true}');
+  assert.equal(calls[2].options.body, '{"active":false}');
+  assert.equal(calls[3].path, '/api/admin/users/user%202/active');
+  assert.equal(calls[3].options.method, 'PATCH');
+  assert.equal(calls[3].options.body, '{"active":true}');
 });
 
 test('scheduler and message api helpers use relative api paths', async () => {
@@ -469,21 +494,21 @@ test('scheduler and message api helpers use relative api paths', async () => {
   await listMessages();
   await listMessages('domain-events');
 
-  assert.equal(calls[0].path, '/api/scheduler/tasks');
+  assert.equal(calls[0].path, '/api/admin/scheduler/tasks');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
-  assert.equal(calls[1].path, '/api/scheduler/tasks');
+  assert.equal(calls[1].path, '/api/admin/scheduler/tasks');
   assert.equal(calls[1].options.method, 'POST');
   assert.equal(calls[1].options.body, JSON.stringify(payload));
-  assert.equal(calls[2].path, '/api/scheduler/tasks/task%201');
+  assert.equal(calls[2].path, '/api/admin/scheduler/tasks/task%201');
   assert.equal(calls[2].options.method, 'PUT');
-  assert.equal(calls[3].path, '/api/scheduler/tasks/task%201/enabled');
+  assert.equal(calls[3].path, '/api/admin/scheduler/tasks/task%201/enabled');
   assert.equal(calls[3].options.method, 'PATCH');
   assert.equal(calls[3].options.body, '{"enabled":false}');
-  assert.equal(calls[4].path, '/api/scheduler/tasks/task%201/history');
-  assert.equal(calls[5].path, '/api/events?page=3&page_size=10');
-  assert.equal(calls[6].path, '/api/events/event%201/deliveries');
-  assert.equal(calls[7].path, '/api/messages');
-  assert.equal(calls[8].path, '/api/messages?queue=domain-events');
+  assert.equal(calls[4].path, '/api/admin/scheduler/tasks/task%201/history');
+  assert.equal(calls[5].path, '/api/admin/events?page=3&page_size=10');
+  assert.equal(calls[6].path, '/api/admin/events/event%201/deliveries');
+  assert.equal(calls[7].path, '/api/admin/messages');
+  assert.equal(calls[8].path, '/api/admin/messages?queue=domain-events');
 });
 
 test('parameter integration api helpers use relative api paths', async () => {
@@ -522,19 +547,19 @@ test('parameter integration api helpers use relative api paths', async () => {
   await updateParameterIntegrationChannel('channel 1', payload);
   await setParameterIntegrationChannelEnabled('channel 1', false);
 
-  assert.equal(calls[0].path, '/api/parameters/integration-channels?scenario=payment');
+  assert.equal(calls[0].path, '/api/admin/parameters/integration-channels?scenario=payment');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
-  assert.equal(calls[1].path, '/api/parameters/integration-schemas?scenario=payment');
-  assert.equal(calls[2].path, '/api/parameters/integration-channels?scenario=email');
-  assert.equal(calls[3].path, '/api/parameters/integration-schemas?scenario=email');
-  assert.equal(calls[4].path, '/api/parameters/integration-channels?scenario=oss');
-  assert.equal(calls[5].path, '/api/parameters/integration-schemas?scenario=oss');
-  assert.equal(calls[6].path, '/api/parameters/integration-channels');
+  assert.equal(calls[1].path, '/api/admin/parameters/integration-schemas?scenario=payment');
+  assert.equal(calls[2].path, '/api/admin/parameters/integration-channels?scenario=email');
+  assert.equal(calls[3].path, '/api/admin/parameters/integration-schemas?scenario=email');
+  assert.equal(calls[4].path, '/api/admin/parameters/integration-channels?scenario=oss');
+  assert.equal(calls[5].path, '/api/admin/parameters/integration-schemas?scenario=oss');
+  assert.equal(calls[6].path, '/api/admin/parameters/integration-channels');
   assert.equal(calls[6].options.method, 'POST');
   assert.equal(calls[6].options.body, JSON.stringify(payload));
-  assert.equal(calls[7].path, '/api/parameters/integration-channels/channel%201');
+  assert.equal(calls[7].path, '/api/admin/parameters/integration-channels/channel%201');
   assert.equal(calls[7].options.method, 'PUT');
-  assert.equal(calls[8].path, '/api/parameters/integration-channels/channel%201/enabled');
+  assert.equal(calls[8].path, '/api/admin/parameters/integration-channels/channel%201/enabled');
   assert.equal(calls[8].options.method, 'PATCH');
   assert.equal(calls[8].options.body, '{"enabled":false}');
 });
@@ -562,9 +587,9 @@ test('setting api helpers use relative api paths and multipart upload', async ()
   await getSiteSettings();
   await uploadSiteLogo(logoBlob);
 
-  assert.equal(calls[0].path, '/api/settings/site');
+  assert.equal(calls[0].path, '/api/public/settings/site');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
-  assert.equal(calls[1].path, '/api/settings/site/logo');
+  assert.equal(calls[1].path, '/api/admin/settings/site/logo');
   assert.equal(calls[1].options.method, 'POST');
   assert.equal(calls[1].options.body instanceof FormData, true);
   assert.equal(calls[1].options.headers.get('authorization'), 'Bearer jwt-api');
@@ -595,14 +620,14 @@ test('variable api helpers use relative api paths', async () => {
   await updateVariable('variable 1', payload);
   await setVariableEnabled('variable 1', false);
 
-  assert.equal(calls[0].path, '/api/variables');
+  assert.equal(calls[0].path, '/api/admin/variables');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
-  assert.equal(calls[1].path, '/api/variables');
+  assert.equal(calls[1].path, '/api/admin/variables');
   assert.equal(calls[1].options.method, 'POST');
   assert.equal(calls[1].options.body, JSON.stringify(payload));
-  assert.equal(calls[2].path, '/api/variables/variable%201');
+  assert.equal(calls[2].path, '/api/admin/variables/variable%201');
   assert.equal(calls[2].options.method, 'PUT');
-  assert.equal(calls[3].path, '/api/variables/variable%201/enabled');
+  assert.equal(calls[3].path, '/api/admin/variables/variable%201/enabled');
   assert.equal(calls[3].options.method, 'PATCH');
   assert.equal(calls[3].options.body, '{"enabled":false}');
 });
@@ -629,11 +654,11 @@ test('product api helpers use relative api paths', async () => {
   await createProduct(payload);
   await updateProduct('product 1', payload);
 
-  assert.equal(calls[0].path, '/api/products');
+  assert.equal(calls[0].path, '/api/admin/products');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
   assert.equal(calls[0].options.method, 'POST');
   assert.equal(calls[0].options.body, JSON.stringify(payload));
-  assert.equal(calls[1].path, '/api/products/product%201');
+  assert.equal(calls[1].path, '/api/admin/products/product%201');
   assert.equal(calls[1].options.method, 'PUT');
   assert.equal(calls[1].options.body, JSON.stringify(payload));
 });
@@ -641,11 +666,11 @@ test('product api helpers use relative api paths', async () => {
 test('points SSE helper uses the current host and HTTP scheme', () => {
   assert.equal(
     pointsSSEURL({ protocol: 'http:', host: '127.0.0.1:5173' }),
-    'http://127.0.0.1:5173/api/points/sse'
+    'http://127.0.0.1:5173/api/user/points/sse'
   );
   assert.equal(
     pointsSSEURL({ protocol: 'https:', host: 'example.com' }),
-    'https://example.com/api/points/sse'
+    'https://example.com/api/user/points/sse'
   );
 });
 
@@ -655,6 +680,6 @@ test('points SSE helper includes stored access token', () => {
 
   assert.equal(
     pointsSSEURL({ protocol: 'http:', host: '127.0.0.1:5173' }),
-    'http://127.0.0.1:5173/api/points/sse?access_token=jwt+socket'
+    'http://127.0.0.1:5173/api/user/points/sse?access_token=jwt+socket'
   );
 });

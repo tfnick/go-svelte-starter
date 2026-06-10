@@ -19,6 +19,7 @@ const (
 	QueueScheduledTasks      = "scheduled-tasks"
 	QueueDomainEvents        = "domain-events"
 	QueueIntegrationWebhooks = "integration-webhooks"
+	QueueHeavyTasks          = "heavy-tasks"
 )
 
 type Manager struct {
@@ -70,6 +71,11 @@ func NewManager() (*Manager, error) {
 			QueueIntegrationWebhooks: goqite.New(goqite.NewOpts{
 				DB:        sqlDB,
 				Name:      QueueIntegrationWebhooks,
+				SQLFlavor: goqite.SQLFlavorSQLite,
+			}),
+			QueueHeavyTasks: goqite.New(goqite.NewOpts{
+				DB:        sqlDB,
+				Name:      QueueHeavyTasks,
 				SQLFlavor: goqite.SQLFlavorSQLite,
 			}),
 		},

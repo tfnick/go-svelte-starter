@@ -1,7 +1,8 @@
 export const realtimeMessageTypes = Object.freeze({
   points: 'points',
   asyncExportTask: 'async_export_task',
-  notification: 'notification'
+  notification: 'notification',
+  heavyTask: 'heavy_task'
 });
 
 export const realtimePresentations = Object.freeze({
@@ -10,7 +11,7 @@ export const realtimePresentations = Object.freeze({
 });
 
 export function defaultPresentation(type) {
-  if (type === realtimeMessageTypes.asyncExportTask || type === realtimeMessageTypes.notification) {
+  if (type === realtimeMessageTypes.asyncExportTask || type === realtimeMessageTypes.notification || type === realtimeMessageTypes.heavyTask) {
     return realtimePresentations.toast;
   }
   return realtimePresentations.refresh;

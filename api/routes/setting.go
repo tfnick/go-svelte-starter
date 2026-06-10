@@ -68,6 +68,35 @@ func GetPublicSiteLogo(c echo.Context) error {
 	return c.Stream(http.StatusOK, logo.ContentType, logo.Body)
 }
 
+type WorkerLimitResponse struct {
+	Limit int `json:"limit"`
+}
+
+func GetWorkerLimit(c echo.Context) error {
+	limit, err := usecase.GetWorkerLimit(fwcontext.InternalUsecaseContext(c))
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+	return httpresponse.OK(c, WorkerLimitResponse{Limit: limit})
+}
+
+type SaveWorkerLimitRequest struct {
+	Limit int `json:"limit"`
+}
+
+func SaveWorkerLimit(c echo.Context) error {
+	var req SaveWorkerLimitRequest
+	if err := c.Bind(&req); err != nil {
+		return httpresponse.BadRequest(c, "invalid request data")
+	}
+
+	limit, err := usecase.SaveWorkerLimit(fwcontext.InternalUsecaseContext(c), req.Limit)
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+	return httpresponse.OK(c, WorkerLimitResponse{Limit: limit})
+}
+
 func toSiteSettingsResponse(settings usecase.SiteSettingsCo) SiteSettingsResponse {
 	return SiteSettingsResponse{
 		LogoURL:                     settings.LogoURL,

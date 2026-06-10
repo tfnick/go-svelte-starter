@@ -4,9 +4,9 @@
   import {
     createOrder,
     createOrderPaymentCheckout,
+    getMyOrders,
     getMyPoints,
     getProducts,
-    getUserOrders,
     pointsSSEURL
   } from '../api.js';
   import Notice from '../components/Notice.svelte';
@@ -103,7 +103,7 @@
     loadingOrders = true;
     error = '';
     try {
-      const result = await getUserOrders(userId, {
+      const result = await getMyOrders({
         page,
         pageSize: orderPageSize
       });
@@ -144,7 +144,7 @@
     error = '';
     message = '';
     try {
-      const result = await createOrder({ user_id: userId, product_id: selectedProductId });
+      const result = await createOrder({ product_id: selectedProductId });
       const order = result?.order;
       if (!order?.id) {
         throw new Error('Order was created without an id');
