@@ -335,7 +335,7 @@ return c.Redirect(http.StatusFound, "/login/oauth/callback?"+values.Encode())
 积分相关内部响应当前规则：
 
 * `GET /api/user/points` 返回 `PointsResponse`，字段为 `user_id` 和 `balance`；legacy `GET /api/points/me` 迁移期保留。
-* `GET /api/user/points/sse?access_token=<jwt>` 是 SSE stream endpoint，不使用 HTTP JSON envelope；legacy `GET /api/points/sse` 迁移期保留。连接成功后以 `data: ...` 推送 realtime envelope，例如 `{"type":"points","presentation":"refresh","payload":{"user_id":"...","client_id":"...","balance":10}}`。
+* `GET /api/user/realtime/ws?access_token=<jwt>` 是当前用户自服务 WebSocket 实时通道，不使用 HTTP JSON envelope。连接成功后以 text frame 推送 realtime envelope，例如 `{"type":"points","presentation":"refresh","payload":{"user_id":"...","client_id":"...","balance":10}}`。
 * `POST /api/user/notifications/test-export-toast` 是登录态验证入口，返回 `data.message`，并向当前用户发布 `async_export_task` + `toast` realtime envelope；legacy `/api/notifications/test-export-toast` 迁移期保留。
 
 Admin routes 统一放在 `/api/admin/...`；legacy 管理路径迁移期可以保留，但必须挂在 `RequireAdmin()` 后。当前包括 users、orders status、dictionary management、products write、scheduler、events、messages、parameters、notifications、settings upload、variables 和 `POST /api/admin/reload-shared-db`。
@@ -656,7 +656,7 @@ return httpresponse.OK(c, ToDomainEventsResponse(events))
 
 ### 1. Scope / Trigger
 
-修改 Notification Center、`notifications` 台账、业务通知创建 usecase、SSE notification envelope、或 admin `/api/notifications` 查询接口时，遵守本节。
+修改 Notification Center、`notifications` 台账、业务通知创建 usecase、realtime notification envelope、或 admin `/api/notifications` 查询接口时，遵守本节。
 
 Notification Center 的定位是业务通知入口与台账，不替代外部渠道 port/provider adapter。业务场景需要发送用户通知时默认调用 `usecase.CreateNotification(...)`；也可以由领域事件 subscriber 调用该 usecase。纯技术实时刷新、渠道连通性测试、provider 防腐层内部逻辑，才直接调用对应 port 或 realtime primitive。
 
@@ -665,7 +665,7 @@ Notification Center 的定位是业务通知入口与台账，不替代外部渠
 Admin query API:
 
 ```text
-GET /api/notifications?page=1&page_size=10&type=sse&email=ada@example.com&phone=138
+GET /api/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138
 ```
 
 Usecase:
@@ -696,7 +696,7 @@ notifications(
   status, last_error, sent_at, created_at, updated_at
 )
 dictionary_types(type_key='notification_type')
-dictionary_values(value_code='sse'|'sms'|'email'|'wechat_official_account')
+dictionary_values(value_code='realtime'|'sms'|'email'|'wechat_official_account')
 ```
 
 ### 3. Contracts
@@ -707,9 +707,9 @@ dictionary_values(value_code='sse'|'sms'|'email'|'wechat_official_account')
 * `GET /api/notifications` is admin-only and uses the standard pagination contract.
 * Filter parameters are `type`, `email`, and `phone`; email/phone are substring filters over `recipient_email` and `recipient_phone`.
 * List DTO includes both `notification_type` and `notification_type_label`.
-* Non-SSE types are ledger-only in the MVP and must be stored as `skipped`; they do not call SMS, email, or WeChat provider ports yet.
-* SSE notifications must create the ledger record first, publish realtime message type `notification`, then update status to `sent` or `failed`.
-* SSE realtime payload is a safe presentation snapshot only: `id`, `title`, `summary`, `source_type`, and `source_id`. Do not push raw `payload_json` or provider/channel secrets.
+* Non-realtime types are ledger-only in the MVP and must be stored as `skipped`; they do not call SMS, email, or WeChat provider ports yet.
+* Realtime notifications must create the ledger record first, publish realtime message type `notification`, then update status to `sent` or `failed`.
+* Realtime notification payload is a safe presentation snapshot only: `id`, `title`, `summary`, `source_type`, and `source_id`. Do not push raw `payload_json` or provider/channel secrets.
 * `payload_json` must be a JSON object and remains an internal ledger payload.
 
 Successful list response:
@@ -719,8 +719,8 @@ Successful list response:
   "items": [
     {
       "id": "notification-id",
-      "notification_type": "sse",
-      "notification_type_label": "SSE",
+      "notification_type": "realtime",
+      "notification_type_label": "Realtime",
       "source_type": "order",
       "source_id": "order-id",
       "user_id": "user-id",
@@ -753,7 +753,7 @@ Realtime message:
 | missing or unknown `notification_type` | `CodeValidation`, safe message `notification type is required` or `notification type is invalid` |
 | disabled dictionary value | `CodeValidation`, same as unknown type |
 | missing title | `CodeValidation`, safe message `notification title is required` |
-| SSE without `user_id` | `CodeValidation`, safe message `user ID is required for SSE notification` |
+| realtime without `user_id` | `CodeValidation`, safe message `user ID is required for realtime notification` |
 | invalid or non-object `payload_json` | `CodeValidation` |
 | realtime publish fails | ledger status becomes `failed`, `last_error` stores a safe message, caller receives `CodeInternal` |
 | invalid pagination query | `CodeValidation` -> internal `400` envelope |
@@ -761,7 +761,7 @@ Realtime message:
 
 ### 5. Good/Base/Bad Cases
 
-Good: Order payment usecase calls `CreateNotification` with `notification_type=sse`, `source_type=order`, `source_id=...`, and a safe title/summary; user receives a toast and admin can inspect the ledger row.
+Good: Order payment usecase calls `CreateNotification` with `notification_type=realtime`, `source_type=order`, `source_id=...`, and a safe title/summary; user receives a toast and admin can inspect the ledger row.
 
 Base: A future SMS notification creates a `skipped` ledger row until the SMS delivery chain is implemented behind Notification Center.
 
@@ -769,7 +769,7 @@ Bad: Business usecase calls SMS provider port directly and separately inserts a 
 
 ### 6. Tests Required
 
-* `api/usecase/notification_test.go` covers SSE create/publish/status, non-SSE skipped ledger, dictionary type validation, and list filters.
+* `api/usecase/notification_test.go` covers realtime create/publish/status, non-realtime skipped ledger, dictionary type validation, and list filters.
 * `api/routes/notification_test.go` covers admin list DTO envelope, pagination, filters, and invalid type mapping.
 * `api/framework/realtime/realtime_test.go` covers `notification` default presentation.
 * `frontend/src/api.test.js`, `frontend/src/router.test.js`, and `frontend/src/realtimeMessages.test.js` cover helper path, admin route, and realtime toast behavior.
@@ -788,7 +788,7 @@ _ = models.InsertNotification(ctx.Std(), row)
 
 ```go
 notification, err := usecase.CreateNotification(ctx, usecase.CreateNotificationCmd{
-    NotificationType: usecase.NotificationTypeSSE,
+    NotificationType: usecase.NotificationTypeRealtime,
     UserID: userID,
     Title: "Order paid",
     Summary: "Your points have been awarded",
@@ -1409,7 +1409,7 @@ return httpresponse.Created(c, toVariableResponse(variable))
 
 ### 1. Scope / Trigger
 
-订单支付、积分余额、商品列表和积分 SSE 属于跨层契约，涉及 route/usecase/model/db/frontend。任何扩展支付、积分或订单管理页面时，都必须先对齐本节。
+订单支付、积分余额、商品列表和积分 WebSocket realtime 属于跨层契约，涉及 route/usecase/model/db/frontend。任何扩展支付、积分或订单管理页面时，都必须先对齐本节。
 
 ### 2. Signatures
 
@@ -1424,7 +1424,7 @@ POST /api/orders                                           # legacy guarded
 POST /api/orders/:id/payment-checkout
 POST /api/orders/:id/pay
 GET  /api/user/points
-GET  /api/user/points/sse?access_token=<jwt>
+GET  /api/user/realtime/ws?access_token=<jwt>
 POST /api/user/notifications/test-export-toast
 GET  /api/products
 POST /api/admin/products
@@ -1510,7 +1510,7 @@ Legacy `items` payload may still be accepted but must not be used as the current
 {"success":true,"data":{"message":"export notification sent"}}
 ```
 
-`GET /api/user/points/sse` SSE `data:` message：
+`GET /api/user/realtime/ws` WebSocket text message：
 
 ```json
 {"type":"points","presentation":"refresh","payload":{"user_id":"u001","client_id":"...","balance":10}}
@@ -1547,13 +1547,13 @@ Legacy `items` payload may still be accepted but must not be used as the current
 | `PATCH /api/orders/:id/status` with `paid` | `CodeValidation`, safe message `use pay order endpoint to mark order paid` |
 | point award fails inside pay transaction | `CodeInternal`, order status rolls back |
 | unauthenticated points/product/order management route | auth middleware returns unauthorized |
-| SSE missing or invalid `access_token` | auth middleware returns unauthorized before stream starts |
+| WebSocket missing or invalid `access_token` | auth middleware returns unauthorized before connection upgrade |
 
 ### 5. Good/Base/Bad Cases
 
-Good: Creem 下单页面调用 `createOrder({ user_id })` 创建 `pending` 台账订单，再调用 `createOrderPaymentCheckout(order.id)` 跳转 provider checkout；支付完成后由 webhook 触发 `PayOrder`，页面通过 SSE 收到 `points` + `refresh` envelope。
+Good: Creem 下单页面调用 `createOrder({ product_id })` 创建 `pending` 台账订单，再调用 `createOrderPaymentCheckout(order.id)` 跳转 provider checkout；支付完成后由 webhook 触发 `PayOrder`，页面通过 WebSocket 收到 `points` + `refresh` envelope。
 
-Base: 已存在的 pending 订单仍可从订单列表再次调用 `createOrderPaymentCheckout(order.id)` 获取 checkout URL；SSE 断开时，页面仍可通过 `getMyPoints()` HTTP 查询恢复当前积分。
+Base: 已存在的 pending 订单仍可从订单列表再次调用 `createOrderPaymentCheckout(order.id)` 获取 checkout URL；WebSocket 断开时，页面仍可通过 `getMyPoints()` HTTP 查询恢复当前积分。
 
 Bad: 前端把本地 `products.price` 或 `orders.amount=0` 当成 Creem 实收金额展示或计算；真实收费金额只能来自 provider checkout/后续 webhook 归一化。
 
@@ -1562,7 +1562,7 @@ Bad: 前端或后台直接 `PATCH /api/orders/:id/status` 为 `paid`，这会绕
 ### 6. Tests Required
 
 * `go test ./...`：覆盖 `CreateOrder` 无商品创建台账、legacy items 不写入 `order_items`、missing user 不落单、`CreateOrderPaymentCheckout` 配置读取、`PayOrder` 支付送积分、重复支付幂等、积分失败回滚订单状态、普通状态接口拒绝 `paid`。
-* `cd frontend && npm test`：覆盖 `createOrder` 只发送 `user_id`、`createOrderPaymentCheckout`、`payOrder`、`getMyPoints`、`getProducts`、`pointsSSEURL` helper。
+* `cd frontend && npm test`：覆盖 `createOrder` 只发送 `product_id`、`createOrderPaymentCheckout`、`payOrder`、`getMyPoints`、`getProducts`、`realtimeWebSocketURL` helper。
 * `cd frontend && npm run build`：确认订单管理页面和 embed 产物可构建。
 
 ### 7. Wrong vs Correct

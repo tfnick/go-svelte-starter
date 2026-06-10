@@ -218,14 +218,15 @@ listVariables()
 createVariable(payload)
 updateVariable(id, payload)
 setVariableEnabled(id, enabled)
-pointsSSEURL(locationObject = globalThis.location)
+realtimeWebSocketURL(locationObject = globalThis.location, options = {})
+createRealtimeWebSocketClient(options)
 ```
 
-`login(payload)` 和 `register(payload)` 会从后端响应保存 `access_token`；`logout()` 会清除本地 token。`pointsSSEURL()` 会把本地 token 放入 `access_token` query parameter。
+`login(payload)` 和 `register(payload)` 会从后端响应保存 `access_token`；`logout()` 会清除本地 token。`realtimeWebSocketURL()` 会把本地 token 放入 `access_token` query parameter，并可传 `client_id`。页面级实时连接必须复用 `frontend/src/helpers/realtimeWebSocket.js` 中的 `createRealtimeWebSocketClient()`，不要在每个 Svelte 页面重复手写连接、断开、重连和 JSON parse 状态机。
 
 Frontend API helper namespace conventions:
 
-* 当前用户自服务 helper 默认使用 `/api/user/...`，例如 `getCurrentUser()`、`getMyOrders()`、`createOrder()`、`getMyPoints()`、`pointsSSEURL()`。
+* 当前用户自服务 helper 默认使用 `/api/user/...`，例如 `getCurrentUser()`、`getMyOrders()`、`createOrder()`、`getMyPoints()`、`realtimeWebSocketURL()`。
 * 管理页面 helper 默认使用 `/api/admin/...`，例如 users、dictionary management、scheduler、events、messages、parameters、notifications、variables、settings upload 和 products write。
 * 公开读取 helper 默认使用 `/api/public/...`，例如 `getDictionaries()` 和 `getSiteSettings()`；`getProducts()` 目前保留 `GET /api/products`。
 * Legacy helper 只用于迁移兼容，例如 `getUserOrders(userId, ...)`；新页面不要继续依赖旧 path。
@@ -339,7 +340,7 @@ import { formatLocalDateTime } from '../helpers/dateTime.js';
 
 ### 1. Scope / Trigger
 
-订单管理页面涉及创建 Creem checkout 台账订单、发起支付、积分查询和 SSE 实时积分。任何修改 `Dashboard.svelte`、`frontend/src/api.js` 或 `frontend/vite.config.js` 的相关行为时，都要遵守本节。`GET /api/products` helper 仍存在，但当前 Creem checkout 页面不依赖本地商品列表。
+订单管理页面涉及创建 Creem checkout 台账订单、发起支付、积分查询和 WebSocket 实时积分。任何修改 `Dashboard.svelte`、`frontend/src/api.js` 或 `frontend/vite.config.js` 的相关行为时，都要遵守本节。`GET /api/products` helper 仍存在，但当前 Creem checkout 页面不依赖本地商品列表。
 
 ### 2. Signatures
 
@@ -356,7 +357,8 @@ getMyPoints()
 getProducts()
 triggerExportToast()
 listNotifications({ page, pageSize, type, email, phone })
-pointsSSEURL(locationObject = globalThis.location)
+realtimeWebSocketURL(locationObject = globalThis.location, options = {})
+createRealtimeWebSocketClient(options)
 ```
 
 Vite proxy：
@@ -365,7 +367,8 @@ Vite proxy：
 proxy: {
   '/api': {
     target: `http://127.0.0.1:${backendPort}`,
-    changeOrigin: true
+    changeOrigin: true,
+    ws: true
   }
 }
 ```
@@ -379,9 +382,10 @@ proxy: {
 * Creem checkout 页面通过 `createOrder({ product_id })` 创建当前用户的本地 `pending` 订单台账，不能提交任意 `user_id`；然后调用 `createOrderPaymentCheckout(order.id)` 获取 `checkout_url` 并跳转。
 * 当前 Creem checkout 页面可以加载 `getProducts()` 来展示可购买的 Creem 映射商品，但 owner 必须由 `/api/user/orders` 后端 route 从当前登录用户推导，不由前端提交。
 * 如果订单列表中的 `order.amount` 为 `0`，页面不要格式化成实际货币金额；应显示 provider/Creem 价格来源，避免把本地占位金额误认为实收金额。
-* `pointsSSEURL()` 根据当前页面协议和 host 生成相对部署可用的 `http://host/api/user/points/sse` 或 `https://host/api/user/points/sse`，并在本地存在 token 时附加 `access_token` query。
-* 开发模式下 `/api/user/points/sse` 通过普通 Vite HTTP proxy 转发，不需要 `ws: true`。
-* SSE message 使用 realtime envelope；后端把 envelope 写入 SSE `data:`，Svelte 页面通过 `frontend/src/helpers/realtimeMessages.js` 解析和分发，不要在页面里 hard-code 单个消息 shape：
+* `realtimeWebSocketURL()` 根据当前页面协议和 host 生成相对部署可用的 `ws://host/api/user/realtime/ws` 或 `wss://host/api/user/realtime/ws`，并在本地存在 token 时附加 `access_token` query；需要区分浏览器实例时可附加 `client_id`。
+* 开发模式下 `/api/user/realtime/ws` 通过 Vite proxy 转发，proxy 必须配置 `ws: true`。
+* Svelte 页面必须用 `createRealtimeWebSocketClient({ url: realtimeWebSocketURL, onMessage, onStatusChange, shouldReconnect })` 管理 WebSocket 生命周期；页面只负责把 parsed envelope 交给 `dispatchRealtimeMessage()` 或业务 handler。
+* WebSocket text message 使用 realtime envelope；Svelte 页面通过 `frontend/src/helpers/realtimeMessages.js` 解析和分发，不要在页面里 hard-code 单个消息 shape：
 
 ```json
 {"type":"points","presentation":"refresh","payload":{"user_id":"u001","client_id":"...","balance":10}}
@@ -397,7 +401,7 @@ proxy: {
 
 * `points` 默认展示方式是 `refresh`，用于刷新积分余额；`async_export_task` 和 `notification` 默认展示方式是 `toast`，用于页面可见通知。
 * Header 登录态下登出按钮后可以放一个验证按钮，调用 `triggerExportToast()`，由后端发布 `async_export_task` toast；按钮不要在前端本地伪造 toast。
-* SSE 断开不应阻塞支付；页面支付成功后不应主动调用 `getMyPoints()` 刷新积分。积分展示应等待 SSE `points` + `refresh` 通知，初始加载和用户显式刷新仍可调用 `getMyPoints()`。
+* WebSocket 断开不应阻塞支付；页面支付成功后不应主动调用 `getMyPoints()` 刷新积分。积分展示应等待 WebSocket `points` + `refresh` 通知，初始加载和用户显式刷新仍可调用 `getMyPoints()`。
 
 ### 4. Validation & Error Matrix
 
@@ -410,25 +414,26 @@ proxy: {
 | checkout API returns `checkout_url` | redirect with `globalThis.location.assign(checkout_url)` |
 | pending order row is clicked | call `createOrderPaymentCheckout(order.id)` again |
 | `order.amount` is `0` | display provider/Creem amount label, not `$0.00` as a charge |
-| SSE message malformed | ignore message; keep page usable |
-| SSE disconnected | show disconnected/error status; HTTP refresh remains available |
-| local access token missing or invalid | API throws safe unauthorized message; EventSource fails to connect |
+| WebSocket message malformed | ignore message; keep page usable |
+| WebSocket disconnected | show disconnected/error status; HTTP refresh remains available |
+| local access token missing or invalid | API throws safe unauthorized message; WebSocket fails to connect |
 
 ### 5. Good/Base/Bad Cases
 
-Good: `Dashboard.svelte` calls `getMyOrders({ page, pageSize })` for the current user's list, then `createOrder({ product_id })` and `createOrderPaymentCheckout(order.id)` for checkout, redirects to Creem, and later receives `points` + `refresh` over SSE after webhook-confirmed payment.
+Good: `Dashboard.svelte` calls `getMyOrders({ page, pageSize })` for the current user's list, then `createOrder({ product_id })` and `createOrderPaymentCheckout(order.id)` for checkout, redirects to Creem, and later receives `points` + `refresh` over WebSocket after webhook-confirmed payment.
 
 Base: If checkout creation fails after local order creation, the pending order remains visible and can be retried from the order list.
 
-Bad: Hard-code `http://localhost:3000/api/user/points/sse`; this breaks Vite dev proxy, non-local hosts, HTTPS deployments, and JWT token propagation.
+Bad: Hard-code `ws://localhost:3000/api/user/realtime/ws`; this breaks Vite dev proxy, non-local hosts, HTTPS deployments, and JWT token propagation.
 
 Bad: Submit `user_id` from the page when creating an order; current-user ownership must come from `/api/user/orders`, not from component state.
 
-Bad: Call `loadPoints()` inside payment completion handling; this hides whether the points update came from SSE and makes payment-time UI state depend on an extra HTTP query.
+Bad: Call `loadPoints()` inside payment completion handling; this hides whether the points update came from WebSocket and makes payment-time UI state depend on an extra HTTP query.
 
 ### 6. Tests Required
 
-* `cd frontend && npm test`：assert helper paths and `pointsSSEURL` scheme/host behavior。
+* `cd frontend && npm test`：assert helper paths and `realtimeWebSocketURL` scheme/host behavior。
+* `frontend/src/realtimeWebSocket.test.js`：assert WebSocket open/message/error/close/disconnect/reconnect lifecycle。
 * `cd frontend && npm run build`：assert Svelte page compiles and `frontend/dist` is regenerated for Go embed。
 * Browser smoke check：打开生产服务首页，确认 `Orders`、`Creem Checkout`、`Points balance` 可见。
 
@@ -437,22 +442,27 @@ Bad: Call `loadPoints()` inside payment completion handling; this hides whether 
 #### Wrong
 
 ```js
-const events = new EventSource('http://localhost:3000/api/user/points/sse');
+const socket = new WebSocket('ws://localhost:3000/api/user/realtime/ws');
 ```
 
 #### Correct
 
 ```js
-const events = new EventSource(pointsSSEURL());
+const realtimeClient = createRealtimeWebSocketClient({
+  url: realtimeWebSocketURL,
+  shouldReconnect: () => auth.logged_in,
+  onMessage: (message) => dispatchRealtimeMessage(message, handlers)
+});
+realtimeClient.connect();
 ```
 
 ---
 
-## Scenario: Experiment LLM and SSE UI
+## Scenario: Experiment LLM and Realtime UI
 
 ### 1. Scope / Trigger
 
-Modify `frontend/src/pages/Experiments.svelte`, `/experiments` app routing, the LLM summary API helper, or SSE demo controls according to this section. The Experiment page is for functional research and demonstrations; it should reuse existing app capabilities instead of introducing parallel transport paths.
+Modify `frontend/src/pages/Experiments.svelte`, `/experiments` app routing, the LLM summary API helper, or realtime demo controls according to this section. The Experiment page is for functional research and demonstrations; it should reuse existing app capabilities instead of introducing parallel transport paths.
 
 ### 2. Signatures
 
@@ -461,13 +471,14 @@ Frontend helpers:
 ```js
 summarizeTextWithLLM({ text, prompt, dimensions })
 triggerExportToast()
-pointsSSEURL(locationObject = globalThis.location)
+realtimeWebSocketURL(locationObject = globalThis.location, options = {})
+createRealtimeWebSocketClient(options)
 ```
 
 Route entry:
 
 ```js
-{ path: '/experiments', label: 'Experiment', description: 'LLM and SSE' }
+{ path: '/experiments', label: 'Experiment', description: 'LLM and realtime' }
 ```
 
 Backend API paths:
@@ -475,7 +486,7 @@ Backend API paths:
 ```text
 POST /api/llm/summaries
 POST /api/user/notifications/test-export-toast
-GET  /api/user/points/sse?access_token=<jwt>
+GET  /api/user/realtime/ws?access_token=<jwt>
 ```
 
 ### 3. Contracts
@@ -483,8 +494,8 @@ GET  /api/user/points/sse?access_token=<jwt>
 * `Experiments.svelte` must call helpers from `frontend/src/api.js`; no direct `fetch('/api/...')` in the component.
 * The right side uses the same daisyUI `tabs tabs-lift` + radio input pattern as `Parameters.svelte`.
 * The `LLM` tab sends `text`, `prompt`, and `dimensions` to `summarizeTextWithLLM()`. For a single free-form summary demo, use `dimensions:['summary']` and render `response.summary.summary`.
-* The `SSE` tab owns the demo button that calls `triggerExportToast()`. Do not place this test action in the global `Header`.
-* The `SSE` tab connects through `new EventSource(pointsSSEURL())`, parses realtime envelopes with `dispatchRealtimeMessage()`, and displays received messages as demo output.
+* The `Realtime` tab owns the demo button that calls `triggerExportToast()`. Do not place this test action in the global `Header`.
+* The `Realtime` tab connects through `createRealtimeWebSocketClient()`, parses realtime envelopes with `dispatchRealtimeMessage()`, and displays received messages as demo output.
 * The page may keep chat/event history in component state only; do not persist experiment history unless a new storage contract is added.
 
 ### 4. Validation & Error Matrix
@@ -494,7 +505,7 @@ GET  /api/user/points/sse?access_token=<jwt>
 | empty LLM text | show local validation message and do not call API |
 | empty LLM prompt | show local validation message and do not call API |
 | LLM API fails | show API client safe message and append a failed assistant message |
-| SSE disconnected | show disconnected/error state; reconnect remains available |
+| WebSocket disconnected | show disconnected/error state; reconnect remains available |
 | export trigger API fails | show API client safe message; do not fabricate success toast |
 | realtime message malformed | ignore or log a safe malformed-message entry; keep page usable |
 
@@ -502,9 +513,9 @@ GET  /api/user/points/sse?access_token=<jwt>
 
 Good: User opens `/experiments`, submits text + prompt in the `LLM` tab, and sees the DeepSeek-backed summary appended to the chat surface with model/channel metadata.
 
-Base: User opens the `SSE` tab, stream connects through `pointsSSEURL()`, clicks `Trigger export completed`, and sees the backend `async_export_task` toast message arrive through SSE.
+Base: User opens the `Realtime` tab, socket connects through `realtimeWebSocketURL()`, clicks `Trigger export completed`, and sees the backend `async_export_task` toast message arrive through WebSocket.
 
-Bad: Component directly calls `fetch('/api/llm/summaries')` or creates a fake toast immediately after clicking the SSE button; this bypasses helper tests and hides backend delivery behavior.
+Bad: Component directly calls `fetch('/api/llm/summaries')` or creates a fake toast immediately after clicking the realtime button; this bypasses helper tests and hides backend delivery behavior.
 
 ### 6. Tests Required
 
@@ -889,7 +900,7 @@ listNotifications({ page, pageSize, type, email, phone })
 Backend API path:
 
 ```text
-GET /api/notifications?page=1&page_size=10&type=sse&email=ada@example.com&phone=138
+GET /api/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138
 ```
 
 Route entry:

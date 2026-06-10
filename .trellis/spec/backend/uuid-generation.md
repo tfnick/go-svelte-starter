@@ -32,7 +32,7 @@ uuid.NewString()
 适用范围：
 
 * 数据库主键、业务实体 ID、事件 ID、delivery/execution ID。
-* request ID、SSE client ID、导出/通知 task ID 等非持久化或短生命周期 UUID。
+* request ID、realtime client ID、导出/通知 task ID 等非持久化或短生命周期 UUID。
 * 未来新增的任何项目内 UUID 字符串生成点。
 
 例外：

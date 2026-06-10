@@ -100,7 +100,7 @@ protected.Use(authMiddleware.RequireAuth())
 * 登录、注册、忘记密码、重置密码、auth status、dictionaries 是未登录也可访问或可选登录的内部 API。
 * 受保护 route 通过 `RequireAuth()` 保证用户已认证。
 * 内部 API 登录态使用 JWT：普通 HTTP 请求必须携带 `Authorization: Bearer <access_token>`。
-* 浏览器原生 `EventSource` 不能设置自定义 `Authorization` header，因此 SSE stream 使用 `access_token` query parameter。
+* 浏览器原生 WebSocket 不能设置自定义 `Authorization` header，因此 WebSocket realtime channel 使用 `access_token` query parameter。
 * route 需要当前用户时使用 `middleware.GetCurrentUser(c)`。
 * admin-only 后台配置接口使用 `RequireAuth()` 后再叠加 `RequireAdmin()`；当前 admin 标识来自 `users.is_admin`。
 * `POST /api/auth/login` 和 `POST /api/auth/register` 在 route 层签发 JWT；usecase 只返回认证后的 `AuthCo/UserCo`。
@@ -110,7 +110,7 @@ protected.Use(authMiddleware.RequireAuth())
 
 ### 1. Scope / Trigger
 
-修改登录、注册、受保护内部 API、SSE 认证或 `frontend/src/api.js` 时，必须对齐本节。
+修改登录、注册、受保护内部 API、WebSocket 认证或 `frontend/src/api.js` 时，必须对齐本节。
 
 ### 2. Signatures
 
@@ -119,7 +119,7 @@ POST /api/auth/login
 POST /api/auth/register
 POST /api/auth/logout
 GET  /api/auth/status
-GET  /api/points/sse?access_token=<jwt>
+GET  /api/user/realtime/ws?access_token=<jwt>
 ```
 
 ```go
@@ -132,7 +132,7 @@ func ParseUserToken(raw string) (auth.Claims, error)
 ### 3. Contracts
 
 * HTTP API token 传递：`Authorization: Bearer <access_token>`。
-* SSE token 传递：`access_token` query parameter。
+* WebSocket token 传递：`access_token` query parameter。
 * JWT secret：可选环境变量 `APP_JWT_SECRET`。未配置时进程内生成临时 secret，重启后旧 token 失效。
 * JWT MVP 只包含 access token，不包含 refresh token。
 * `routes` 签发 token，`middleware` 解析 token 并设置 current user，`usecase` 不依赖 HTTP auth 包。
@@ -149,7 +149,7 @@ func ParseUserToken(raw string) (auth.Claims, error)
 
 ### 5. Good/Base/Bad Cases
 
-Good: frontend login stores `access_token`, later API requests add `Authorization: Bearer ...`, SSE uses `?access_token=...`.
+Good: frontend login stores `access_token`, later API requests add `Authorization: Bearer ...`, WebSocket realtime channel uses `?access_token=...`.
 
 Base: logout is stateless on the server and tells frontend to discard the local access token.
 
@@ -159,7 +159,7 @@ Bad: route reads `session_id` cookie or usecase parses `Authorization` header.
 
 * `api/framework/http/auth/jwt_test.go`: issue, parse, expired, tampered token.
 * `api/framework/http/middleware/auth_test.go`: bearer token, query token, missing token, legacy cookie ignored.
-* `frontend/src/api.test.js`: token storage, authorization header, SSE query token.
+* `frontend/src/api.test.js`: token storage, authorization header, WebSocket query token.
 * `go test ./...` and `cd frontend && npm test`.
 
 ### 7. Wrong vs Correct

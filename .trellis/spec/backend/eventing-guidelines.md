@@ -283,7 +283,7 @@ func RegisterEventHandlers(award AwardOrderPaidPointsFunc) error
 | event queue write fails inside `PayOrder` tx | order status rolls back to `pending`; no event rows remain |
 | point account insert fails in subscriber | order remains `paid`; delivery becomes `failed`; queue retries |
 | duplicate `order_id/type` point transaction | no extra points are awarded |
-| realtime SSE publish fails after subscriber commit | ignore realtime error; committed points remain valid |
+| realtime publish fails after subscriber commit | ignore realtime error; committed points remain valid |
 
 ### 5. Good/Base/Bad Cases
 
