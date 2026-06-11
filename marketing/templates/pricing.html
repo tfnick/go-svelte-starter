@@ -2,14 +2,32 @@
 
 {{define "pricing-content"}}
 <main>
-  <section class="page-hero compact">
-    <p class="eyebrow">Pricing</p>
-    <h1>Checkout-ready products, rendered before the app loads.</h1>
-    <p>Each enabled product with a Creem product ID can become a public marketing offer and continue into authenticated checkout.</p>
+  <section class="page-hero pricing-hero compact">
+    <p class="eyebrow">Choose a plan</p>
+    <h1>Select the product that should start your SaaS checkout flow.</h1>
+    <p>Every enabled product with a Creem product ID becomes a public offer. Choose one here, then continue through the authenticated checkout path.</p>
+    <div class="hero-proof" aria-label="Pricing flow">
+      <span>Product catalog</span>
+      <span>Authenticated checkout</span>
+      <span>Provider payment</span>
+    </div>
   </section>
 
-  <section class="band">
+  <section class="band pricing-band">
+    <div class="section-head split">
+      <div>
+        <p class="eyebrow">Plans</p>
+        <h2>Pricing cards are generated from your real catalog.</h2>
+      </div>
+      <p class="section-note">No static plan table to keep in sync. Update products in the app and the public offers follow.</p>
+    </div>
     {{template "product-list" .}}
+  </section>
+
+  <section class="final-cta">
+    <p class="eyebrow">Need the workspace first?</p>
+    <h2>Open the app when you want to manage products, settings, users, and integrations.</h2>
+    <a class="button button-secondary" href="/app">Open the app</a>
   </section>
 </main>
 {{end}}
@@ -20,6 +38,7 @@
     {{range .Products}}
       <article class="price-card">
         <div>
+          <span class="plan-label">Public offer</span>
           <h3>{{.Name}}</h3>
           <p>{{.Description}}</p>
         </div>

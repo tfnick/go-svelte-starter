@@ -3,34 +3,69 @@
 {{define "features-content"}}
 <main>
   <section class="page-hero compact">
-    <p class="eyebrow">Features</p>
-    <h1>A practical SaaS foundation with marketing pages in the same executable.</h1>
-    <p>The public site stays server-rendered for crawlers, while the authenticated workspace keeps the Svelte workflow users expect.</p>
+    <p class="eyebrow">What is included</p>
+    <h1>The pieces you need before a visitor is ready to pay.</h1>
+    <p>Use the feature set as proof: public pages motivate, product cards reduce decision friction, and the app keeps checkout intent alive.</p>
+    <div class="hero-actions">
+      <a class="button button-primary" href="/pricing">Choose a plan</a>
+      <a class="button button-secondary" href="/app">Open app</a>
+    </div>
   </section>
 
   <section class="band">
-    <div class="feature-list">
+    <div class="section-head">
+      <p class="eyebrow">Conversion system</p>
+      <h2>Each capability supports one part of the behavior chain.</h2>
+    </div>
+    <div class="feature-list outcome-list">
       <article>
-        <span>01</span>
-        <h2>Server-rendered landing pages</h2>
-        <p>Native Go templates keep the public surface fast, inspectable, and easy to replace without changing the dashboard build.</p>
+        <span>Motivate</span>
+        <h2>Server-rendered marketing pages</h2>
+        <p>Native Go templates keep public pages crawlable, fast, and inspectable with canonical URLs, Open Graph metadata, JSON-LD, robots, and sitemap endpoints.</p>
       </article>
       <article>
-        <span>02</span>
-        <h2>Embedded Svelte workspace</h2>
-        <p>Vite builds the SaaS UI into frontend/dist, and Go embeds it so production deployment remains a single binary.</p>
+        <span>Simplify</span>
+        <h2>Catalog-backed plan selection</h2>
+        <p>Enabled products become public offers, so buyers choose from the same product records your operators manage in the app.</p>
       </article>
       <article>
-        <span>03</span>
-        <h2>Integrated checkout continuation</h2>
-        <p>Visitors pick a plan on the marketing page, authenticate inside /app, and continue through the existing order and payment APIs.</p>
+        <span>Prompt</span>
+        <h2>Checkout continuation</h2>
+        <p>Product CTAs pass product_id into /app/checkout, then login or registration preserves the purchase intent instead of dropping the visitor on a generic dashboard.</p>
       </article>
       <article>
-        <span>04</span>
-        <h2>Hard API boundary</h2>
-        <p>/api remains an API-only namespace, so missing API routes return API errors instead of accidentally serving frontend HTML.</p>
+        <span>Operate</span>
+        <h2>Embedded app and hard API boundary</h2>
+        <p>The Svelte workspace lives under /app, API routes stay under /api, and production serves both from the same executable without route ambiguity.</p>
       </article>
     </div>
+  </section>
+
+  <section class="band muted">
+    <div class="section-head">
+      <p class="eyebrow">Why it converts</p>
+      <h2>Visitors do not need to understand the whole stack before acting.</h2>
+    </div>
+    <div class="proof-grid compact">
+      <article class="proof-card">
+        <span>Ability</span>
+        <h3>Clear path from pricing to checkout.</h3>
+      </article>
+      <article class="proof-card">
+        <span>Trust</span>
+        <h3>Real backend capabilities are visible before login.</h3>
+      </article>
+      <article class="proof-card">
+        <span>Focus</span>
+        <h3>Marketing, app, and API routes each own their surface.</h3>
+      </article>
+    </div>
+  </section>
+
+  <section class="final-cta">
+    <p class="eyebrow">Ready for the next step</p>
+    <h2>Move from evaluation to plan selection.</h2>
+    <a class="button button-primary" href="/pricing">Choose a plan</a>
   </section>
 </main>
 {{end}}

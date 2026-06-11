@@ -34,8 +34,24 @@ func TestMarketingRootServesServerRenderedHTML(t *testing.T) {
 	if !strings.Contains(body, `<link rel="canonical" href="http://example.test/">`) {
 		t.Fatalf("expected canonical marketing URL, got %s", body)
 	}
+	if !strings.Contains(body, `href="/pricing">Choose a plan</a>`) {
+		t.Fatalf("expected primary marketing CTA to point to pricing, got %s", body)
+	}
+	for _, expected := range []string{
+		"Motivation",
+		"Ability",
+		"Prompt",
+		"Trust comes from shipped capabilities",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected B=MAP/proof content %q, got %s", expected, body)
+		}
+	}
 	if !strings.Contains(body, `/app/checkout?product_id=marketing-product`) {
 		t.Fatalf("expected product checkout CTA, got %s", body)
+	}
+	if strings.Contains(body, "customer logo") || strings.Contains(body, "trusted by") {
+		t.Fatalf("marketing proof should not use invented social proof, got %s", body)
 	}
 }
 

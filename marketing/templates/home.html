@@ -4,67 +4,110 @@
 <main>
   <section class="hero">
     <div class="hero-copy">
-      <p class="eyebrow">Go + Svelte + checkout</p>
+      <p class="eyebrow">Launch the revenue path first</p>
       <h1>{{.SiteName}}</h1>
       <p class="hero-text">
-        A one-binary SaaS starter with server-rendered marketing pages, a Svelte dashboard,
-        authenticated checkout, and production-ready integration surfaces.
+        Ship a SaaS surface where SEO pages, product plans, authenticated checkout, and the app
+        handoff already work together in one Go binary.
       </p>
+      <div class="hero-proof" aria-label="Conversion path">
+        <span>SSR marketing</span>
+        <span>Catalog pricing</span>
+        <span>Checkout handoff</span>
+      </div>
       <div class="hero-actions">
-        <a class="button button-primary" href="/pricing">View pricing</a>
-        <a class="button button-secondary" href="/app">Open dashboard</a>
+        <a class="button button-primary" href="/pricing">Choose a plan</a>
+        <a class="button button-secondary" href="/features">See what is included</a>
       </div>
     </div>
-    <div class="hero-preview" aria-label="Application preview">
-      <div class="preview-bar">
-        <span></span>
-        <span></span>
-        <span></span>
+    <div class="hero-preview" aria-label="SaaS launch system preview">
+      <div class="preview-topline">
+        <span class="status-dot"></span>
+        <strong>Live conversion system</strong>
+        <span>ready</span>
       </div>
-      <div class="preview-grid">
-        <div class="metric">
-          <strong>Checkout</strong>
-          <span>Creem hosted payment</span>
+      <div class="flow-panel">
+        <div>
+          <span>01</span>
+          <strong>Visitor lands</strong>
+          <p>Server-rendered page with SEO metadata and a clear pricing prompt.</p>
         </div>
-        <div class="metric">
-          <strong>Events</strong>
-          <span>WebSocket realtime and delivery logs</span>
+        <div>
+          <span>02</span>
+          <strong>Plan selected</strong>
+          <p>Enabled products become public offers from the same catalog.</p>
         </div>
-        <div class="metric wide">
-          <strong>Operations</strong>
-          <span>Products, settings, users, LLM experiments, and audit-friendly APIs in one deployable executable.</span>
+        <div>
+          <span>03</span>
+          <strong>Checkout starts</strong>
+          <p>The CTA carries product_id into the authenticated app flow.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band behavior-band">
     <div class="section-head">
-      <p class="eyebrow">Why this shape</p>
-      <h2>Marketing and SaaS share one deployment while keeping clear route ownership.</h2>
+      <p class="eyebrow">B=MAP built into the page</p>
+      <h2>Make the next step feel valuable, easy, and obvious.</h2>
     </div>
-    <div class="feature-grid">
-      <article>
-        <h3>SEO-native pages</h3>
-        <p>Landing pages render in Go with canonical URLs, meta tags, Open Graph data, JSON-LD, robots.txt, and sitemap.xml.</p>
+    <div class="behavior-grid">
+      <article class="behavior-card motivation">
+        <span>Motivation</span>
+        <h3>Show the launch outcome</h3>
+        <p>Lead with the result buyers want: a public site, pricing, checkout, auth, and an app boundary that already fit together.</p>
       </article>
-      <article>
-        <h3>Clean app boundary</h3>
-        <p>The Svelte application lives under /app, API routes stay under /api, and old dashboard links redirect for compatibility.</p>
+      <article class="behavior-card ability">
+        <span>Ability</span>
+        <h3>Reduce the work to one path</h3>
+        <p>Visitors choose a plan, continue into checkout, and keep their intent through login or registration.</p>
       </article>
-      <article>
-        <h3>Checkout handoff</h3>
-        <p>Pricing CTAs pass product_id into /app/checkout, then login or registration continues into the existing order and payment flow.</p>
+      <article class="behavior-card prompt">
+        <span>Prompt</span>
+        <h3>Ask at the right moment</h3>
+        <p>Hero and section CTAs point to pricing; product cards provide the direct checkout trigger once the user can choose.</p>
       </article>
     </div>
   </section>
 
-  <section class="band muted">
+  <section class="band proof-band">
     <div class="section-head">
-      <p class="eyebrow">Catalog powered</p>
-      <h2>Plans come from the product catalog.</h2>
+      <p class="eyebrow">Product proof</p>
+      <h2>Trust comes from shipped capabilities, not invented logos.</h2>
+    </div>
+    <div class="proof-grid">
+      <article class="proof-card large">
+        <span>One deployable surface</span>
+        <h3>Go renders marketing, embeds Svelte, and serves the API boundary.</h3>
+        <p>Public pages stay crawlable while the authenticated workspace remains under /app. The production artifact is still a single executable.</p>
+      </article>
+      <article class="proof-card">
+        <span>SEO ready</span>
+        <h3>Canonical, Open Graph, JSON-LD, robots, sitemap.</h3>
+      </article>
+      <article class="proof-card">
+        <span>Checkout ready</span>
+        <h3>Pricing CTAs carry product_id into /app/checkout.</h3>
+      </article>
+      <article class="proof-card">
+        <span>Operations ready</span>
+        <h3>Auth, products, events, settings, and integrations share the same backend.</h3>
+      </article>
+    </div>
+  </section>
+
+  <section class="band muted pricing-band">
+    <div class="section-head">
+      <p class="eyebrow">Prompt</p>
+      <h2>Pick a plan when the value is clear.</h2>
     </div>
     {{template "product-list" .}}
+  </section>
+
+  <section class="final-cta">
+    <p class="eyebrow">Ready to continue</p>
+    <h2>Turn the public page into the first step of checkout.</h2>
+    <a class="button button-primary" href="/pricing">Choose a plan</a>
   </section>
 </main>
 {{end}}
