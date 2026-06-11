@@ -137,6 +137,7 @@ api/
     logging/
     usecase/
   models/
+  providers/
   routes/
   usecase/
     translate/
@@ -164,6 +165,7 @@ frontend/
 | `api/framework/data/*` | 模型层可复用的数据 helper，例如 `modelerror`、`namelookup` |
 | `api/framework/logging` | Zerolog 初始化、文件 sink、component logger |
 | `api/models` | sqlx-backed structs、查询/写入函数、model-layer validation |
+| `api/providers` | 具体外部 provider adapter 实现，例如 DeepSeek、Creem、S3-compatible OSS、OAuth provider |
 | `api/usecase` | `XxxCmd`、`XxxQry`、`XxxCo`、业务流程、事务边界 |
 | `api/usecase/translate` | ID/name lookup key 与 model batch loader 的绑定 |
 | `api/routes` | Echo handler、request DTO、response DTO、`Co -> DTO` mapper |
@@ -174,8 +176,8 @@ frontend/
 
 架构守卫测试位于 `api/framework/archguard`，核心边界是：
 
-* `api/routes` 不能导入 `api/models` 或 `api/db`。
-* `api/usecase` 不能导入 `api/routes`、`api/db` 或 `api/framework/http`。
+* `api/routes` 不能导入 `api/models`、`api/db` 或 `api/providers`。
+* `api/usecase` 不能导入 `api/routes`、`api/db`、`api/providers` 或 `api/framework/http`。
 * `api/models` 不能导入 `api/routes`、`api/usecase` 或 `api/framework/http`。
 * `api/models` 可以导入 `api/framework/data/*`。
 * raw `github.com/asaskevich/EventBus` 不允许出现在任何生产代码。
@@ -211,7 +213,7 @@ Recommended package boundaries:
 ```text
 api/framework/integrations/<primitive>
 api/usecase/integrations/<scenario>
-api/integrations/<scenario>/<provider>
+api/providers/<scenario>/<provider>
 api/models/integration*.go
 api/db/migrations/app/*_add_integrations.sql
 ```
@@ -231,9 +233,10 @@ integration_invocations
 
 * `api/framework/integrations/*` 只能放 provider-agnostic 基础能力，例如 credential encryption、normalized provider error、signing/auth/stream primitive。
 * `api/usecase/integrations/<scenario>` 定义业务稳定 port 和 DTO，例如 LLM `Adapter`、`ProviderConfig`、`GenerateRequest`、`GenerateResult`，或 OSS `Adapter`、`ProviderConfig`、`PutObjectRequest`、`PresignObjectRequest`。
-* `api/integrations/<scenario>/<provider>` 实现具体 provider adapter，只负责 provider DTO mapping、HTTP/SDK 调用、provider error normalization。
-* `api/usecase` 通过 registry 或 bootstrap 注入 adapter，不导入 `api/integrations`。
+* `api/providers/<scenario>/<provider>` 实现具体 provider adapter，只负责 provider DTO mapping、HTTP/SDK 调用、provider error normalization。
+* `api/usecase` 通过 registry 或 bootstrap 注入 adapter，不导入 `api/providers`。
 * `index.go` 或启动 bootstrap 负责把 provider adapter 注册到 usecase 可见的 registry。
+* HTTP callback/webhook 路径（例如 `/api/integrations/payment/:channel_code/webhooks/creem`）是对外 API surface 命名，不等同于 Go provider 实现目录；除非另有 API 迁移任务，不要因 `api/providers` 目录命名而同步改这些 URL。
 * 业务功能如果需要选择 channel/model，必须使用 DB 里的稳定 alias，例如 `integration_operation_configs.channel_code` 和 `model_code`；不要让产品用户传 raw provider model ID。
 * 凭证明文只能出现在 framework credential 边界和 provider call 的极短运行时路径中，不进入 DTO、日志、事件或普通业务表。
 * `integration_invocations` 只记录安全 metadata，例如 `channel_code`、`model_code`、`provider_request_id`、`usage_json`、`duration_ms`；不要保存 prompt、raw request body、raw response body。
@@ -242,9 +245,9 @@ integration_invocations
 
 | Condition | Expected behavior |
 | --- | --- |
-| `api/usecase` imports `api/integrations` | archguard fails |
-| `api/routes` imports `api/integrations` or `api/models` | archguard fails |
-| `api/integrations` imports `api/db`, `api/models`, `api/routes`, or `api/framework/http` | archguard fails |
+| `api/usecase` imports `api/providers` | archguard fails |
+| `api/routes` imports `api/providers` or `api/models` | archguard fails |
+| `api/providers` imports `api/db`, `api/models`, `api/routes`, or `api/framework/http` | archguard fails |
 | missing enabled channel/model/operation config | usecase returns `CodeInternal` with safe message |
 | provider returns raw error/body | adapter maps it to normalized provider error before crossing into usecase |
 | credential decrypt fails | usecase returns safe internal error and records failed invocation when possible |
@@ -253,7 +256,7 @@ integration_invocations
 
 Good: route calls `usecase.SummarizeTextWithLLM`, usecase resolves `text_summary` config from DB, decrypts credential through `framework/integrations/credentials`, invokes registered DeepSeek adapter through the LLM port, and records `integration_invocations`.
 
-Good: future artifact/PPT usecase resolves an enabled OSS channel from DB, decrypts `s3_access_key`, invokes a registered OSS adapter through `api/usecase/integrations/oss`, and keeps Aliyun/R2 SDK details under `api/integrations/oss/<provider>`.
+Good: future artifact/PPT usecase resolves an enabled OSS channel from DB, decrypts `s3_access_key`, invokes a registered OSS adapter through `api/usecase/integrations/oss`, and keeps Aliyun/R2 SDK details under `api/providers/oss/<provider>`.
 
 Base: If `integration_operation_configs` is absent for an operation, resolver may fall back to enabled channel/model priority for MVP compatibility, but production operations should be explicitly configured.
 
@@ -272,7 +275,7 @@ Bad: route accepts `{provider_model_id:"deepseek-..."}` from product users and p
 #### Wrong
 
 ```go
-import "github.com/tfnick/go-svelte-starter/api/integrations/llm/deepseek"
+import "github.com/tfnick/go-svelte-starter/api/providers/llm/deepseek"
 
 func Summarize(...) {
     client := deepseek.NewAdapter(nil)
