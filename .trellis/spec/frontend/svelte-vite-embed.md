@@ -1313,7 +1313,11 @@ await createVariable({ key: 'feature.new_checkout', value_type: 'boolean', value
 ## UI Contract
 
 * Tailwind CSS 和 daisyUI 是现有样式系统。
+* 当前前端使用 Tailwind CSS 4 + daisyUI 5：`frontend/vite.config.js` 通过 `@tailwindcss/vite` 接入 Tailwind，`frontend/src/styles.css` 使用 `@import "tailwindcss"` 和 `@plugin "daisyui"` 注册 daisyUI。
+* 不要恢复 Tailwind 3 风格的 `tailwind.config.cjs` + PostCSS `tailwindcss`/`autoprefixer` 接入，除非单独迁移任务明确要求回退。
+* daisyUI theme 当前在 CSS plugin block 中保持 `light --default`。
 * 常用 UI 使用 daisyUI class，例如 `btn`、`input`、`card`、`alert`、`navbar`、`loading`。
+* 新增或修改表单时使用 daisyUI 5 表单结构：`fieldset`/`fieldset-legend`/`fieldset-label` + `input`/`select`/`textarea w-full`。不要继续使用 daisyUI 4 的 `form-control`、`label-text`、`input-bordered`、`select-bordered`、`textarea-bordered`。
 * 不要引入第二套 Svelte UI component library，除非任务明确要求。
 * 组件中的错误提示应显示 API client 抛出的 safe message。
 

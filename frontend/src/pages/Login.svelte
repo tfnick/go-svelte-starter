@@ -62,30 +62,26 @@
 
 <AuthCard title="用户登录" subtitle="使用你的邮箱和密码进入控制台。">
   <div class="grid gap-2 sm:grid-cols-2">
-    <button class="btn btn-outline w-full" type="button" onclick={() => continueWith('google')}>
+    <button class="btn btn-outline w-full justify-center" type="button" onclick={() => continueWith('google')}>
       Google
     </button>
-    <button class="btn btn-outline w-full" type="button" onclick={() => continueWith('github')}>
+    <button class="btn btn-outline w-full justify-center" type="button" onclick={() => continueWith('github')}>
       GitHub
     </button>
   </div>
 
   <div class="divider my-1">or</div>
 
-  <form class="space-y-4" onsubmit={(event) => { event.preventDefault(); submit(); }}>
-    <label class="form-control">
-      <span class="label">
-        <span class="label-text">邮箱</span>
-      </span>
-      <input class="input input-bordered" type="email" bind:value={email} placeholder="your@email.com" required />
-    </label>
+  <form class="grid gap-4" onsubmit={(event) => { event.preventDefault(); submit(); }}>
+    <fieldset class="fieldset">
+      <legend class="fieldset-legend">邮箱</legend>
+      <input class="input w-full" type="email" bind:value={email} placeholder="your@email.com" required />
+    </fieldset>
 
-    <label class="form-control">
-      <span class="label">
-        <span class="label-text">密码</span>
-      </span>
-      <input class="input input-bordered" type="password" bind:value={password} placeholder="至少 6 位" required />
-    </label>
+    <fieldset class="fieldset">
+      <legend class="fieldset-legend">密码</legend>
+      <input class="input w-full" type="password" bind:value={password} placeholder="至少 6 位" required />
+    </fieldset>
 
     <Notice type="error" message={error} />
 
@@ -97,7 +93,7 @@
     </button>
   </form>
 
-  <div class="flex items-center justify-between text-sm">
+  <div class="flex items-center justify-between gap-3 text-sm">
     <button class="link link-hover" type="button" onclick={() => navigate('/app/register')}>注册账号</button>
     <button class="link link-hover" type="button" onclick={() => navigate('/app/forgot-password')}>忘记密码？</button>
   </div>

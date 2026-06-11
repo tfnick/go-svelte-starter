@@ -129,6 +129,10 @@
     return membershipLevels.find((level) => level.value === value)?.label || value;
   }
 
+  function statusClass(product) {
+    return product.enabled ? 'badge-success' : 'badge-ghost';
+  }
+
   function formatDate(value) {
     return formatLocalDateTime(value);
   }
@@ -154,9 +158,9 @@
   <Notice type="success" message={message} />
   <Notice type="error" message={error} />
 
-  <div class="grid gap-6 xl:grid-cols-[0.58fr_1.08fr]">
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+  <div class="grid gap-6 xl:grid-cols-[minmax(20rem,0.58fr)_minmax(0,1.08fr)]">
+    <div class="card border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body gap-5 p-5">
         <div class="flex items-center justify-between gap-3">
           <h2 class="card-title text-lg">{form.id ? 'Edit product' : 'Create product'}</h2>
           {#if form.id}
@@ -164,67 +168,67 @@
           {/if}
         </div>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Name</span></span>
-          <input class="input input-bordered" bind:value={form.name} placeholder="Premium monthly" />
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Name</legend>
+          <input class="input w-full" bind:value={form.name} placeholder="Premium monthly" />
+        </fieldset>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Creem product ID</span></span>
-          <input class="input input-bordered font-mono text-sm" bind:value={form.creem_product_id} placeholder="prod_..." />
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Creem product ID</legend>
+          <input class="input w-full font-mono text-sm" bind:value={form.creem_product_id} placeholder="prod_..." />
+        </fieldset>
 
         <div class="grid gap-3 sm:grid-cols-2">
-          <label class="form-control">
-            <span class="label"><span class="label-text">Billing</span></span>
-            <select class="select select-bordered" bind:value={form.billing_type}>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Billing</legend>
+            <select class="select w-full" bind:value={form.billing_type}>
               {#each billingTypes as type}
                 <option value={type.value}>{type.label}</option>
               {/each}
             </select>
-          </label>
+          </fieldset>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Membership</span></span>
-            <select class="select select-bordered" bind:value={form.membership_level}>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Membership</legend>
+            <select class="select w-full" bind:value={form.membership_level}>
               {#each membershipLevels as level}
                 <option value={level.value}>{level.label}</option>
               {/each}
             </select>
-          </label>
+          </fieldset>
         </div>
 
         {#if form.billing_type === 'subscription'}
-          <label class="form-control">
-            <span class="label"><span class="label-text">Interval</span></span>
-            <select class="select select-bordered" bind:value={form.subscription_interval}>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Interval</legend>
+            <select class="select w-full" bind:value={form.subscription_interval}>
               {#each subscriptionIntervals as interval}
                 <option value={interval.value}>{interval.label}</option>
               {/each}
             </select>
-          </label>
+          </fieldset>
         {/if}
 
         <div class="grid gap-3 sm:grid-cols-[1fr_0.6fr]">
-          <label class="form-control">
-            <span class="label"><span class="label-text">Display price cents</span></span>
-            <input class="input input-bordered" inputmode="numeric" bind:value={form.price} placeholder="9900" />
-          </label>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Display price cents</legend>
+            <input class="input w-full" inputmode="numeric" bind:value={form.price} placeholder="9900" />
+          </fieldset>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Currency</span></span>
-            <input class="input input-bordered uppercase" maxlength="3" bind:value={form.currency} placeholder="USD" />
-          </label>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Currency</legend>
+            <input class="input w-full uppercase" maxlength="3" bind:value={form.currency} placeholder="USD" />
+          </fieldset>
         </div>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Description</span></span>
-          <textarea class="textarea textarea-bordered min-h-24" bind:value={form.description}></textarea>
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Description</legend>
+          <textarea class="textarea min-h-24 w-full" bind:value={form.description}></textarea>
+        </fieldset>
 
-        <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
+        <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 bg-base-200/40 px-3 py-3">
           <input class="toggle toggle-primary" type="checkbox" bind:checked={form.enabled} />
-          <span class="label-text">Enabled</span>
+          <span>Enabled</span>
         </label>
 
         <button class="btn btn-primary" type="button" onclick={saveProduct} disabled={saving}>
@@ -236,8 +240,8 @@
       </div>
     </div>
 
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body min-w-0 gap-4 p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="card-title text-lg">Products</h2>
           <span class="badge badge-outline">{products.length}</span>
@@ -248,8 +252,37 @@
             {loading ? 'Loading products...' : 'No products'}
           </div>
         {:else}
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
+          <div class="grid gap-3 lg:hidden">
+            {#each products as product}
+              <div class="rounded-box border border-base-200 bg-base-100 p-4 {form.id === product.id ? 'ring-1 ring-primary/30' : ''}">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="truncate font-medium">{product.name}</div>
+                    <div class="mt-1 text-xs text-base-content/60">{priceLabel(product)} - {billingLabel(product)}</div>
+                  </div>
+                  <span class="badge {statusClass(product)} shrink-0">{product.enabled ? 'enabled' : 'disabled'}</span>
+                </div>
+
+                <div class="mt-3 grid gap-2 text-xs text-base-content/60">
+                  <div class="min-w-0">
+                    <div class="font-medium text-base-content/70">Creem</div>
+                    <div class="truncate font-mono">{product.creem_product_id || '--'}</div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="badge badge-outline badge-sm">{membershipLabel(product.membership_level)}</span>
+                    <span class="whitespace-nowrap">Updated {formatDate(product.updated_at)}</span>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex justify-end">
+                  <button class="btn btn-outline btn-sm" type="button" onclick={() => editProduct(product)}>Edit</button>
+                </div>
+              </div>
+            {/each}
+          </div>
+
+          <div class="hidden overflow-x-auto rounded-box border border-base-200 lg:block">
+            <table class="table table-zebra table-sm min-w-[46rem]">
               <thead>
                 <tr>
                   <th>Product</th>
@@ -262,25 +295,25 @@
               </thead>
               <tbody>
                 {#each products as product}
-                  <tr class:selected={form.id === product.id}>
-                    <td>
-                      <div class="font-medium">{product.name}</div>
+                  <tr class={form.id === product.id ? 'bg-primary/5' : ''}>
+                    <td class="min-w-52">
+                      <div class="font-medium leading-5">{product.name}</div>
                       <div class="max-w-64 truncate text-xs text-base-content/50">{product.description || '--'}</div>
                       <div class="text-xs text-base-content/50">{priceLabel(product)}</div>
                     </td>
-                    <td class="max-w-52 truncate font-mono text-xs">{product.creem_product_id || '--'}</td>
-                    <td class="text-xs">{billingLabel(product)}</td>
+                    <td class="max-w-56 truncate font-mono text-xs text-base-content/70">{product.creem_product_id || '--'}</td>
+                    <td class="whitespace-nowrap text-xs">{billingLabel(product)}</td>
                     <td>
-                      <span class="badge badge-outline">{membershipLabel(product.membership_level)}</span>
+                      <span class="badge badge-outline badge-sm">{membershipLabel(product.membership_level)}</span>
                     </td>
                     <td>
-                      <div class="badge {product.enabled ? 'badge-success' : 'badge-outline'}">
+                      <div class="badge badge-sm {statusClass(product)}">
                         {product.enabled ? 'enabled' : 'disabled'}
                       </div>
                       <div class="mt-1 whitespace-nowrap text-xs text-base-content/50">{formatDate(product.updated_at)}</div>
                     </td>
                     <td class="text-right">
-                      <button class="btn btn-xs" type="button" onclick={() => editProduct(product)}>Edit</button>
+                      <button class="btn btn-outline btn-xs" type="button" onclick={() => editProduct(product)}>Edit</button>
                     </td>
                   </tr>
                 {/each}
