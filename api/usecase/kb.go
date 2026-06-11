@@ -340,15 +340,13 @@ func IndexDocument(ctx fwusecase.Context, cmd IndexDocumentCmd) error {
 	return nil
 }
 
-// enqueueIndexDocument queues an indexing job via the async task infrastructure when available,
-// or falls back to synchronous indexing.
+// enqueueIndexDocument runs the indexing synchronously for MVP.
+// The document already has status "pending" set by Create/Update, and indexDocumentInternal
+// will update it to "processing" -> "indexed" or "failed".
+// Synchronous execution ensures the admin sees the result immediately and the context
+// is not cancelled before the indexing completes.
 func enqueueIndexDocument(ctx fwusecase.Context, documentID string) {
-	// For MVP, run synchronously since async task infrastructure requires a running queue processor.
-	// The document already has status "pending" set by Create/Update, and indexDocumentInternal
-	// will update it to "processing" -> "indexed" or "failed".
-	go func() {
-		_ = indexDocumentInternal(ctx.Std(), documentID)
-	}()
+	_ = indexDocumentInternal(ctx.Std(), documentID)
 }
 
 // --- Helpers ---

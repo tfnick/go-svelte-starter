@@ -245,6 +245,8 @@ func main() {
 			admin.PUT("/kb/sources/:source_id/documents/:id", user.UpdateKBDocument)
 			admin.PATCH("/kb/sources/:source_id/documents/:id/enabled", user.SetKBDocumentEnabled)
 			admin.GET("/kb/sources/:source_id/documents", user.ListKBDocuments)
+			admin.POST("/admin/kb/documents/:id/reindex", user.ReindexKBDocument)
+			admin.POST("/kb/documents/:id/reindex", user.ReindexKBDocument)
 
 			// Support Console admin routes
 			admin.GET("/admin/support/conversations", user.ListSupportConversationsAdmin)

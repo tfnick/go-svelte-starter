@@ -7,7 +7,8 @@
     listKBDocuments,
     createKBDocument,
     updateKBDocument,
-    setKBDocumentEnabled
+    setKBDocumentEnabled,
+    reindexKBDocument
   } from '../api.js';
 
   let sources = $state([]);
@@ -145,6 +146,17 @@
       }
     } catch (err) {
       error = err.message || 'Failed to toggle document';
+    }
+  }
+
+  async function reindexDoc(docId) {
+    try {
+      await reindexKBDocument(docId);
+      if (expandedSource) {
+        documents = await listKBDocuments(expandedSource);
+      }
+    } catch (err) {
+      error = err.message || 'Failed to reindex document';
     }
   }
 
@@ -302,6 +314,9 @@
                             checked={doc.enabled}
                             onchange={() => toggleDocEnabled(doc.source_id, doc.id, !doc.enabled)}
                           />
+                          {#if doc.index_status === 'failed' || doc.index_status === 'pending'}
+                            <button class="btn btn-ghost btn-xs text-warning" onclick={() => reindexDoc(doc.id)}>Reindex</button>
+                          {/if}
                           <button class="btn btn-ghost btn-xs" onclick={() => openEditDocument(doc)}>Edit</button>
                         </div>
                       </div>

@@ -605,6 +605,12 @@ export function setKBDocumentEnabled(sourceId, documentId, enabled) {
   });
 }
 
+export function reindexKBDocument(documentId) {
+  return request(`/api/admin/kb/documents/${encodeURIComponent(documentId)}/reindex`, {
+    method: 'POST'
+  });
+}
+
 // --- Support Console admin API ---
 
 export function listSupportConversations(page = 1, pageSize = 20) {

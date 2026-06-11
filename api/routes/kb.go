@@ -261,3 +261,11 @@ func SetKBDocumentEnabled(c echo.Context) error {
 		Document: toKBDocumentResponse(doc),
 	})
 }
+
+func ReindexKBDocument(c echo.Context) error {
+	ctx := fwcontext.InternalUsecaseContext(c)
+	if err := usecase.IndexDocument(ctx, usecase.IndexDocumentCmd{DocumentID: c.Param("id")}); err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+	return httpresponse.OK(c, map[string]string{"message": "document reindexed"})
+}
