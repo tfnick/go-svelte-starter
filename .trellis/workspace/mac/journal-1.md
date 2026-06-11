@@ -869,3 +869,37 @@ Optimized the server-rendered marketing website around a B=MAP conversion flow: 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: LLM KB Support Feasibility PRD
+
+**Date**: 2026-06-12
+**Task**: LLM KB Support Feasibility PRD
+**Branch**: `master`
+
+### Summary
+
+Completed and archived the LLM knowledge-base customer support feasibility PRD. The research recommends a SQLite-first public support assistant MVP using sqlite-vec via modernc.org/sqlite/vec, provider ports with DeepSeek-compatible defaults, admin-managed knowledge sources, manual/Markdown/URL ingestion, and chat-first lead capture. No implementation was started.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e896aa8` | (see git log) |
+| `a6f6b05` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
