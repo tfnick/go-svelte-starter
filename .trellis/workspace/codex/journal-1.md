@@ -348,3 +348,38 @@ Replaced first-party SSE transport with WebSocket realtime and documented the ne
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: Rename API integrations to providers
+
+**Date**: 2026-06-11
+**Task**: Rename API integrations to providers
+**Branch**: `master`
+
+### Summary
+
+Renamed top-level api integrations implementation directory to api/providers, updated imports and archguard, captured the directory convention in backend specs, and created the follow-up build output bin directory task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cc33999` | (see git log) |
+| `ba52c4e` | (see git log) |
+| `c638600` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
