@@ -1,2 +1,0 @@
-{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Frontend Svelte/Vite/Tailwind/daisyUI 5 implementation contracts for app shell and component styling."}
-{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Layout changes touch shared shell components; use existing route and component patterns instead of duplicating page-level navigation logic."}
