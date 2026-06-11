@@ -22,7 +22,7 @@
 
 <div class="fixed bottom-4 left-4 z-50">
   {#if open}
-    <div class="card border border-base-300 bg-base-100 shadow-xl w-80 max-h-96 flex flex-col">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-xl w-80 max-h-96 flex flex-col">
       <div class="card-body p-3 gap-2 overflow-y-auto">
         <div class="flex items-center justify-between">
           <h3 class="card-title text-sm">Notifications</h3>

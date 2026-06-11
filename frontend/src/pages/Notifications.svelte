@@ -153,26 +153,26 @@
 
   <Notice type="error" message={error} />
 
-  <div class="card border border-base-300 bg-base-100 shadow-sm">
-    <div class="card-body gap-4">
+  <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+    <div class="card-body gap-4 p-5">
       <div class="flex flex-wrap items-end gap-3">
-        <label class="form-control w-full sm:w-52">
-          <span class="label-text">Type</span>
-          <select class="select select-bordered select-sm" bind:value={filters.type} disabled={loadingDictionaries}>
+        <fieldset class="fieldset w-full sm:w-52">
+          <legend class="fieldset-legend">Type</legend>
+          <select class="select select-sm w-full" bind:value={filters.type} disabled={loadingDictionaries}>
             <option value="">All</option>
             {#each typeOptions as option}
               <option value={option.value}>{option.label}</option>
             {/each}
           </select>
-        </label>
-        <label class="form-control w-full sm:w-64">
-          <span class="label-text">Email</span>
-          <input class="input input-bordered input-sm" type="search" bind:value={filters.email} placeholder="user@example.com" />
-        </label>
-        <label class="form-control w-full sm:w-56">
-          <span class="label-text">Phone</span>
-          <input class="input input-bordered input-sm" type="search" bind:value={filters.phone} placeholder="13800000000" />
-        </label>
+        </fieldset>
+        <fieldset class="fieldset w-full sm:w-64">
+          <legend class="fieldset-legend">Email</legend>
+          <input class="input input-sm w-full" type="search" bind:value={filters.email} placeholder="user@example.com" />
+        </fieldset>
+        <fieldset class="fieldset w-full sm:w-56">
+          <legend class="fieldset-legend">Phone</legend>
+          <input class="input input-sm w-full" type="search" bind:value={filters.phone} placeholder="13800000000" />
+        </fieldset>
         <div class="flex gap-2">
           <button class="btn btn-primary btn-sm" type="button" onclick={applyFilters} disabled={loadingNotifications}>Filter</button>
           <button class="btn btn-ghost btn-sm" type="button" onclick={clearFilters} disabled={loadingNotifications}>Clear</button>
@@ -181,20 +181,20 @@
     </div>
   </div>
 
-  <div class="card border border-base-300 bg-base-100 shadow-sm">
-    <div class="card-body gap-4">
+  <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+    <div class="card-body gap-4 p-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="card-title text-lg">Ledger</h2>
         <span class="badge badge-outline">{notificationPagination.total_items}</span>
       </div>
 
       {#if notifications.length === 0}
-        <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+        <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
           {loadingNotifications ? 'Loading notifications...' : 'No notifications'}
         </div>
       {:else}
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
+        <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+          <table class="table table-zebra table-sm min-w-[44rem]">
             <thead>
               <tr>
                 <th>Notification</th>
@@ -238,7 +238,7 @@
           </table>
         </div>
 
-        <div class="flex flex-col gap-3 border-t border-base-300 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 border-t border-base-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div class="text-sm text-base-content/60">
             {notificationPagination.total_items} notifications - Page {notificationPagination.page} / {Math.max(notificationPagination.total_pages, 1)}
           </div>

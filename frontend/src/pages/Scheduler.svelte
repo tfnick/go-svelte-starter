@@ -186,8 +186,8 @@
   <Notice type="error" message={error} />
 
   <div class="grid gap-6 xl:grid-cols-[0.84fr_1.16fr]">
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-5">
         <div class="flex items-center justify-between gap-3">
           <h2 class="card-title text-lg">{form.id ? 'Edit task' : 'Create task'}</h2>
           {#if form.id}
@@ -195,39 +195,39 @@
           {/if}
         </div>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Name</span></span>
-          <input class="input input-bordered" bind:value={form.name} placeholder="Nightly export" />
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Name</legend>
+          <input class="input w-full" bind:value={form.name} placeholder="Nightly export" />
+        </fieldset>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Job name</span></span>
-          <input class="input input-bordered font-mono text-sm" bind:value={form.job_name} />
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Job name</legend>
+          <input class="input font-mono text-sm w-full" bind:value={form.job_name} />
+        </fieldset>
 
         <div class="grid gap-3 sm:grid-cols-[0.42fr_0.58fr]">
-          <label class="form-control">
-            <span class="label"><span class="label-text">Schedule type</span></span>
-            <select class="select select-bordered" bind:value={form.schedule_type}>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Schedule type</legend>
+            <select class="select w-full" bind:value={form.schedule_type}>
               <option value="cron">cron</option>
               <option value="once_at">once_at</option>
             </select>
-          </label>
+        </fieldset>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Schedule value</span></span>
-            <input class="input input-bordered font-mono text-sm" bind:value={form.schedule_value} />
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Schedule value</legend>
+            <input class="input font-mono text-sm w-full" bind:value={form.schedule_value} />
+        </fieldset>
         </div>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Payload JSON</span></span>
-          <textarea class="textarea textarea-bordered min-h-28 font-mono text-sm" bind:value={form.payload_json}></textarea>
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Payload JSON</legend>
+          <textarea class="textarea min-h-28 font-mono text-sm w-full" bind:value={form.payload_json}></textarea>
+        </fieldset>
 
-        <label class="label cursor-pointer justify-start gap-3">
+        <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 bg-base-200/40 px-3 py-3">
           <input class="toggle toggle-primary" type="checkbox" bind:checked={form.enabled} />
-          <span class="label-text">Enabled</span>
+          <span>Enabled</span>
         </label>
 
         <button class="btn btn-primary" type="button" onclick={saveTask} disabled={saving}>
@@ -239,20 +239,20 @@
       </div>
     </div>
 
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="card-title text-lg">Task definitions</h2>
           <span class="badge badge-outline">{tasks.length}</span>
         </div>
 
         {#if tasks.length === 0}
-          <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+          <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
             {loadingTasks ? 'Loading scheduled tasks...' : 'No scheduled tasks'}
           </div>
         {:else}
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
+          <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+            <table class="table table-zebra table-sm min-w-[44rem]">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -264,7 +264,7 @@
               </thead>
               <tbody>
                 {#each tasks as task}
-                  <tr class:selected={selectedTaskId === task.id}>
+                  <tr class={selectedTaskId === task.id ? 'bg-primary/5' : ''}>
                     <td>
                       <div class="font-medium">{task.name}</div>
                       <div class="max-w-56 truncate font-mono text-xs text-base-content/50">{task.job_name}</div>
@@ -299,8 +299,8 @@
   </div>
 
   <div class="grid gap-6 xl:grid-cols-2">
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-5">
         <div class="flex items-center justify-between gap-3">
           <h2 class="card-title text-lg">{selectedTaskName()}</h2>
           {#if loadingHistory}
@@ -309,12 +309,12 @@
         </div>
 
         {#if history.length === 0}
-          <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+          <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
             {selectedTaskId ? 'No execution history' : 'Select a task to view history'}
           </div>
         {:else}
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
+          <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+            <table class="table table-zebra table-sm min-w-[44rem]">
               <thead>
                 <tr>
                   <th>Status</th>
@@ -344,15 +344,15 @@
       </div>
     </div>
 
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-5">
         <div class="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 class="card-title text-lg">Queue messages</h2>
             <p class="text-xs text-base-content/60">Read-only pending, delayed, in-flight, and retryable work.</p>
           </div>
           <div class="join">
-            <input class="input join-item input-bordered input-sm w-44" bind:value={queueFilter} placeholder="queue name" />
+            <input class="input join-item input-sm w-44" bind:value={queueFilter} placeholder="queue name" />
             <button class="btn join-item btn-sm" type="button" onclick={loadMessagesTable} disabled={loadingMessages}>
               {#if loadingMessages}
                 <span class="loading loading-spinner loading-xs"></span>
@@ -363,12 +363,12 @@
         </div>
 
         {#if messages.length === 0}
-          <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+          <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
             {loadingMessages ? 'Loading queue messages...' : 'No queue messages'}
           </div>
         {:else}
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
+          <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+            <table class="table table-zebra table-sm min-w-[44rem]">
               <thead>
                 <tr>
                   <th>Queue</th>

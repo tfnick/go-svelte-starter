@@ -29,19 +29,15 @@
 
 <AuthCard title="重置密码" subtitle="输入新密码后即可重新登录。">
   <form class="space-y-4" onsubmit={(event) => { event.preventDefault(); submit(); }}>
-    <label class="form-control">
-      <span class="label">
-        <span class="label-text">重置 Token</span>
-      </span>
-      <input class="input input-bordered" type="text" bind:value={token} placeholder="来自重置链接的 token" required />
-    </label>
+    <fieldset class="fieldset">
+          <legend class="fieldset-legend">重置 Token</legend>
+      <input class="input w-full" type="text" bind:value={token} placeholder="来自重置链接的 token" required />
+        </fieldset>
 
-    <label class="form-control">
-      <span class="label">
-        <span class="label-text">新密码</span>
-      </span>
-      <input class="input input-bordered" type="password" bind:value={password} placeholder="至少 6 位" required />
-    </label>
+    <fieldset class="fieldset">
+          <legend class="fieldset-legend">新密码</legend>
+      <input class="input w-full" type="password" bind:value={password} placeholder="至少 6 位" required />
+        </fieldset>
 
     <Notice type="success" message={message} />
     <Notice type="error" message={error} />

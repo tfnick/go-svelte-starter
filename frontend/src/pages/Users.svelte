@@ -121,20 +121,20 @@
   <Notice type="success" message={message} />
   <Notice type="error" message={error} />
 
-  <div class="card border border-base-300 bg-base-100 shadow-sm">
-    <div class="card-body gap-4">
+  <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+    <div class="card-body gap-4 p-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="card-title text-lg">Users</h2>
         <span class="badge badge-outline">{userPagination.total_items}</span>
       </div>
 
       {#if users.length === 0}
-        <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+        <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
           {loadingUsers ? 'Loading users...' : 'No users'}
         </div>
       {:else}
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
+        <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+          <table class="table table-zebra table-sm min-w-[44rem]">
             <thead>
               <tr>
                 <th>User</th>
@@ -193,7 +193,7 @@
           </table>
         </div>
 
-        <div class="flex flex-col gap-3 border-t border-base-300 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 border-t border-base-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div class="text-sm text-base-content/60">
             {userPagination.total_items} users - Page {userPagination.page} / {Math.max(userPagination.total_pages, 1)}
           </div>

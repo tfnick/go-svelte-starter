@@ -105,7 +105,7 @@
 </script>
 
 <section class="space-y-6">
-  <div class="rounded-lg border border-base-300 bg-base-100 p-6 shadow-sm">
+  <div class="rounded-lg border border-base-200 bg-base-100 p-6 shadow-sm">
     <div class="max-w-3xl">
       <p class="text-sm font-semibold uppercase text-base-content/50">Checkout</p>
       <h1 class="mt-2 text-3xl font-bold leading-tight">Preparing your secure checkout</h1>
@@ -119,7 +119,7 @@
   <Notice type="error" message={error} />
 
   <div class="grid gap-6 lg:grid-cols-[0.72fr_0.38fr]">
-    <div class="rounded-lg border border-base-300 bg-base-100 p-6 shadow-sm">
+    <div class="rounded-lg border border-base-200 bg-base-100 p-6 shadow-sm">
       {#if loading}
         <div class="flex min-h-48 items-center justify-center">
           <span class="loading loading-spinner loading-md" aria-label="Loading"></span>
@@ -130,7 +130,7 @@
             <h2 class="text-2xl font-bold">{product.name}</h2>
             <p class="mt-2 max-w-2xl text-sm leading-6 text-base-content/70">{product.description}</p>
           </div>
-          <div class="rounded-md border border-base-300 bg-base-200 px-4 py-3 text-right">
+          <div class="rounded-md border border-base-200 bg-base-200 px-4 py-3 text-right">
             <div class="text-xs font-semibold uppercase text-base-content/50">Plan</div>
             <div class="text-xl font-bold">{priceLabel(product)}</div>
           </div>
@@ -153,7 +153,7 @@
       {/if}
     </div>
 
-    <aside class="rounded-lg border border-base-300 bg-base-100 p-5 shadow-sm">
+    <aside class="rounded-lg border border-base-200 bg-base-100 p-5 shadow-sm">
       <h2 class="text-lg font-bold">What happens next</h2>
       <ol class="mt-4 space-y-3 text-sm text-base-content/70">
         <li>1. A pending order ledger is created for your account.</li>

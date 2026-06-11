@@ -509,73 +509,73 @@
   <Notice type="error" message={error} />
 
   <div class="grid gap-6 xl:grid-cols-[0.52fr_1.08fr]">
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-5">
         <div class="flex items-center justify-between gap-3">
           <h2 class="card-title text-lg">{form.id ? 'Edit channel' : 'Create channel'}</h2>
           <span class="badge badge-outline">{scenarioMeta(form.scenario).label}</span>
         </div>
 
         {#if form.id}
-          <div class="max-w-full truncate rounded border border-base-300 px-3 py-2 font-mono text-xs text-base-content/60">
+          <div class="max-w-full truncate rounded-box border border-base-200 px-3 py-2 font-mono text-xs text-base-content/60">
             {form.id}
           </div>
         {/if}
 
         <div class="grid gap-3 sm:grid-cols-2">
-          <label class="form-control">
-            <span class="label"><span class="label-text">Channel code</span></span>
-            <input class="input input-bordered font-mono text-sm" bind:value={form.channel_code} placeholder="creem-prod" />
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Channel code</legend>
+            <input class="input font-mono text-sm w-full" bind:value={form.channel_code} placeholder="creem-prod" />
+        </fieldset>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Provider code</span></span>
-            <input class="input input-bordered font-mono text-sm" bind:value={form.provider_code} placeholder="creem" />
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Provider code</legend>
+            <input class="input font-mono text-sm w-full" bind:value={form.provider_code} placeholder="creem" />
+        </fieldset>
         </div>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Adapter key</span></span>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Adapter key</legend>
           {#if scenarioSchemas(form.scenario).length > 0}
-            <select class="select select-bordered font-mono text-sm" value={adapterSelectValue()} onchange={(event) => applyAdapterSelection(event.currentTarget.value)}>
+            <select class="select font-mono text-sm w-full" value={adapterSelectValue()} onchange={(event) => applyAdapterSelection(event.currentTarget.value)}>
               {#each scenarioSchemas(form.scenario) as schema}
                 <option value={schema.adapter_key}>{schema.label}</option>
               {/each}
               <option value="__custom__">Custom adapter</option>
             </select>
             {#if !currentSchema()}
-              <input class="input input-bordered font-mono text-sm" bind:value={form.adapter_key} placeholder="custom.adapter.key" />
+              <input class="input font-mono text-sm w-full" bind:value={form.adapter_key} placeholder="custom.adapter.key" />
             {/if}
           {:else}
-            <input class="input input-bordered font-mono text-sm" bind:value={form.adapter_key} />
+            <input class="input font-mono text-sm w-full" bind:value={form.adapter_key} />
           {/if}
-        </label>
+        </fieldset>
 
         <div class="grid gap-3 sm:grid-cols-[0.64fr_0.36fr]">
-          <label class="form-control">
-            <span class="label"><span class="label-text">Environment</span></span>
-            <select class="select select-bordered font-mono text-sm" bind:value={form.environment}>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Environment</legend>
+            <select class="select font-mono text-sm w-full" bind:value={form.environment}>
               {#each environmentOptions() as option}
                 <option value={option.value}>{option.label}</option>
               {/each}
             </select>
-          </label>
+        </fieldset>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Priority</span></span>
-            <input class="input input-bordered" type="number" min="1" bind:value={form.priority} />
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Priority</legend>
+            <input class="input w-full" type="number" min="1" bind:value={form.priority} />
+        </fieldset>
         </div>
 
         <div class="grid gap-3 sm:grid-cols-2">
-          <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
+          <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 px-3 bg-base-200/40 py-3">
             <input class="toggle toggle-primary" type="checkbox" bind:checked={form.enabled} onchange={onEnabledChange} />
-            <span class="label-text">Enabled</span>
+            <span>Enabled</span>
           </label>
 
-          <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
+          <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 px-3 bg-base-200/40 py-3">
             <input class="toggle toggle-primary" type="checkbox" bind:checked={form.webhook_enabled} />
-            <span class="label-text inline-flex items-center gap-1.5">
+            <span class="inline-flex items-center gap-1.5">
               <span>Webhook</span>
               <span class="tooltip tooltip-right" data-tip={webhookHelpText()}>
                 <button
@@ -591,23 +591,23 @@
         </div>
 
         {#if form.scenario === 'oss'}
-          <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
+          <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 px-3 bg-base-200/40 py-3">
             <input class="toggle toggle-primary" type="checkbox" bind:checked={form.is_primary} disabled={!form.enabled} />
-            <span class="label-text">Primary provider</span>
+            <span>Primary provider</span>
           </label>
         {/if}
 
         {#if currentSchema()}
-          <div class="rounded border border-base-300 p-3">
+          <div class="rounded-box border border-base-200 p-3">
             <div class="mb-2 flex items-center justify-between gap-3">
               <h3 class="text-sm font-semibold">Config</h3>
               <span class="badge badge-ghost max-w-52 truncate">{currentSchema().label}</span>
             </div>
             <div class="grid gap-3">
               {#each currentConfigFields() as field}
-                <label class="form-control">
-                  <span class="label">
-                    <span class="label-text inline-flex items-center gap-1.5">
+                <fieldset class="fieldset">
+                  <span class="fieldset-label">
+                    <span class="inline-flex items-center gap-1.5">
                       <span>{field.label}{field.required ? ' *' : ''}</span>
                       {#if field.help_text}
                         <span class="tooltip tooltip-right" data-tip={field.help_text}>
@@ -624,7 +624,7 @@
                   </span>
                   {#if fieldOptions(field).length > 0}
                     <select
-                      class="select select-bordered font-mono text-sm"
+                      class="select font-mono text-sm w-full"
                       value={structuredConfig[field.key] ?? ''}
                       onchange={(event) => updateConfigField(field, event.currentTarget.value)}
                     >
@@ -642,38 +642,38 @@
                     />
                   {:else}
                     <input
-                      class="input input-bordered font-mono text-sm"
+                      class="input font-mono text-sm w-full"
                       type={inputTypeForField(field)}
                       value={structuredConfig[field.key] ?? ''}
                       placeholder={field.placeholder}
                       oninput={(event) => updateConfigField(field, event.currentTarget.value)}
                     />
                   {/if}
-                </label>
+        </fieldset>
               {/each}
             </div>
           </div>
         {/if}
 
         <div class="grid gap-3 sm:grid-cols-2">
-          <label class="form-control">
-            <span class="label"><span class="label-text">Credential type</span></span>
-            <select class="select select-bordered font-mono text-sm" bind:value={form.credential_type} disabled={Boolean(currentSchema())}>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Credential type</legend>
+            <select class="select font-mono text-sm w-full" bind:value={form.credential_type} disabled={Boolean(currentSchema())}>
               {#each credentialTypeOptions() as option}
                 <option value={option.value}>{option.label}</option>
               {/each}
             </select>
-          </label>
+        </fieldset>
         </div>
 
         {#if currentSchema()}
-          <div class="rounded border border-base-300 p-3">
+          <div class="rounded-box border border-base-200 p-3">
             <h3 class="mb-2 text-sm font-semibold">Credential</h3>
             <div class="grid gap-3">
               {#each currentCredentialFields() as field}
-                <label class="form-control">
-                  <span class="label">
-                    <span class="label-text inline-flex items-center gap-1.5">
+                <fieldset class="fieldset">
+                  <span class="fieldset-label">
+                    <span class="inline-flex items-center gap-1.5">
                       <span>{field.label}{field.required ? ' *' : ''}</span>
                       {#if field.help_text}
                         <span class="tooltip tooltip-right" data-tip={field.help_text}>
@@ -690,7 +690,7 @@
                   </span>
                   <div class="join w-full">
                     <input
-                      class="input input-bordered join-item min-w-0 flex-1 font-mono text-sm"
+                      class="input join-item min-w-0 flex-1 font-mono text-sm"
                       type={credentialInputType(field)}
                       value={structuredCredential[field.key] ?? ''}
                       placeholder={field.placeholder}
@@ -720,16 +720,16 @@
                       </button>
                     {/if}
                   </div>
-                </label>
+        </fieldset>
               {/each}
             </div>
           </div>
         {:else}
-          <label class="form-control">
-            <span class="label"><span class="label-text">Credential value</span></span>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Credential value</legend>
             <div class="join w-full">
               <input
-                class="input input-bordered join-item min-w-0 flex-1 font-mono text-sm"
+                class="input join-item min-w-0 flex-1 font-mono text-sm"
                 type={customCredentialVisible ? 'text' : 'password'}
                 value={form.credential_value}
                 oninput={(event) => updatePlainCredential(event.currentTarget.value)}
@@ -757,25 +757,25 @@
                 {/if}
               </button>
             </div>
-          </label>
+        </fieldset>
         {/if}
 
-        <details class="collapse collapse-arrow rounded border border-base-300">
+        <details class="collapse collapse-arrow rounded-box border border-base-200">
           <summary class="collapse-title text-sm font-semibold">Advanced JSON</summary>
           <div class="collapse-content grid gap-3">
-            <label class="form-control">
-              <span class="label"><span class="label-text">Config JSON</span></span>
+            <fieldset class="fieldset">
+          <legend class="fieldset-legend">Config JSON</legend>
               <textarea
-                class="textarea textarea-bordered min-h-32 font-mono text-sm"
+                class="textarea min-h-32 font-mono text-sm w-full"
                 bind:value={form.config_json}
                 onblur={syncStructuredStateFromForm}
               ></textarea>
-            </label>
+        </fieldset>
 
-            <label class="form-control">
-              <span class="label"><span class="label-text">Metadata JSON</span></span>
-              <textarea class="textarea textarea-bordered min-h-24 font-mono text-sm" bind:value={form.metadata_json}></textarea>
-            </label>
+            <fieldset class="fieldset">
+          <legend class="fieldset-legend">Metadata JSON</legend>
+              <textarea class="textarea min-h-24 font-mono text-sm w-full" bind:value={form.metadata_json}></textarea>
+        </fieldset>
           </div>
         </details>
 
@@ -799,7 +799,7 @@
             checked={activeScenario === scenario.key}
             onchange={() => selectScenario(scenario.key)}
           />
-          <div class="tab-content border-base-300 bg-base-100 p-4">
+          <div class="tab-content border-base-200 bg-base-100 p-4">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 class="text-lg font-semibold">{scenario.label}</h2>
@@ -811,12 +811,12 @@
             </div>
 
             {#if scenarioChannels(scenario.key).length === 0}
-              <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+              <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
                 {loadingByScenario[scenario.key] ? 'Loading integration channels...' : 'No integration channels'}
               </div>
             {:else}
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
+              <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+                <table class="table table-zebra table-sm min-w-[44rem]">
                   <thead>
                     <tr>
                       <th>Channel</th>
@@ -830,7 +830,7 @@
                   </thead>
                   <tbody>
                     {#each scenarioChannels(scenario.key) as channel}
-                      <tr class:selected={form.id === channel.id}>
+                      <tr class={form.id === channel.id ? 'bg-primary/5' : ''}>
                         <td>
                           <div class="font-medium">{channel.channel_code}</div>
                           <div class="max-w-72 truncate font-mono text-xs text-base-content/50">{channel.adapter_key}</div>

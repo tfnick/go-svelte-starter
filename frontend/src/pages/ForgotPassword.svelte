@@ -26,12 +26,10 @@
 
 <AuthCard title="找回密码" subtitle="输入注册邮箱。开发环境会在后端日志里打印重置链接。">
   <form class="space-y-4" onsubmit={(event) => { event.preventDefault(); submit(); }}>
-    <label class="form-control">
-      <span class="label">
-        <span class="label-text">邮箱</span>
-      </span>
-      <input class="input input-bordered" type="email" bind:value={email} placeholder="your@email.com" required />
-    </label>
+    <fieldset class="fieldset">
+          <legend class="fieldset-legend">邮箱</legend>
+      <input class="input w-full" type="email" bind:value={email} placeholder="your@email.com" required />
+        </fieldset>
 
     <Notice type="success" message={message} />
     <Notice type="error" message={error} />

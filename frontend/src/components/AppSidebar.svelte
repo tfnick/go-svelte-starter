@@ -22,7 +22,7 @@
   <input id="app-sidebar-drawer" class="drawer-toggle" type="checkbox" bind:checked={drawerOpen} />
 
   <div class="drawer-content flex min-h-[calc(100vh-4rem)] min-w-0 flex-col">
-    <div class="sticky top-0 z-20 flex items-center justify-between border-b border-base-300 bg-base-100/95 px-4 py-3 backdrop-blur lg:hidden">
+    <div class="sticky top-0 z-20 flex items-center justify-between border-b border-base-200 bg-base-100/95 px-4 py-3 backdrop-blur lg:hidden">
       <button class="btn btn-square btn-ghost" type="button" aria-label="Open menu" onclick={() => { drawerOpen = true; }}>
         <span class="text-xs font-semibold">Menu</span>
       </button>
@@ -37,8 +37,8 @@
 
   <div class="drawer-side z-30">
     <label for="app-sidebar-drawer" aria-label="Close menu" class="drawer-overlay"></label>
-    <aside class="flex min-h-full w-72 flex-col border-r border-base-300 bg-base-100">
-      <div class="border-b border-base-300 px-5 py-5">
+    <aside class="flex min-h-full w-72 flex-col border-r border-base-200 bg-base-100">
+      <div class="border-b border-base-200 px-5 py-5">
         <div class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Workspace</div>
         <div class="mt-1 truncate text-lg font-bold">{auth.user?.name || 'Svelte Go Starter'}</div>
         <div class="truncate text-sm text-base-content/60">{auth.user?.id || 'Signed in'}</div>

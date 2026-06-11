@@ -50,26 +50,20 @@
 
 <AuthCard title="注册账号" subtitle="创建账号后会自动登录。">
   <form class="space-y-4" onsubmit={(event) => { event.preventDefault(); submit(); }}>
-    <label class="form-control">
-      <span class="label">
-        <span class="label-text">姓名</span>
-      </span>
-      <input class="input input-bordered" type="text" bind:value={name} placeholder="你的姓名" required />
-    </label>
+    <fieldset class="fieldset">
+          <legend class="fieldset-legend">姓名</legend>
+      <input class="input w-full" type="text" bind:value={name} placeholder="你的姓名" required />
+        </fieldset>
 
-    <label class="form-control">
-      <span class="label">
-        <span class="label-text">邮箱</span>
-      </span>
-      <input class="input input-bordered" type="email" bind:value={email} placeholder="your@email.com" required />
-    </label>
+    <fieldset class="fieldset">
+          <legend class="fieldset-legend">邮箱</legend>
+      <input class="input w-full" type="email" bind:value={email} placeholder="your@email.com" required />
+        </fieldset>
 
-    <label class="form-control">
-      <span class="label">
-        <span class="label-text">密码</span>
-      </span>
-      <input class="input input-bordered" type="password" bind:value={password} placeholder="至少 6 位" required />
-    </label>
+    <fieldset class="fieldset">
+          <legend class="fieldset-legend">密码</legend>
+      <input class="input w-full" type="password" bind:value={password} placeholder="至少 6 位" required />
+        </fieldset>
 
     <Notice type="error" message={error} />
 

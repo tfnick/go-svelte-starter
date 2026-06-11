@@ -27,7 +27,7 @@
 
 </script>
 
-<header class="border-b border-base-300 bg-base-100/90 shadow-sm">
+<header class="border-b border-base-200 bg-base-100/90 shadow-sm">
   <div class="page-wrap navbar px-0">
     <div class="navbar-start">
       <button class="btn btn-ghost px-2 text-lg font-bold" type="button" onclick={() => navigate(appHomePath)}>

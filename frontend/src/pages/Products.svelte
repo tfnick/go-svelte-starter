@@ -159,7 +159,7 @@
   <Notice type="error" message={error} />
 
   <div class="grid gap-6 xl:grid-cols-[minmax(20rem,0.58fr)_minmax(0,1.08fr)]">
-    <div class="card border border-base-200 bg-base-100 shadow-sm">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
       <div class="card-body gap-5 p-5">
         <div class="flex items-center justify-between gap-3">
           <h2 class="card-title text-lg">{form.id ? 'Edit product' : 'Create product'}</h2>
@@ -248,7 +248,7 @@
         </div>
 
         {#if products.length === 0}
-          <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+          <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
             {loading ? 'Loading products...' : 'No products'}
           </div>
         {:else}
@@ -281,7 +281,7 @@
             {/each}
           </div>
 
-          <div class="hidden overflow-x-auto rounded-box border border-base-200 lg:block">
+          <div class="max-w-full hidden overflow-x-auto rounded-box border border-base-200 lg:block">
             <table class="table table-zebra table-sm min-w-[46rem]">
               <thead>
                 <tr>

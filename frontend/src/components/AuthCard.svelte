@@ -3,7 +3,7 @@
 </script>
 
 <section class="flex justify-center px-4 py-10">
-  <div class="auth-panel card border border-base-200 bg-base-100 shadow-xl">
+  <div class="auth-panel min-w-0 card border border-base-200 bg-base-100 shadow-xl">
     <div class="card-body gap-6 p-6 sm:p-8">
       <div class="space-y-2">
         <h1 class="text-2xl font-semibold tracking-normal">{title}</h1>

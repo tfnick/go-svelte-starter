@@ -252,8 +252,8 @@
 
   <div class="grid gap-6 xl:grid-cols-[0.52fr_1.08fr]">
     <div class="space-y-6">
-      <div class="card border border-base-300 bg-base-100 shadow-sm">
-        <div class="card-body gap-4">
+      <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+        <div class="card-body gap-4 p-5">
           <div class="flex items-center justify-between gap-3">
             <h2 class="card-title text-lg">{typeForm.id ? 'Edit dictionary' : 'Create dictionary'}</h2>
             {#if typeForm.id}
@@ -261,24 +261,24 @@
             {/if}
           </div>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Type key</span></span>
-            <input class="input input-bordered font-mono text-sm" bind:value={typeForm.type_key} placeholder="order_status" />
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Type key</legend>
+            <input class="input font-mono text-sm w-full" bind:value={typeForm.type_key} placeholder="order_status" />
+        </fieldset>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Name</span></span>
-            <input class="input input-bordered" bind:value={typeForm.name} placeholder="Order status" />
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Name</legend>
+            <input class="input w-full" bind:value={typeForm.name} placeholder="Order status" />
+        </fieldset>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Description</span></span>
-            <textarea class="textarea textarea-bordered min-h-20" bind:value={typeForm.description}></textarea>
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Description</legend>
+            <textarea class="textarea min-h-20 w-full" bind:value={typeForm.description}></textarea>
+        </fieldset>
 
-          <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
+          <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 px-3 bg-base-200/40 py-3">
             <input class="toggle toggle-primary" type="checkbox" bind:checked={typeForm.enabled} />
-            <span class="label-text">Enabled</span>
+            <span>Enabled</span>
           </label>
 
           <button class="btn btn-primary" type="button" onclick={saveType} disabled={savingType}>
@@ -290,22 +290,22 @@
         </div>
       </div>
 
-      <div class="card border border-base-300 bg-base-100 shadow-sm">
-        <div class="card-body gap-4">
+      <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+        <div class="card-body gap-4 p-5">
           <div class="flex items-center justify-between gap-3">
             <h2 class="card-title text-lg">Dictionaries</h2>
             <span class="badge badge-outline">{dictionaryTypes.length}</span>
           </div>
 
           {#if dictionaryTypes.length === 0}
-            <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+            <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
               {loadingTypes ? 'Loading dictionaries...' : 'No dictionaries'}
             </div>
           {:else}
             <div class="space-y-2">
               {#each dictionaryTypes as type}
                 <button
-                  class="w-full rounded border p-3 text-left transition hover:border-primary {selectedTypeId === type.id ? 'border-primary bg-primary/5' : 'border-base-300'}"
+                  class="w-full rounded-box border p-3 text-left transition hover:border-primary {selectedTypeId === type.id ? 'border-primary bg-primary/5' : 'border-base-200'}"
                   type="button"
                   onclick={() => selectType(type)}
                 >
@@ -328,8 +328,8 @@
     </div>
 
     <div class="space-y-6">
-      <div class="card border border-base-300 bg-base-100 shadow-sm">
-        <div class="card-body gap-4">
+      <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+        <div class="card-body gap-4 p-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 class="card-title text-lg">{valueForm.id ? 'Edit value' : 'Create value'}</h2>
@@ -341,33 +341,33 @@
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <label class="form-control">
-              <span class="label"><span class="label-text">Value code</span></span>
-              <input class="input input-bordered font-mono text-sm" bind:value={valueForm.value_code} placeholder="pending" disabled={!selectedTypeId} />
-            </label>
+            <fieldset class="fieldset">
+          <legend class="fieldset-legend">Value code</legend>
+              <input class="input font-mono text-sm w-full" bind:value={valueForm.value_code} placeholder="pending" disabled={!selectedTypeId} />
+        </fieldset>
 
-            <label class="form-control">
-              <span class="label"><span class="label-text">Label</span></span>
-              <input class="input input-bordered" bind:value={valueForm.label} placeholder="Pending" disabled={!selectedTypeId} />
-            </label>
+            <fieldset class="fieldset">
+          <legend class="fieldset-legend">Label</legend>
+              <input class="input w-full" bind:value={valueForm.label} placeholder="Pending" disabled={!selectedTypeId} />
+        </fieldset>
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <label class="form-control">
-              <span class="label"><span class="label-text">Sort order</span></span>
-              <input class="input input-bordered" type="number" bind:value={valueForm.sort_order} disabled={!selectedTypeId} />
-            </label>
+            <fieldset class="fieldset">
+          <legend class="fieldset-legend">Sort order</legend>
+              <input class="input w-full" type="number" bind:value={valueForm.sort_order} disabled={!selectedTypeId} />
+        </fieldset>
 
-            <label class="label mt-9 cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
+            <label class="fieldset-label mt-9 cursor-pointer justify-start gap-3 rounded-box border border-base-200 px-3 bg-base-200/40 py-3">
               <input class="toggle toggle-primary" type="checkbox" bind:checked={valueForm.enabled} disabled={!selectedTypeId} />
-              <span class="label-text">Enabled</span>
+              <span>Enabled</span>
             </label>
           </div>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Description</span></span>
-            <textarea class="textarea textarea-bordered min-h-20" bind:value={valueForm.description} disabled={!selectedTypeId}></textarea>
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Description</legend>
+            <textarea class="textarea min-h-20 w-full" bind:value={valueForm.description} disabled={!selectedTypeId}></textarea>
+        </fieldset>
 
           <button class="btn btn-primary" type="button" onclick={saveValue} disabled={savingValue || !selectedTypeId}>
             {#if savingValue}
@@ -378,8 +378,8 @@
         </div>
       </div>
 
-      <div class="card border border-base-300 bg-base-100 shadow-sm">
-        <div class="card-body gap-4">
+      <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+        <div class="card-body gap-4 p-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title text-lg">Values</h2>
             <div class="flex gap-2">
@@ -393,16 +393,16 @@
           </div>
 
           {#if !selectedTypeId}
-            <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+            <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
               Select or create a dictionary
             </div>
           {:else if dictionaryValues.length === 0}
-            <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+            <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
               {loadingValues ? 'Loading values...' : 'No values'}
             </div>
           {:else}
-            <div class="overflow-x-auto">
-              <table class="table table-sm">
+            <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+              <table class="table table-zebra table-sm min-w-[44rem]">
                 <thead>
                   <tr>
                     <th>Value</th>
@@ -414,7 +414,7 @@
                 </thead>
                 <tbody>
                   {#each dictionaryValues as value}
-                    <tr class:selected={valueForm.id === value.id}>
+                    <tr class={valueForm.id === value.id ? 'bg-primary/5' : ''}>
                       <td>
                         <div class="font-medium">{value.label}</div>
                         <div class="max-w-64 truncate font-mono text-xs text-base-content/60">{value.value_code}</div>

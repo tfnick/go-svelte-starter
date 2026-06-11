@@ -130,16 +130,16 @@
       checked={activeTab === 'general'}
       onchange={() => (activeTab = 'general')}
     />
-    <div class="tab-content border-base-300 bg-base-100 p-4">
+    <div class="tab-content border-base-200 bg-base-100 p-4">
       <div class="grid gap-6 xl:grid-cols-[0.48fr_1fr]">
-        <div class="card border border-base-300 bg-base-100 shadow-sm">
-          <div class="card-body gap-4">
+        <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+          <div class="card-body gap-4 p-5">
             <div class="flex items-center justify-between gap-3">
               <h2 class="card-title text-lg">Logo</h2>
               <span class="badge badge-outline">{logoStatus()}</span>
             </div>
 
-            <div class="rounded border border-base-300 bg-base-200/50 p-4">
+            <div class="rounded-box border border-base-200 bg-base-200/50 p-4">
               <img
                 alt="Svelte Go Starter"
                 class="h-[25px] w-[110px] object-contain"
@@ -162,8 +162,8 @@
           </div>
         </div>
 
-        <div class="card border border-base-300 bg-base-100 shadow-sm">
-          <div class="card-body gap-4">
+        <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+          <div class="card-body gap-4 p-5">
             <div class="flex items-center justify-between gap-3">
               <h2 class="card-title text-lg">General</h2>
               {#if selectedLogo}
@@ -176,17 +176,17 @@
               message={logoUploadAvailable() ? '' : logoUploadUnavailableReason()}
             />
 
-            <label class="form-control">
-              <span class="label"><span class="label-text">Logo image</span></span>
+            <fieldset class="fieldset">
+          <legend class="fieldset-legend">Logo image</legend>
               <input
                 accept="image/png,image/jpeg,image/webp"
                 bind:this={fileInput}
-                class="file-input file-input-bordered w-full"
+                class="file-input w-full"
                 disabled={saving || !logoUploadAvailable()}
                 onchange={selectLogo}
                 type="file"
               />
-            </label>
+        </fieldset>
 
             <div class="flex flex-wrap items-center justify-end gap-2">
               <button
@@ -214,25 +214,25 @@
       checked={activeTab === 'worker'}
       onchange={() => (activeTab = 'worker')}
     />
-    <div class="tab-content border-base-300 bg-base-100 p-4">
-      <div class="card border border-base-300 bg-base-100 shadow-sm">
-        <div class="card-body gap-4">
+    <div class="tab-content border-base-200 bg-base-100 p-4">
+      <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+        <div class="card-body gap-4 p-5">
           <h2 class="card-title text-lg">Heavy Task Worker</h2>
           <p class="text-sm text-base-content/60">
             Number of concurrent workers that process heavy tasks. Changes take effect on next server restart.
           </p>
 
-          <label class="form-control">
-            <span class="label"><span class="label-text">Worker limit (1-10)</span></span>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Worker limit (1-10)</legend>
             <input
               type="number"
-              class="input input-bordered w-32"
+              class="input w-32"
               min="1"
               max="10"
               bind:value={workerLimit}
               oninput={() => (workerLimitDirty = true)}
             />
-          </label>
+        </fieldset>
 
           <div class="flex flex-wrap items-center justify-end gap-2">
             <button
@@ -259,8 +259,8 @@
       checked={activeTab === 'retain'}
       onchange={() => (activeTab = 'retain')}
     />
-    <div class="tab-content border-base-300 bg-base-100 p-4">
-      <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+    <div class="tab-content border-base-200 bg-base-100 p-4">
+      <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
         No retain settings
       </div>
     </div>

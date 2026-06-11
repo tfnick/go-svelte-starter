@@ -305,8 +305,8 @@
 
 <section class="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
   <div class="space-y-6">
-    <div class="card border border-base-300 bg-base-100 shadow-lg">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-lg">
+      <div class="card-body gap-4 p-5">
         <div class="flex items-start justify-between gap-4">
           <div>
             <p class="text-sm text-base-content/60">Current user</p>
@@ -316,12 +316,12 @@
           <span class="badge {streamStatus === 'Connected' ? 'badge-success' : 'badge-outline'}">{streamStatus}</span>
         </div>
 
-        <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
+        <div class="rounded-lg border border-base-200 bg-base-200/50 p-4">
           <div class="text-sm text-base-content/60">Points balance</div>
           <div class="mt-2 text-4xl font-bold">{points === null ? '--' : points}</div>
         </div>
 
-        <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
+        <div class="rounded-lg border border-base-200 bg-base-200/50 p-4">
           <div class="text-sm text-base-content/60">Membership</div>
           <div class="mt-2 text-2xl font-bold">{membershipLabel(auth.user?.membership_level)}</div>
           <div class="mt-1 text-sm text-base-content/60">{formatDate(auth.user?.membership_expires_at)}</div>
@@ -333,16 +333,16 @@
       </div>
     </div>
 
-    <div class="card border border-base-300 bg-base-100 shadow-lg">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-lg">
+      <div class="card-body gap-4 p-5">
         <div>
           <h2 class="card-title text-xl">Creem Checkout</h2>
           <p class="text-sm text-base-content/60">Selected local product maps to Creem.</p>
         </div>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Product</span></span>
-          <select class="select select-bordered" bind:value={selectedProductId} disabled={checkoutProducts().length === 0}>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Product</legend>
+          <select class="select w-full" bind:value={selectedProductId} disabled={checkoutProducts().length === 0}>
             {#if checkoutProducts().length === 0}
               <option value="">No enabled Creem products</option>
             {:else}
@@ -351,9 +351,9 @@
               {/each}
             {/if}
           </select>
-        </label>
+        </fieldset>
 
-        <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
+        <div class="rounded-lg border border-base-200 bg-base-200/50 p-4">
           <div class="text-sm text-base-content/60">Amount</div>
           <div class="mt-1 text-lg font-semibold">{productPriceLabel(selectedProduct())}</div>
           {#if selectedProduct()}
@@ -373,8 +373,8 @@
     </div>
   </div>
 
-  <div class="card border border-base-300 bg-base-100 shadow-lg">
-    <div class="card-body gap-4">
+  <div class="card min-w-0 border border-base-200 bg-base-100 shadow-lg">
+    <div class="card-body gap-4 p-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="card-title text-xl">Orders</h2>
@@ -392,12 +392,12 @@
       <Notice type="error" message={error} />
 
       {#if orders.length === 0}
-        <div class="rounded-lg border border-dashed border-base-300 p-8 text-center text-base-content/60">
+        <div class="rounded-lg border border-dashed border-base-200 p-8 text-center text-base-content/60">
           {loadingOrders ? 'Loading orders...' : 'No orders yet'}
         </div>
       {:else}
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
+        <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+          <table class="table table-zebra table-sm min-w-[44rem]">
             <thead>
               <tr>
                 <th>Order</th>
@@ -449,7 +449,7 @@
           </table>
         </div>
 
-        <div class="flex flex-col gap-3 border-t border-base-300 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 border-t border-base-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div class="text-sm text-base-content/60">
             {orderPagination.total_items} orders - Page {orderPagination.page} / {Math.max(orderPagination.total_pages, 1)}
           </div>

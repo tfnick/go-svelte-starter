@@ -178,8 +178,8 @@
   <Notice type="error" message={error} />
 
   <div class="grid gap-6 xl:grid-cols-[0.58fr_1.02fr]">
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-5">
         <div class="flex items-center justify-between gap-3">
           <h2 class="card-title text-lg">{form.id ? 'Edit variable' : 'Create variable'}</h2>
           {#if form.id}
@@ -187,53 +187,53 @@
           {/if}
         </div>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Key</span></span>
-          <input class="input input-bordered font-mono text-sm" bind:value={form.key} placeholder="checkout.max_retry" />
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Key</legend>
+          <input class="input font-mono text-sm w-full" bind:value={form.key} placeholder="checkout.max_retry" />
+        </fieldset>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Name</span></span>
-          <input class="input input-bordered" bind:value={form.name} placeholder="Checkout max retry" />
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Name</legend>
+          <input class="input w-full" bind:value={form.name} placeholder="Checkout max retry" />
+        </fieldset>
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Value type</span></span>
-          <select class="select select-bordered" bind:value={form.value_type}>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Value type</legend>
+          <select class="select w-full" bind:value={form.value_type}>
             {#each valueTypes as type}
               <option value={type.value}>{type.label}</option>
             {/each}
           </select>
-        </label>
+        </fieldset>
 
         {#if form.value_type === 'boolean'}
-          <label class="form-control">
-            <span class="label"><span class="label-text">Value</span></span>
-            <select class="select select-bordered" bind:value={form.value_json}>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Value</legend>
+            <select class="select w-full" bind:value={form.value_json}>
               <option value="true">true</option>
               <option value="false">false</option>
             </select>
-          </label>
+        </fieldset>
         {:else if form.value_type === 'json'}
-          <label class="form-control">
-            <span class="label"><span class="label-text">Value JSON</span></span>
-            <textarea class="textarea textarea-bordered min-h-36 font-mono text-sm" bind:value={form.value_json} placeholder={'{}'}></textarea>
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Value JSON</legend>
+            <textarea class="textarea min-h-36 font-mono text-sm w-full" bind:value={form.value_json} placeholder={'{}'}></textarea>
+        </fieldset>
         {:else}
-          <label class="form-control">
-            <span class="label"><span class="label-text">Value</span></span>
-            <input class="input input-bordered font-mono text-sm" bind:value={form.value_json} placeholder={form.value_type === 'number' ? '100' : 'active'} />
-          </label>
+          <fieldset class="fieldset">
+          <legend class="fieldset-legend">Value</legend>
+            <input class="input font-mono text-sm w-full" bind:value={form.value_json} placeholder={form.value_type === 'number' ? '100' : 'active'} />
+        </fieldset>
         {/if}
 
-        <label class="form-control">
-          <span class="label"><span class="label-text">Description</span></span>
-          <textarea class="textarea textarea-bordered min-h-24" bind:value={form.description}></textarea>
-        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Description</legend>
+          <textarea class="textarea min-h-24 w-full" bind:value={form.description}></textarea>
+        </fieldset>
 
-        <label class="label cursor-pointer justify-start gap-3 rounded border border-base-300 px-3">
+        <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 px-3 bg-base-200/40 py-3">
           <input class="toggle toggle-primary" type="checkbox" bind:checked={form.enabled} />
-          <span class="label-text">Enabled</span>
+          <span>Enabled</span>
         </label>
 
         <button class="btn btn-primary" type="button" onclick={saveVariable} disabled={saving}>
@@ -245,20 +245,20 @@
       </div>
     </div>
 
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
-      <div class="card-body gap-4">
+    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="card-title text-lg">Variables</h2>
           <span class="badge badge-outline">{variables.length}</span>
         </div>
 
         {#if variables.length === 0}
-          <div class="rounded border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+          <div class="rounded-box border border-dashed border-base-200 p-6 text-center text-sm text-base-content/60">
             {loading ? 'Loading variables...' : 'No variables'}
           </div>
         {:else}
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
+          <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+            <table class="table table-zebra table-sm min-w-[44rem]">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -270,7 +270,7 @@
               </thead>
               <tbody>
                 {#each variables as variable}
-                  <tr class:selected={form.id === variable.id}>
+                  <tr class={form.id === variable.id ? 'bg-primary/5' : ''}>
                     <td>
                       <div class="font-medium">{variable.name}</div>
                       <div class="max-w-64 truncate font-mono text-xs text-base-content/60">{variable.key}</div>

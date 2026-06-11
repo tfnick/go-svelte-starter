@@ -215,19 +215,19 @@
 
   <div class="grid gap-6 xl:grid-cols-[0.5fr_1.1fr]">
     <div class="space-y-6">
-      <div class="card border border-base-300 bg-base-100 shadow-sm">
-        <div class="card-body gap-4">
+      <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+        <div class="card-body gap-4 p-5">
           <div>
             <h2 class="card-title text-lg">Workspace</h2>
             <p class="text-sm text-base-content/60">{auth.user?.name || 'Signed in user'}</p>
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <div class="rounded border border-base-300 p-3">
+            <div class="rounded-box border border-base-200 p-3">
               <div class="text-xs font-semibold uppercase tracking-wide text-base-content/50">LLM</div>
               <div class="mt-1 text-sm">DeepSeek summary channel</div>
             </div>
-            <div class="rounded border border-base-300 p-3">
+            <div class="rounded-box border border-base-200 p-3">
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <div class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Realtime</div>
@@ -240,8 +240,8 @@
         </div>
       </div>
 
-      <div class="card border border-base-300 bg-base-100 shadow-sm">
-        <div class="card-body gap-4">
+      <div class="card min-w-0 border border-base-200 bg-base-100 shadow-sm">
+        <div class="card-body gap-4 p-5">
           <h2 class="card-title text-lg">Controls</h2>
           <button class="btn btn-outline btn-sm justify-start" type="button" onclick={() => (activeTab = 'llm')}>Open LLM</button>
           <button class="btn btn-outline btn-sm justify-start" type="button" onclick={() => (activeTab = 'realtime')}>Open Realtime</button>
@@ -260,30 +260,30 @@
             checked={activeTab === tab.key}
             onchange={() => (activeTab = tab.key)}
           />
-          <div class="tab-content border-base-300 bg-base-100 p-4">
+          <div class="tab-content border-base-200 bg-base-100 p-4">
             {#if tab.key === 'llm'}
               <div class="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
                 <div class="space-y-4">
                   <Notice type="success" message={llmMessage} />
                   <Notice type="error" message={llmError} />
 
-                  <label class="form-control">
-                    <span class="label"><span class="label-text">Original text</span></span>
+                  <fieldset class="fieldset">
+          <legend class="fieldset-legend">Original text</legend>
                     <textarea
-                      class="textarea textarea-bordered min-h-52 text-sm"
+                      class="textarea min-h-52 text-sm w-full"
                       bind:value={originalText}
                       placeholder="Paste source text here"
                     ></textarea>
-                  </label>
+        </fieldset>
 
-                  <label class="form-control">
-                    <span class="label"><span class="label-text">Requirement prompt</span></span>
+                  <fieldset class="fieldset">
+          <legend class="fieldset-legend">Requirement prompt</legend>
                     <textarea
-                      class="textarea textarea-bordered min-h-28 text-sm"
+                      class="textarea min-h-28 text-sm w-full"
                       bind:value={requirementPrompt}
                       placeholder="Describe the summary style and focus"
                     ></textarea>
-                  </label>
+        </fieldset>
 
                   <div class="flex flex-wrap gap-2">
                     <button class="btn btn-primary" type="button" onclick={submitSummary} disabled={summarizing}>
@@ -296,14 +296,14 @@
                   </div>
                 </div>
 
-                <div class="rounded border border-base-300 bg-base-200/30 p-3">
+                <div class="rounded-box border border-base-200 bg-base-200/30 p-3">
                   <div class="mb-3 flex items-center justify-between gap-3">
                     <h2 class="text-lg font-semibold">Chat</h2>
                     <span class="badge badge-ghost">{chatMessages.length} messages</span>
                   </div>
                   <div class="max-h-[34rem] min-h-96 space-y-3 overflow-y-auto pr-1">
                     {#if chatMessages.length === 0}
-                      <div class="rounded border border-dashed border-base-300 p-8 text-center text-sm text-base-content/60">
+                      <div class="rounded-box border border-dashed border-base-200 p-8 text-center text-sm text-base-content/60">
                         No messages
                       </div>
                     {:else}
@@ -346,8 +346,8 @@
                   <button class="btn btn-outline" type="button" onclick={() => (streamEvents = [])}>Clear log</button>
                 </div>
 
-                <div class="overflow-x-auto rounded border border-base-300">
-                  <table class="table table-sm">
+                <div class="max-w-full overflow-x-auto rounded-box border border-base-200">
+                  <table class="table table-zebra table-sm min-w-[44rem]">
                     <thead>
                       <tr>
                         <th>Time</th>
