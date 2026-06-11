@@ -1,0 +1,1 @@
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "Quality gate requires frontend tests, production build, Go tests when frontend embed/runtime behavior can be affected, and visual checks for responsive UI."}
