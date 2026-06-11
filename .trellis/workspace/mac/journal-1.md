@@ -836,3 +836,36 @@ Added server-rendered marketing pages, /app SaaS boundary, checkout handoff, SEO
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: Optimize marketing conversion pages
+
+**Date**: 2026-06-11
+**Task**: Optimize marketing conversion pages
+**Branch**: `master`
+
+### Summary
+
+Optimized the server-rendered marketing website around a B=MAP conversion flow: homepage pricing CTA, product-proof bento sections, pricing checkout prompts, feature page conversion messaging, responsive CSS, and regression coverage.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b5ac98d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
