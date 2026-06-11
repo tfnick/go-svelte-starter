@@ -32,7 +32,7 @@ func TestCoreLayerImportsStayWithinArchitecture(t *testing.T) {
 			dir: "api/usecase",
 			forbidden: []string{
 				modulePath + "/api/db",
-				modulePath + "/api/integrations",
+				modulePath + "/api/providers",
 				modulePath + "/api/routes",
 				modulePath + "/api/framework/http",
 			},
@@ -41,12 +41,12 @@ func TestCoreLayerImportsStayWithinArchitecture(t *testing.T) {
 			dir: "api/routes",
 			forbidden: []string{
 				modulePath + "/api/db",
-				modulePath + "/api/integrations",
+				modulePath + "/api/providers",
 				modulePath + "/api/models",
 			},
 		},
 		{
-			dir: "api/integrations",
+			dir: "api/providers",
 			forbidden: []string{
 				modulePath + "/api/db",
 				modulePath + "/api/models",

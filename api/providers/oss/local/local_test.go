@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tfnick/go-svelte-starter/api/integrations/oss/local"
+	"github.com/tfnick/go-svelte-starter/api/providers/oss/local"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/oss"
 )
 
