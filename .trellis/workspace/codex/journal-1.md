@@ -383,3 +383,37 @@ Renamed top-level api integrations implementation directory to api/providers, up
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Build output bin directory
+
+**Date**: 2026-06-11
+**Task**: Build output bin directory
+**Branch**: `master`
+
+### Summary
+
+Changed Windows production build output from tmp to bin, updated verification script, ignore rules, README, deployment spec, and recorded quality checks including build.bat and verify-build.bat.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `28dd760` | (see git log) |
+| `fe42343` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
