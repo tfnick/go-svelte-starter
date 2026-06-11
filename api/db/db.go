@@ -11,6 +11,7 @@ import (
 	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/framework/logging"
 	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
 //go:embed migrations/app/*.sql
