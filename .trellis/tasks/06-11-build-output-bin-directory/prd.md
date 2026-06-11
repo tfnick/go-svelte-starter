@@ -22,7 +22,13 @@
 
 ## Open Questions
 
-* 是否需要把 `Makefile` 的默认 `OUT_DIR ?= tmp` 也一并改成 `bin`？推荐暂不改，除非希望所有本地构建入口统一输出到 `bin/`。
+* None.
+
+## Confirmed Decisions
+
+* 本任务只调整 Windows 打包链路，不修改 `Makefile` 的默认 `OUT_DIR ?= tmp`。
+* `verify-build.bat` 继续使用 `tmp\verify-empty` 作为临时验证运行目录。
+* `bin/` 作为本地构建产物目录，需要同时加入 `.gitignore` 和 `.dockerignore`。
 
 ## Requirements
 
@@ -34,11 +40,11 @@
 
 ## Acceptance Criteria
 
-* [ ] `build.bat` 生成 `bin\svelte-go-starter.exe`。
-* [ ] `.gitignore` 包含 `bin/`，且仍包含 `tmp/`。
-* [ ] `verify-build.bat` 从 `bin\svelte-go-starter.exe` 验证构建产物。
-* [ ] README 中关于 Windows build 输出目录的说明改为 `bin/`。
-* [ ] `git diff --check` 通过。
+* [x] `build.bat` 生成 `bin\svelte-go-starter.exe`。
+* [x] `.gitignore` 包含 `bin/`，且仍包含 `tmp/`。
+* [x] `verify-build.bat` 从 `bin\svelte-go-starter.exe` 验证构建产物。
+* [x] README 中关于 Windows build 输出目录的说明改为 `bin/`。
+* [x] `git diff --check` 通过。
 
 ## Definition of Done
 
@@ -61,4 +67,17 @@
   * `.gitignore`
   * `README.md`
   * `Makefile`
-* Current repo has another in-progress task with dirty code changes, so this task should remain planning-only until the previous task is committed or otherwise resolved.
+* Previous in-progress task has been committed and archived, so this task is now implemented independently.
+
+## Verification
+
+* `git diff --check` passed.
+* `go test ./...` passed.
+* `cd frontend && npm test` passed.
+* `build.bat` passed and produced `bin\svelte-go-starter.exe`.
+* `verify-build.bat` passed using `bin\svelte-go-starter.exe` and `tmp\verify-empty`.
+* `docker build -t go-svelte-starter .` was attempted but Docker Desktop/daemon was not running: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified`.
+* Static path scan confirmed:
+  * `build.bat` uses `OUT_DIR=bin`.
+  * `verify-build.bat` uses `SOURCE_EXE=bin\%APP_NAME%`.
+  * `.gitignore` keeps `tmp/` and adds `bin/`.
