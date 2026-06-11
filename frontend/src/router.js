@@ -33,6 +33,10 @@ const aliases = new Map([
   ["/settings.html", "/app/settings"],
   ["/variables", "/app/variables"],
   ["/variables.html", "/app/variables"],
+  ["/kb-admin", "/app/kb-admin"],
+  ["/kb-admin.html", "/app/kb-admin"],
+  ["/support-console", "/app/support-console"],
+  ["/support-console.html", "/app/support-console"],
 ]);
 
 export const appHomePath = "/app";
@@ -117,6 +121,20 @@ export const appRoutes = Object.freeze([
     label: "Setting",
     description: "Site preferences",
     icon: "settings",
+    adminOnly: true,
+  },
+  {
+    path: "/app/kb-admin",
+    label: "Knowledge Base",
+    description: "KB sources and documents",
+    icon: "book",
+    adminOnly: true,
+  },
+  {
+    path: "/app/support-console",
+    label: "Support Console",
+    description: "Chat conversations and leads",
+    icon: "support",
     adminOnly: true,
   },
   {
@@ -232,6 +250,10 @@ export function routeTitle(path) {
       return "Setting";
     case "/app/variables":
       return "Variable";
+    case "/app/kb-admin":
+      return "Knowledge Base";
+    case "/app/support-console":
+      return "Support Console";
     case "/app/checkout":
       return "Checkout";
     case "/app":

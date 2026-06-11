@@ -2,6 +2,8 @@
   import AppSidebar from './components/AppSidebar.svelte';
   import Header from './components/Header.svelte';
   import AppCheckout from './pages/AppCheckout.svelte';
+  import KnowledgeBase from './pages/KnowledgeBase.svelte';
+  import SupportConsole from './pages/SupportConsole.svelte';
   import Dashboard from './pages/Dashboard.svelte';
   import DashboardHome from './pages/DashboardHome.svelte';
   import Dictionary from './pages/Dictionary.svelte';
@@ -17,6 +19,7 @@
   import ResetPassword from './pages/ResetPassword.svelte';
   import Scheduler from './pages/Scheduler.svelte';
   import Settings from './pages/Settings.svelte';
+  import SupportChat from './components/SupportChat.svelte';
   import Users from './pages/Users.svelte';
   import Variables from './pages/Variables.svelte';
   import { getAuthStatus, getSiteSettings, realtimeWebSocketURL } from './api.js';
@@ -187,6 +190,10 @@
           <Settings settings={siteSettings} onSettingsChanged={refreshSiteSettings} />
         {:else if path === '/app/variables'}
           <Variables />
+        {:else if path === '/app/kb-admin'}
+          <KnowledgeBase />
+        {:else if path === '/app/support-console'}
+          <SupportConsole />
         {:else if path === '/app/checkout'}
           <AppCheckout {auth} />
         {:else}
@@ -195,4 +202,6 @@
       {/snippet}
     </AppSidebar>
   {/if}
+
+  <SupportChat />
 </div>

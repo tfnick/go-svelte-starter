@@ -228,6 +228,34 @@ func main() {
 			admin.POST("/admin/products", user.CreateProduct)
 			admin.PUT("/admin/products/:id", user.UpdateProduct)
 
+			// KB admin routes
+			admin.POST("/admin/kb/sources", user.CreateKBSource)
+			admin.PUT("/admin/kb/sources/:id", user.UpdateKBSource)
+			admin.PATCH("/admin/kb/sources/:id/enabled", user.SetKBSourceEnabled)
+			admin.GET("/admin/kb/sources", user.ListKBSources)
+			admin.POST("/admin/kb/sources/:source_id/documents", user.CreateKBDocument)
+			admin.PUT("/admin/kb/sources/:source_id/documents/:id", user.UpdateKBDocument)
+			admin.PATCH("/admin/kb/sources/:source_id/documents/:id/enabled", user.SetKBDocumentEnabled)
+			admin.GET("/admin/kb/sources/:source_id/documents", user.ListKBDocuments)
+			admin.POST("/kb/sources", user.CreateKBSource)
+			admin.PUT("/kb/sources/:id", user.UpdateKBSource)
+			admin.PATCH("/kb/sources/:id/enabled", user.SetKBSourceEnabled)
+			admin.GET("/kb/sources", user.ListKBSources)
+			admin.POST("/kb/sources/:source_id/documents", user.CreateKBDocument)
+			admin.PUT("/kb/sources/:source_id/documents/:id", user.UpdateKBDocument)
+			admin.PATCH("/kb/sources/:source_id/documents/:id/enabled", user.SetKBDocumentEnabled)
+			admin.GET("/kb/sources/:source_id/documents", user.ListKBDocuments)
+
+			// Support Console admin routes
+			admin.GET("/admin/support/conversations", user.ListSupportConversationsAdmin)
+			admin.GET("/admin/support/conversations/:id", user.GetSupportConversationAdmin)
+			admin.GET("/admin/support/leads", user.ListSupportLeadsAdmin)
+			admin.GET("/admin/support/leads/:id", user.GetSupportLeadAdmin)
+			admin.GET("/support/conversations", user.ListSupportConversationsAdmin)
+			admin.GET("/support/conversations/:id", user.GetSupportConversationAdmin)
+			admin.GET("/support/leads", user.ListSupportLeadsAdmin)
+			admin.GET("/support/leads/:id", user.GetSupportLeadAdmin)
+
 			admin.GET("/admin/scheduler/tasks", user.ListScheduledTasks)
 			admin.POST("/admin/scheduler/tasks", user.CreateScheduledTask)
 			admin.PUT("/admin/scheduler/tasks/:id", user.UpdateScheduledTask)
@@ -296,6 +324,15 @@ func main() {
 			protected.GET("/user/tasks", user.ListMyTasks)
 		}
 
+	}
+
+	// public support chat routes (no auth required)
+	publicSupport := api.Group("/public/support")
+	{
+		publicSupport.POST("/conversations", user.StartSupportConversation)
+		publicSupport.POST("/conversations/:id/messages", user.SendSupportMessage)
+		publicSupport.GET("/conversations/:id/messages", user.GetSupportMessages)
+		publicSupport.POST("/conversations/:id/lead", user.SubmitSupportLead)
 	}
 
 	// open api routes

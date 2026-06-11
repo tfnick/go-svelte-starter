@@ -26,6 +26,8 @@ test("normalizes app route aliases", () => {
   assert.equal(normalizePath("/notifications.html"), "/app/notifications");
   assert.equal(normalizePath("/settings.html"), "/app/settings");
   assert.equal(normalizePath("/variables.html"), "/app/variables");
+  assert.equal(normalizePath("/kb-admin.html"), "/app/kb-admin");
+  assert.equal(normalizePath("/support-console.html"), "/app/support-console");
   assert.equal(
     normalizeRouteTarget("/orders?tab=mine#latest"),
     "/app/orders?tab=mine#latest",
@@ -52,6 +54,8 @@ test("exposes logged-in app menu routes from one source", () => {
       ["/app/notifications", "Notification", "notifications"],
       ["/app/variables", "Variable", "variables"],
       ["/app/settings", "Setting", "settings"],
+      ["/app/kb-admin", "Knowledge Base", "book"],
+      ["/app/support-console", "Support Console", "support"],
     ],
   );
   assert.equal(
@@ -209,6 +213,8 @@ test("classifies auth and app routes", () => {
   assert.equal(isAppRoute("/app/notifications"), true);
   assert.equal(isAppRoute("/app/settings"), true);
   assert.equal(isAppRoute("/app/variables"), true);
+  assert.equal(isAppRoute("/app/kb-admin"), true);
+  assert.equal(isAppRoute("/app/support-console"), true);
   assert.equal(isAppRoute("/login"), false);
   assert.equal(isAppRoute("/login/oauth/callback"), false);
   assert.equal(
@@ -232,5 +238,7 @@ test("returns route titles for logged-in menu pages", () => {
   assert.equal(routeTitle("/app/notifications"), "Notification");
   assert.equal(routeTitle("/app/settings"), "Setting");
   assert.equal(routeTitle("/app/variables"), "Variable");
+  assert.equal(routeTitle("/app/kb-admin"), "Knowledge Base");
+  assert.equal(routeTitle("/app/support-console"), "Support Console");
   assert.equal(routeTitle("/login/oauth/callback"), "Login");
 });

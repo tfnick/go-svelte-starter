@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/tfnick/go-svelte-starter/api/db"
-	modelerror "github.com/tfnick/go-svelte-starter/api/framework/model/error"
+	"github.com/tfnick/go-svelte-starter/api/framework/data/modelerror"
 	"github.com/tfnick/go-svelte-starter/api/framework/timefmt"
-	"github.com/tfnick/uuid"
 )
 
 const (
@@ -166,50 +166,58 @@ type SupportLead struct {
 }
 
 func ListKnowledgeSources(ctx context.Context) ([]KnowledgeSourceRecord, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
 	var records []KnowledgeSourceRecord
-	err := db.ExecutorFor(ctx, "app").Select(&records, `
-SELECT
-  s.id, s.title, s.source_type, s.category, s.tags, s.source_url, s.enabled, s.index_status,
-  s.version, s.content_hash, COALESCE(s.last_indexed_at, '') AS last_indexed_at,
-  s.last_index_error, s.created_at, s.updated_at,
-  COALESCE(d.id, '') AS document_id,
-  COALESCE(d.title, '') AS document_title,
-  COALESCE(d.content, '') AS content,
-  COALESCE(d.extracted_text, '') AS extracted_text,
-  COALESCE(d.content_hash, '') AS document_content_hash,
-  COALESCE(d.version, 0) AS document_version,
-  COALESCE(f.file_name, '') AS file_name,
-  COALESCE(f.file_mime_type, '') AS file_mime_type,
-  COALESCE(f.file_size, 0) AS file_size,
-  COALESCE((SELECT COUNT(1) FROM kb_chunks c WHERE c.source_id = s.id), 0) AS chunk_count
-FROM kb_sources s
-LEFT JOIN kb_documents d ON d.source_id = s.id
-LEFT JOIN kb_source_files f ON f.document_id = d.id
-ORDER BY s.updated_at DESC, s.created_at DESC`)
+	err = d.Select(&records, `
+	SELECT
+	  s.id, s.title, s.source_type, s.category, s.tags, s.source_url, s.enabled, s.index_status,
+	  s.version, s.content_hash, COALESCE(s.last_indexed_at, '') AS last_indexed_at,
+	  s.last_index_error, s.created_at, s.updated_at,
+	  COALESCE(d.id, '') AS document_id,
+	  COALESCE(d.title, '') AS document_title,
+	  COALESCE(d.content, '') AS content,
+	  COALESCE(d.extracted_text, '') AS extracted_text,
+	  COALESCE(d.content_hash, '') AS document_content_hash,
+	  COALESCE(d.version, 0) AS document_version,
+	  COALESCE(f.file_name, '') AS file_name,
+	  COALESCE(f.file_mime_type, '') AS file_mime_type,
+	  COALESCE(f.file_size, 0) AS file_size,
+	  COALESCE((SELECT COUNT(1) FROM kb_chunks c WHERE c.source_id = s.id), 0) AS chunk_count
+	FROM kb_sources s
+	LEFT JOIN kb_documents d ON d.source_id = s.id
+	LEFT JOIN kb_source_files f ON f.document_id = d.id
+	ORDER BY s.updated_at DESC, s.created_at DESC`)
 	return records, err
 }
 
 func GetKnowledgeSourceByID(ctx context.Context, id string) (KnowledgeSourceRecord, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return KnowledgeSourceRecord{}, fmt.Errorf("database unavailable: %w", err)
+	}
 	var record KnowledgeSourceRecord
-	err := db.ExecutorFor(ctx, "app").Get(&record, `
-SELECT
-  s.id, s.title, s.source_type, s.category, s.tags, s.source_url, s.enabled, s.index_status,
-  s.version, s.content_hash, COALESCE(s.last_indexed_at, '') AS last_indexed_at,
-  s.last_index_error, s.created_at, s.updated_at,
-  COALESCE(d.id, '') AS document_id,
-  COALESCE(d.title, '') AS document_title,
-  COALESCE(d.content, '') AS content,
-  COALESCE(d.extracted_text, '') AS extracted_text,
-  COALESCE(d.content_hash, '') AS document_content_hash,
-  COALESCE(d.version, 0) AS document_version,
-  COALESCE(f.file_name, '') AS file_name,
-  COALESCE(f.file_mime_type, '') AS file_mime_type,
-  COALESCE(f.file_size, 0) AS file_size,
-  COALESCE((SELECT COUNT(1) FROM kb_chunks c WHERE c.source_id = s.id), 0) AS chunk_count
-FROM kb_sources s
-LEFT JOIN kb_documents d ON d.source_id = s.id
-LEFT JOIN kb_source_files f ON f.document_id = d.id
-WHERE s.id = ?`, strings.TrimSpace(id))
+	err = d.Get(&record, `
+	SELECT
+	  s.id, s.title, s.source_type, s.category, s.tags, s.source_url, s.enabled, s.index_status,
+	  s.version, s.content_hash, COALESCE(s.last_indexed_at, '') AS last_indexed_at,
+	  s.last_index_error, s.created_at, s.updated_at,
+	  COALESCE(d.id, '') AS document_id,
+	  COALESCE(d.title, '') AS document_title,
+	  COALESCE(d.content, '') AS content,
+	  COALESCE(d.extracted_text, '') AS extracted_text,
+	  COALESCE(d.content_hash, '') AS document_content_hash,
+	  COALESCE(d.version, 0) AS document_version,
+	  COALESCE(f.file_name, '') AS file_name,
+	  COALESCE(f.file_mime_type, '') AS file_mime_type,
+	  COALESCE(f.file_size, 0) AS file_size,
+	  COALESCE((SELECT COUNT(1) FROM kb_chunks c WHERE c.source_id = s.id), 0) AS chunk_count
+	FROM kb_sources s
+	LEFT JOIN kb_documents d ON d.source_id = s.id
+	LEFT JOIN kb_source_files f ON f.document_id = d.id
+	WHERE s.id = ?`, strings.TrimSpace(id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return KnowledgeSourceRecord{}, modelerror.ErrNotFound
 	}
@@ -225,35 +233,38 @@ func CreateKnowledgeSource(ctx context.Context, cmd SaveKnowledgeSourceCmd) (Kno
 	documentID := uuid.Must(uuid.NewV7()).String()
 	contentHash := strings.TrimSpace(cmd.ContentHash)
 
-	exec := db.ExecutorFor(ctx, "app")
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return KnowledgeSourceRecord{}, fmt.Errorf("database unavailable: %w", err)
+	}
 	if _, err := exec.Exec(`
-INSERT INTO kb_sources (
-  id, title, source_type, category, tags, source_url, enabled, index_status, version,
-  content_hash, last_index_error, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, '', ?, ?)`,
+	INSERT INTO kb_sources (
+	  id, title, source_type, category, tags, source_url, enabled, index_status, version,
+	  content_hash, last_index_error, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, '', ?, ?)`,
 		sourceID, cmd.Title, cmd.SourceType, cmd.Category, cmd.Tags, cmd.SourceURL, boolToInt(cmd.Enabled),
 		KBIndexStatusPending, contentHash, now, now); err != nil {
-		return KnowledgeSourceRecord{}, err
+		return KnowledgeSourceRecord{}, fmt.Errorf("insert kb source: %w", err)
 	}
 
 	if _, err := exec.Exec(`
-INSERT INTO kb_documents (
-  id, source_id, title, content, extracted_text, content_hash, version, enabled, index_status,
-  last_index_error, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, '', ?, ?)`,
+	INSERT INTO kb_documents (
+	  id, source_id, title, content, extracted_text, content_hash, version, enabled, index_status,
+	  last_index_error, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, '', ?, ?)`,
 		documentID, sourceID, cmd.Title, cmd.Content, cmd.ExtractedText, contentHash, boolToInt(cmd.Enabled),
 		KBIndexStatusPending, now, now); err != nil {
-		return KnowledgeSourceRecord{}, err
+		return KnowledgeSourceRecord{}, fmt.Errorf("insert kb document: %w", err)
 	}
 
 	if strings.TrimSpace(cmd.FileName) != "" {
 		if _, err := exec.Exec(`
-INSERT INTO kb_source_files (
-  id, source_id, document_id, file_name, file_mime_type, file_size, file_text, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+	INSERT INTO kb_source_files (
+	  id, source_id, document_id, file_name, file_mime_type, file_size, file_text, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			uuid.Must(uuid.NewV7()).String(), sourceID, documentID, cmd.FileName, cmd.FileMimeType,
 			cmd.FileSize, cmd.FileText, now); err != nil {
-			return KnowledgeSourceRecord{}, err
+			return KnowledgeSourceRecord{}, fmt.Errorf("insert kb source file: %w", err)
 		}
 	}
 
@@ -272,43 +283,49 @@ func UpdateKnowledgeSource(ctx context.Context, cmd SaveKnowledgeSourceCmd) (Kno
 		return KnowledgeSourceRecord{}, err
 	}
 	contentHash := strings.TrimSpace(cmd.ContentHash)
-	exec := db.ExecutorFor(ctx, "app")
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return KnowledgeSourceRecord{}, fmt.Errorf("database unavailable: %w", err)
+	}
 	res, err := exec.Exec(`
-UPDATE kb_sources
-SET title = ?, category = ?, tags = ?, source_url = ?, enabled = ?, index_status = ?,
-    version = version + 1, content_hash = ?, last_index_error = '', updated_at = ?
-WHERE id = ?`,
+	UPDATE kb_sources
+	SET title = ?, category = ?, tags = ?, source_url = ?, enabled = ?, index_status = ?,
+	    version = version + 1, content_hash = ?, last_index_error = '', updated_at = ?
+	WHERE id = ?`,
 		cmd.Title, cmd.Category, cmd.Tags, cmd.SourceURL, boolToInt(cmd.Enabled),
 		KBIndexStatusPending, contentHash, now, sourceID)
 	if err != nil {
-		return KnowledgeSourceRecord{}, err
+		return KnowledgeSourceRecord{}, fmt.Errorf("update kb source: %w", err)
 	}
-	affected, _ := res.RowsAffected()
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return KnowledgeSourceRecord{}, fmt.Errorf("read affected rows: %w", err)
+	}
 	if affected == 0 {
 		return KnowledgeSourceRecord{}, modelerror.ErrNotFound
 	}
 
 	if _, err := exec.Exec(`
-UPDATE kb_documents
-SET title = ?, content = ?, extracted_text = ?, content_hash = ?, version = version + 1,
-    enabled = ?, index_status = ?, last_index_error = '', updated_at = ?
-WHERE id = ?`,
+	UPDATE kb_documents
+	SET title = ?, content = ?, extracted_text = ?, content_hash = ?, version = version + 1,
+	    enabled = ?, index_status = ?, last_index_error = '', updated_at = ?
+	WHERE id = ?`,
 		cmd.Title, cmd.Content, cmd.ExtractedText, contentHash, boolToInt(cmd.Enabled),
 		KBIndexStatusPending, now, record.DocumentID); err != nil {
-		return KnowledgeSourceRecord{}, err
+		return KnowledgeSourceRecord{}, fmt.Errorf("update kb document: %w", err)
 	}
 
 	if strings.TrimSpace(cmd.FileName) != "" {
 		if _, err := exec.Exec(`DELETE FROM kb_source_files WHERE document_id = ?`, record.DocumentID); err != nil {
-			return KnowledgeSourceRecord{}, err
+			return KnowledgeSourceRecord{}, fmt.Errorf("delete kb source files: %w", err)
 		}
 		if _, err := exec.Exec(`
-INSERT INTO kb_source_files (
-  id, source_id, document_id, file_name, file_mime_type, file_size, file_text, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+	INSERT INTO kb_source_files (
+	  id, source_id, document_id, file_name, file_mime_type, file_size, file_text, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			uuid.Must(uuid.NewV7()).String(), sourceID, record.DocumentID, cmd.FileName, cmd.FileMimeType,
 			cmd.FileSize, cmd.FileText, now); err != nil {
-			return KnowledgeSourceRecord{}, err
+			return KnowledgeSourceRecord{}, fmt.Errorf("insert kb source file: %w", err)
 		}
 	}
 
@@ -317,22 +334,29 @@ INSERT INTO kb_source_files (
 
 func SetKnowledgeSourceEnabled(ctx context.Context, id string, enabled bool) (KnowledgeSourceRecord, error) {
 	now := timefmt.NowSQLiteDateTime()
-	res, err := db.ExecutorFor(ctx, "app").Exec(`
-UPDATE kb_sources SET enabled = ?, updated_at = ? WHERE id = ?`, boolToInt(enabled), now, strings.TrimSpace(id))
+	exec, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return KnowledgeSourceRecord{}, err
+		return KnowledgeSourceRecord{}, fmt.Errorf("database unavailable: %w", err)
 	}
-	affected, _ := res.RowsAffected()
+	res, err := exec.Exec(`
+	UPDATE kb_sources SET enabled = ?, updated_at = ? WHERE id = ?`, boolToInt(enabled), now, strings.TrimSpace(id))
+	if err != nil {
+		return KnowledgeSourceRecord{}, fmt.Errorf("update kb source enabled: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return KnowledgeSourceRecord{}, fmt.Errorf("read affected rows: %w", err)
+	}
 	if affected == 0 {
 		return KnowledgeSourceRecord{}, modelerror.ErrNotFound
 	}
-	if _, err := db.ExecutorFor(ctx, "app").Exec(`
-UPDATE kb_documents SET enabled = ?, updated_at = ? WHERE source_id = ?`, boolToInt(enabled), now, strings.TrimSpace(id)); err != nil {
-		return KnowledgeSourceRecord{}, err
+	if _, err := exec.Exec(`
+	UPDATE kb_documents SET enabled = ?, updated_at = ? WHERE source_id = ?`, boolToInt(enabled), now, strings.TrimSpace(id)); err != nil {
+		return KnowledgeSourceRecord{}, fmt.Errorf("update kb documents enabled: %w", err)
 	}
-	if _, err := db.ExecutorFor(ctx, "app").Exec(`
-UPDATE kb_chunks SET enabled = ?, updated_at = ? WHERE source_id = ?`, boolToInt(enabled), now, strings.TrimSpace(id)); err != nil {
-		return KnowledgeSourceRecord{}, err
+	if _, err := exec.Exec(`
+	UPDATE kb_chunks SET enabled = ?, updated_at = ? WHERE source_id = ?`, boolToInt(enabled), now, strings.TrimSpace(id)); err != nil {
+		return KnowledgeSourceRecord{}, fmt.Errorf("update kb chunks enabled: %w", err)
 	}
 	return GetKnowledgeSourceByID(ctx, id)
 }
@@ -343,71 +367,80 @@ func UpdateKnowledgeIndexStatus(ctx context.Context, sourceID, documentID, statu
 	if status == KBIndexStatusIndexed {
 		lastIndexedAt = now
 	}
-	exec := db.ExecutorFor(ctx, "app")
-	_, err := exec.Exec(`
-UPDATE kb_sources
-SET index_status = ?, last_index_error = ?, last_indexed_at = NULLIF(?, ''), updated_at = ?
-WHERE id = ?`, status, errMsg, lastIndexedAt, now, sourceID)
+	exec, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
-		return err
+		return fmt.Errorf("database unavailable: %w", err)
 	}
 	_, err = exec.Exec(`
-UPDATE kb_documents
-SET index_status = ?, last_index_error = ?, last_indexed_at = NULLIF(?, ''), updated_at = ?
-WHERE id = ?`, status, errMsg, lastIndexedAt, now, documentID)
-	return err
+	UPDATE kb_sources
+	SET index_status = ?, last_index_error = ?, last_indexed_at = NULLIF(?, ''), updated_at = ?
+	WHERE id = ?`, status, errMsg, lastIndexedAt, now, sourceID)
+	if err != nil {
+		return fmt.Errorf("update kb source index status: %w", err)
+	}
+	_, err = exec.Exec(`
+	UPDATE kb_documents
+	SET index_status = ?, last_index_error = ?, last_indexed_at = NULLIF(?, ''), updated_at = ?
+	WHERE id = ?`, status, errMsg, lastIndexedAt, now, documentID)
+	if err != nil {
+		return fmt.Errorf("update kb document index status: %w", err)
+	}
+	return nil
 }
 
 func ReplaceKnowledgeDocumentChunks(ctx context.Context, documentID string, chunks []KnowledgeChunkInsert) error {
-	exec := db.ExecutorFor(ctx, "app")
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
 	var rowIDs []int64
 	if err := exec.Select(&rowIDs, `
-SELECT er.vector_rowid
-FROM kb_embedding_rows er
-JOIN kb_chunks c ON c.id = er.chunk_id
-WHERE c.document_id = ?`, documentID); err != nil {
-		return err
+	SELECT er.vector_rowid
+	FROM kb_embedding_rows er
+	JOIN kb_chunks c ON c.id = er.chunk_id
+	WHERE c.document_id = ?`, documentID); err != nil {
+		return fmt.Errorf("select vector row ids: %w", err)
 	}
 	for _, rowID := range rowIDs {
 		if _, err := exec.Exec(`DELETE FROM kb_chunk_embedding_vec WHERE rowid = ?`, rowID); err != nil {
-			return err
+			return fmt.Errorf("delete from chunk embedding vec: %w", err)
 		}
 	}
 	if _, err := exec.Exec(`DELETE FROM kb_chunks WHERE document_id = ?`, documentID); err != nil {
-		return err
+		return fmt.Errorf("delete kb chunks: %w", err)
 	}
 
 	now := timefmt.NowSQLiteDateTime()
 	for _, chunk := range chunks {
 		if _, err := exec.Exec(`
-INSERT INTO kb_chunks (
-  id, source_id, document_id, chunk_index, content, content_hash, token_count, char_count,
-  embedding_model_code, embedding_provider_model_id, embedding_dimensions, embedding_status,
-  enabled, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+	INSERT INTO kb_chunks (
+	  id, source_id, document_id, chunk_index, content, content_hash, token_count, char_count,
+	  embedding_model_code, embedding_provider_model_id, embedding_dimensions, embedding_status,
+	  enabled, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
 			chunk.ID, chunk.SourceID, chunk.DocumentID, chunk.ChunkIndex, chunk.Content, chunk.ContentHash,
 			chunk.TokenCount, chunk.CharCount, chunk.EmbeddingModelCode, chunk.EmbeddingProviderModelID,
 			chunk.EmbeddingDimensions, KBEmbeddingStatusEmbedded, now, now); err != nil {
-			return err
+			return fmt.Errorf("insert kb chunk: %w", err)
 		}
 		result, err := exec.Exec(`INSERT INTO kb_embedding_rows (chunk_id, created_at) VALUES (?, ?)`, chunk.ID, now)
 		if err != nil {
-			return err
+			return fmt.Errorf("insert kb embedding row: %w", err)
 		}
 		vectorRowID, err := result.LastInsertId()
 		if err != nil {
 			return fmt.Errorf("read vector row id: %w", err)
 		}
 		if _, err := exec.Exec(`
-INSERT INTO kb_chunk_embeddings (
-  id, chunk_id, vector_rowid, embedding_json, dimensions, model_code, provider_model_id, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+	INSERT INTO kb_chunk_embeddings (
+	  id, chunk_id, vector_rowid, embedding_json, dimensions, model_code, provider_model_id, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			uuid.Must(uuid.NewV7()).String(), chunk.ID, vectorRowID, chunk.EmbeddingJSON,
 			chunk.EmbeddingDimensions, chunk.EmbeddingModelCode, chunk.EmbeddingProviderModelID, now); err != nil {
-			return err
+			return fmt.Errorf("insert kb chunk embedding: %w", err)
 		}
 		if _, err := exec.Exec(`INSERT INTO kb_chunk_embedding_vec(rowid, embedding) VALUES (?, ?)`, vectorRowID, chunk.EmbeddingJSON); err != nil {
-			return err
+			return fmt.Errorf("insert kb chunk embedding vec: %w", err)
 		}
 	}
 	return nil
@@ -417,65 +450,77 @@ func SearchKnowledgeChunks(ctx context.Context, embeddingJSON string, limit int)
 	if limit <= 0 {
 		limit = 5
 	}
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
 	var rows []KnowledgeSearchResult
-	err := db.ExecutorFor(ctx, "app").Select(&rows, `
-SELECT
-  c.id AS chunk_id, c.source_id, c.document_id, s.title, s.source_type, s.source_url,
-  c.content, v.distance, c.embedding_model_code, c.embedding_provider_model_id
-FROM kb_chunk_embedding_vec v
-JOIN kb_embedding_rows er ON er.vector_rowid = v.rowid
-JOIN kb_chunks c ON c.id = er.chunk_id
-JOIN kb_sources s ON s.id = c.source_id
-JOIN kb_documents d ON d.id = c.document_id
-WHERE v.embedding MATCH ?
-  AND c.enabled = 1
-  AND d.enabled = 1
-  AND s.enabled = 1
-  AND c.embedding_status = ?
-ORDER BY v.distance
-LIMIT ?`, embeddingJSON, KBEmbeddingStatusEmbedded, limit)
+	err = d.Select(&rows, `
+	SELECT
+	  c.id AS chunk_id, c.source_id, c.document_id, s.title, s.source_type, s.source_url,
+	  c.content, v.distance, c.embedding_model_code, c.embedding_provider_model_id
+	FROM kb_chunk_embedding_vec v
+	JOIN kb_embedding_rows er ON er.vector_rowid = v.rowid
+	JOIN kb_chunks c ON c.id = er.chunk_id
+	JOIN kb_sources s ON s.id = c.source_id
+	JOIN kb_documents d ON d.id = c.document_id
+	WHERE v.embedding MATCH ?
+	  AND c.enabled = 1
+	  AND d.enabled = 1
+	  AND s.enabled = 1
+	  AND c.embedding_status = ?
+	ORDER BY v.distance
+	LIMIT ?`, embeddingJSON, KBEmbeddingStatusEmbedded, limit)
 	return rows, err
 }
 
 func GetOrCreateSupportConversation(ctx context.Context, tokenHash, ipHash, sourcePage, referrer string) (SupportConversation, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return SupportConversation{}, fmt.Errorf("database unavailable: %w", err)
+	}
 	var conversation SupportConversation
-	err := db.ExecutorFor(ctx, "app").Get(&conversation, `
-SELECT id, visitor_token_hash, visitor_ip_hash, source_page, referrer, status, lead_capture_state,
-       detected_intent, summary, message_count, COALESCE(last_message_at, '') AS last_message_at,
-       created_at, updated_at
-FROM support_conversations
-WHERE visitor_token_hash = ? AND status IN (?, ?)
-ORDER BY updated_at DESC
-LIMIT 1`, tokenHash, SupportConversationStatusOpen, SupportConversationStatusLeadCaptured)
+	err = d.Get(&conversation, `
+	SELECT id, visitor_token_hash, visitor_ip_hash, source_page, referrer, status, lead_capture_state,
+	       detected_intent, summary, message_count, COALESCE(last_message_at, '') AS last_message_at,
+	       created_at, updated_at
+	FROM support_conversations
+	WHERE visitor_token_hash = ? AND status IN (?, ?)
+	ORDER BY updated_at DESC
+	LIMIT 1`, tokenHash, SupportConversationStatusOpen, SupportConversationStatusLeadCaptured)
 	if err == nil {
 		return conversation, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return SupportConversation{}, err
+		return SupportConversation{}, fmt.Errorf("get support conversation: %w", err)
 	}
 
 	now := timefmt.NowSQLiteDateTime()
 	id := uuid.Must(uuid.NewV7()).String()
-	if _, err := db.ExecutorFor(ctx, "app").Exec(`
-INSERT INTO support_conversations (
-  id, visitor_token_hash, visitor_ip_hash, source_page, referrer, status, lead_capture_state,
-  detected_intent, summary, message_count, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, '', '', 0, ?, ?)`,
+	if _, err := d.Exec(`
+	INSERT INTO support_conversations (
+	  id, visitor_token_hash, visitor_ip_hash, source_page, referrer, status, lead_capture_state,
+	  detected_intent, summary, message_count, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, '', '', 0, ?, ?)`,
 		id, tokenHash, ipHash, sourcePage, referrer, SupportConversationStatusOpen,
 		SupportLeadCaptureIdle, now, now); err != nil {
-		return SupportConversation{}, err
+		return SupportConversation{}, fmt.Errorf("insert support conversation: %w", err)
 	}
 	return GetSupportConversation(ctx, id)
 }
 
 func GetSupportConversation(ctx context.Context, id string) (SupportConversation, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return SupportConversation{}, fmt.Errorf("database unavailable: %w", err)
+	}
 	var conversation SupportConversation
-	err := db.ExecutorFor(ctx, "app").Get(&conversation, `
-SELECT id, visitor_token_hash, visitor_ip_hash, source_page, referrer, status, lead_capture_state,
-       detected_intent, summary, message_count, COALESCE(last_message_at, '') AS last_message_at,
-       created_at, updated_at
-FROM support_conversations
-WHERE id = ?`, strings.TrimSpace(id))
+	err = d.Get(&conversation, `
+	SELECT id, visitor_token_hash, visitor_ip_hash, source_page, referrer, status, lead_capture_state,
+	       detected_intent, summary, message_count, COALESCE(last_message_at, '') AS last_message_at,
+	       created_at, updated_at
+	FROM support_conversations
+	WHERE id = ?`, strings.TrimSpace(id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return SupportConversation{}, modelerror.ErrNotFound
 	}
@@ -485,27 +530,34 @@ WHERE id = ?`, strings.TrimSpace(id))
 func AddSupportMessage(ctx context.Context, conversationID, role, content, retrievalStatus string) (SupportMessage, error) {
 	now := timefmt.NowSQLiteDateTime()
 	messageID := uuid.Must(uuid.NewV7()).String()
-	exec := db.ExecutorFor(ctx, "app")
-	if _, err := exec.Exec(`
-INSERT INTO support_messages (id, conversation_id, role, content, retrieval_status, created_at)
-VALUES (?, ?, ?, ?, ?, ?)`, messageID, conversationID, role, content, retrievalStatus, now); err != nil {
-		return SupportMessage{}, err
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return SupportMessage{}, fmt.Errorf("database unavailable: %w", err)
 	}
 	if _, err := exec.Exec(`
-UPDATE support_conversations
-SET message_count = message_count + 1, last_message_at = ?, updated_at = ?
-WHERE id = ?`, now, now, conversationID); err != nil {
-		return SupportMessage{}, err
+	INSERT INTO support_messages (id, conversation_id, role, content, retrieval_status, created_at)
+	VALUES (?, ?, ?, ?, ?, ?)`, messageID, conversationID, role, content, retrievalStatus, now); err != nil {
+		return SupportMessage{}, fmt.Errorf("insert support message: %w", err)
+	}
+	if _, err := exec.Exec(`
+	UPDATE support_conversations
+	SET message_count = message_count + 1, last_message_at = ?, updated_at = ?
+	WHERE id = ?`, now, now, conversationID); err != nil {
+		return SupportMessage{}, fmt.Errorf("update support conversation message count: %w", err)
 	}
 	return GetSupportMessage(ctx, messageID)
 }
 
 func GetSupportMessage(ctx context.Context, id string) (SupportMessage, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return SupportMessage{}, fmt.Errorf("database unavailable: %w", err)
+	}
 	var message SupportMessage
-	err := db.ExecutorFor(ctx, "app").Get(&message, `
-SELECT id, conversation_id, role, content, retrieval_status, created_at
-FROM support_messages
-WHERE id = ?`, strings.TrimSpace(id))
+	err = d.Get(&message, `
+	SELECT id, conversation_id, role, content, retrieval_status, created_at
+	FROM support_messages
+	WHERE id = ?`, strings.TrimSpace(id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return SupportMessage{}, modelerror.ErrNotFound
 	}
@@ -513,52 +565,67 @@ WHERE id = ?`, strings.TrimSpace(id))
 }
 
 func AddSupportCitations(ctx context.Context, messageID, conversationID string, citations []KnowledgeSearchResult) error {
-	exec := db.ExecutorFor(ctx, "app")
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
 	now := timefmt.NowSQLiteDateTime()
 	for _, citation := range citations {
 		if _, err := exec.Exec(`
-INSERT INTO support_answer_citations (
-  id, message_id, conversation_id, chunk_id, source_id, document_id, snippet, distance, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	INSERT INTO support_answer_citations (
+	  id, message_id, conversation_id, chunk_id, source_id, document_id, snippet, distance, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			uuid.Must(uuid.NewV7()).String(), messageID, conversationID, citation.ChunkID, citation.SourceID,
 			citation.DocumentID, citation.Content, citation.Distance, now); err != nil {
-			return err
+			return fmt.Errorf("insert support citation: %w", err)
 		}
 	}
 	return nil
 }
 
 func ListSupportConversations(ctx context.Context) ([]SupportConversation, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
 	var conversations []SupportConversation
-	err := db.ExecutorFor(ctx, "app").Select(&conversations, `
-SELECT id, visitor_token_hash, visitor_ip_hash, source_page, referrer, status, lead_capture_state,
-       detected_intent, summary, message_count, COALESCE(last_message_at, '') AS last_message_at,
-       created_at, updated_at
-FROM support_conversations
-ORDER BY updated_at DESC
-LIMIT 200`)
+	err = d.Select(&conversations, `
+	SELECT id, visitor_token_hash, visitor_ip_hash, source_page, referrer, status, lead_capture_state,
+	       detected_intent, summary, message_count, COALESCE(last_message_at, '') AS last_message_at,
+	       created_at, updated_at
+	FROM support_conversations
+	ORDER BY updated_at DESC
+	LIMIT 200`)
 	return conversations, err
 }
 
 func ListSupportConversationMessages(ctx context.Context, conversationID string) ([]SupportMessage, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
 	var messages []SupportMessage
-	err := db.ExecutorFor(ctx, "app").Select(&messages, `
-SELECT id, conversation_id, role, content, retrieval_status, created_at
-FROM support_messages
-WHERE conversation_id = ?
-ORDER BY created_at ASC`, strings.TrimSpace(conversationID))
+	err = d.Select(&messages, `
+	SELECT id, conversation_id, role, content, retrieval_status, created_at
+	FROM support_messages
+	WHERE conversation_id = ?
+	ORDER BY created_at ASC`, strings.TrimSpace(conversationID))
 	return messages, err
 }
 
 func ListSupportMessageCitations(ctx context.Context, conversationID string) ([]SupportCitation, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
 	var citations []SupportCitation
-	err := db.ExecutorFor(ctx, "app").Select(&citations, `
-SELECT ac.id, ac.message_id, ac.conversation_id, ac.chunk_id, ac.source_id, ac.document_id,
-       ac.snippet, ac.distance, ac.created_at, s.title, s.source_type, s.source_url
-FROM support_answer_citations ac
-JOIN kb_sources s ON s.id = ac.source_id
-WHERE ac.conversation_id = ?
-ORDER BY ac.created_at ASC`, strings.TrimSpace(conversationID))
+	err = d.Select(&citations, `
+	SELECT ac.id, ac.message_id, ac.conversation_id, ac.chunk_id, ac.source_id, ac.document_id,
+	       ac.snippet, ac.distance, ac.created_at, s.title, s.source_type, s.source_url
+	FROM support_answer_citations ac
+	JOIN kb_sources s ON s.id = ac.source_id
+	WHERE ac.conversation_id = ?
+	ORDER BY ac.created_at ASC`, strings.TrimSpace(conversationID))
 	return citations, err
 }
 
@@ -566,12 +633,16 @@ func CountRecentSupportVisitorMessagesByIP(ctx context.Context, ipHash, since st
 	if strings.TrimSpace(ipHash) == "" {
 		return 0, nil
 	}
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return 0, fmt.Errorf("database unavailable: %w", err)
+	}
 	var count int
-	err := db.ExecutorFor(ctx, "app").Get(&count, `
-SELECT COUNT(1)
-FROM support_messages m
-JOIN support_conversations c ON c.id = m.conversation_id
-WHERE c.visitor_ip_hash = ? AND m.role = ? AND m.created_at >= ?`,
+	err = d.Get(&count, `
+	SELECT COUNT(1)
+	FROM support_messages m
+	JOIN support_conversations c ON c.id = m.conversation_id
+	WHERE c.visitor_ip_hash = ? AND m.role = ? AND m.created_at >= ?`,
 		ipHash, SupportMessageRoleVisitor, since)
 	return count, err
 }
@@ -582,32 +653,39 @@ func CreateSupportLead(ctx context.Context, lead SupportLead) (SupportLead, erro
 	if id == "" {
 		id = uuid.Must(uuid.NewV7()).String()
 	}
-	exec := db.ExecutorFor(ctx, "app")
-	if _, err := exec.Exec(`
-INSERT INTO support_leads (
-  id, conversation_id, contact_email, contact_phone, name, company, need_description,
-  source_page, detected_intent, conversation_summary, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, lead.ConversationID, lead.ContactEmail, lead.ContactPhone, lead.Name, lead.Company,
-		lead.NeedDescription, lead.SourcePage, lead.DetectedIntent, lead.ConversationSummary, now); err != nil {
-		return SupportLead{}, err
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return SupportLead{}, fmt.Errorf("database unavailable: %w", err)
 	}
 	if _, err := exec.Exec(`
-UPDATE support_conversations
-SET status = ?, lead_capture_state = ?, updated_at = ?
-WHERE id = ?`, SupportConversationStatusLeadCaptured, SupportLeadCaptureCaptured, now, lead.ConversationID); err != nil {
-		return SupportLead{}, err
+	INSERT INTO support_leads (
+	  id, conversation_id, contact_email, contact_phone, name, company, need_description,
+	  source_page, detected_intent, conversation_summary, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, lead.ConversationID, lead.ContactEmail, lead.ContactPhone, lead.Name, lead.Company,
+		lead.NeedDescription, lead.SourcePage, lead.DetectedIntent, lead.ConversationSummary, now); err != nil {
+		return SupportLead{}, fmt.Errorf("insert support lead: %w", err)
+	}
+	if _, err := exec.Exec(`
+	UPDATE support_conversations
+	SET status = ?, lead_capture_state = ?, updated_at = ?
+	WHERE id = ?`, SupportConversationStatusLeadCaptured, SupportLeadCaptureCaptured, now, lead.ConversationID); err != nil {
+		return SupportLead{}, fmt.Errorf("update support conversation lead status: %w", err)
 	}
 	return GetSupportLead(ctx, id)
 }
 
 func GetSupportLead(ctx context.Context, id string) (SupportLead, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return SupportLead{}, fmt.Errorf("database unavailable: %w", err)
+	}
 	var lead SupportLead
-	err := db.ExecutorFor(ctx, "app").Get(&lead, `
-SELECT id, conversation_id, contact_email, contact_phone, name, company, need_description,
-       source_page, detected_intent, conversation_summary, created_at
-FROM support_leads
-WHERE id = ?`, strings.TrimSpace(id))
+	err = d.Get(&lead, `
+	SELECT id, conversation_id, contact_email, contact_phone, name, company, need_description,
+	       source_page, detected_intent, conversation_summary, created_at
+	FROM support_leads
+	WHERE id = ?`, strings.TrimSpace(id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return SupportLead{}, modelerror.ErrNotFound
 	}
@@ -615,20 +693,200 @@ WHERE id = ?`, strings.TrimSpace(id))
 }
 
 func ListSupportLeads(ctx context.Context) ([]SupportLead, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
 	var leads []SupportLead
-	err := db.ExecutorFor(ctx, "app").Select(&leads, `
-SELECT id, conversation_id, contact_email, contact_phone, name, company, need_description,
-       source_page, detected_intent, conversation_summary, created_at
-FROM support_leads
-ORDER BY created_at DESC
-LIMIT 200`)
+	err = d.Select(&leads, `
+	SELECT id, conversation_id, contact_email, contact_phone, name, company, need_description,
+	       source_page, detected_intent, conversation_summary, created_at
+	FROM support_leads
+	ORDER BY created_at DESC
+	LIMIT 200`)
 	return leads, err
 }
 
 func UpdateSupportConversationIntent(ctx context.Context, conversationID, state, intent string) error {
-	_, err := db.ExecutorFor(ctx, "app").Exec(`
-UPDATE support_conversations
-SET lead_capture_state = ?, detected_intent = ?, updated_at = ?
-WHERE id = ?`, state, intent, timefmt.NowSQLiteDateTime(), conversationID)
-	return err
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+	_, err = exec.Exec(`
+	UPDATE support_conversations
+	SET lead_capture_state = ?, detected_intent = ?, updated_at = ?
+	WHERE id = ?`, state, intent, timefmt.NowSQLiteDateTime(), conversationID)
+	if err != nil {
+		return fmt.Errorf("update support conversation intent: %w", err)
+	}
+	return nil
+}
+
+// --- KB Document CRUD (standalone, not joined with sources) ---
+
+type KBDocument struct {
+	ID              string `db:"id"`
+	SourceID        string `db:"source_id"`
+	Title           string `db:"title"`
+	Content         string `db:"content"`
+	ExtractedText   string `db:"extracted_text"`
+	ContentHash     string `db:"content_hash"`
+	Version         int    `db:"version"`
+	Enabled         int    `db:"enabled"`
+	IndexStatus     string `db:"index_status"`
+	LastIndexedAt   string `db:"last_indexed_at"`
+	LastIndexError  string `db:"last_index_error"`
+	CreatedAt       string `db:"created_at"`
+	UpdatedAt       string `db:"updated_at"`
+}
+
+type KBChunk struct {
+	ID                     string `db:"id"`
+	SourceID               string `db:"source_id"`
+	DocumentID             string `db:"document_id"`
+	ChunkIndex             int    `db:"chunk_index"`
+	Content                string `db:"content"`
+	ContentHash            string `db:"content_hash"`
+	TokenCount             int    `db:"token_count"`
+	CharCount              int    `db:"char_count"`
+	EmbeddingModelCode     string `db:"embedding_model_code"`
+	EmbeddingProviderModelID string `db:"embedding_provider_model_id"`
+	EmbeddingDimensions    int    `db:"embedding_dimensions"`
+	EmbeddingStatus        string `db:"embedding_status"`
+	Enabled                int    `db:"enabled"`
+	CreatedAt              string `db:"created_at"`
+	UpdatedAt              string `db:"updated_at"`
+}
+
+func ListKBDocumentsBySourceID(ctx context.Context, sourceID string) ([]KBDocument, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return nil, fmt.Errorf("database unavailable: %w", err)
+	}
+	var docs []KBDocument
+	err = d.Select(&docs, `
+		SELECT id, source_id, title, content, extracted_text, content_hash, version,
+		       enabled, index_status, COALESCE(last_indexed_at, '') AS last_indexed_at,
+		       last_index_error, created_at, updated_at
+		FROM kb_documents
+		WHERE source_id = ?
+		ORDER BY created_at DESC`, strings.TrimSpace(sourceID))
+	return docs, err
+}
+
+func GetKBDocumentByID(ctx context.Context, id string) (KBDocument, error) {
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return KBDocument{}, fmt.Errorf("database unavailable: %w", err)
+	}
+	var doc KBDocument
+	err = d.Get(&doc, `
+		SELECT id, source_id, title, content, extracted_text, content_hash, version,
+		       enabled, index_status, COALESCE(last_indexed_at, '') AS last_indexed_at,
+		       last_index_error, created_at, updated_at
+		FROM kb_documents
+		WHERE id = ?`, strings.TrimSpace(id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return KBDocument{}, modelerror.ErrNotFound
+	}
+	return doc, err
+}
+
+func SetKBDocumentEnabled(ctx context.Context, id string, enabled bool) (KBDocument, error) {
+	now := timefmt.NowSQLiteDateTime()
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return KBDocument{}, fmt.Errorf("database unavailable: %w", err)
+	}
+	res, err := exec.Exec(`
+		UPDATE kb_documents SET enabled = ?, updated_at = ? WHERE id = ?`,
+		boolToInt(enabled), now, strings.TrimSpace(id))
+	if err != nil {
+		return KBDocument{}, fmt.Errorf("update kb document enabled: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return KBDocument{}, fmt.Errorf("read affected rows: %w", err)
+	}
+	if affected == 0 {
+		return KBDocument{}, modelerror.ErrNotFound
+	}
+	return GetKBDocumentByID(ctx, id)
+}
+
+func SetKBDocumentStatus(ctx context.Context, id string, status, errMsg string) error {
+	now := timefmt.NowSQLiteDateTime()
+	lastIndexedAt := ""
+	if status == KBIndexStatusIndexed {
+		lastIndexedAt = now
+	}
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+	res, err := exec.Exec(`
+		UPDATE kb_documents
+		SET index_status = ?, last_index_error = ?, last_indexed_at = NULLIF(?, ''), updated_at = ?
+		WHERE id = ?`, status, errMsg, lastIndexedAt, now, strings.TrimSpace(id))
+	if err != nil {
+		return fmt.Errorf("update kb document status: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read affected rows: %w", err)
+	}
+	if affected == 0 {
+		return modelerror.ErrNotFound
+	}
+	return nil
+}
+
+func DeleteKBChunksByDocumentID(ctx context.Context, documentID string) error {
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return fmt.Errorf("database unavailable: %w", err)
+	}
+	var rowIDs []int64
+	if err := exec.Select(&rowIDs, `
+		SELECT er.vector_rowid
+		FROM kb_embedding_rows er
+		JOIN kb_chunks c ON c.id = er.chunk_id
+		WHERE c.document_id = ?`, documentID); err != nil {
+		return fmt.Errorf("select vector row ids: %w", err)
+	}
+	for _, rowID := range rowIDs {
+		if _, err := exec.Exec(`DELETE FROM kb_chunk_embedding_vec WHERE rowid = ?`, rowID); err != nil {
+			return fmt.Errorf("delete from chunk embedding vec: %w", err)
+		}
+	}
+	if _, err := exec.Exec(`DELETE FROM kb_chunks WHERE document_id = ?`, documentID); err != nil {
+		return fmt.Errorf("delete kb chunks: %w", err)
+	}
+	return nil
+}
+
+func UpdateKBDocumentContent(ctx context.Context, id, title, content, contentHash string) (KBDocument, error) {
+	now := timefmt.NowSQLiteDateTime()
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return KBDocument{}, fmt.Errorf("database unavailable: %w", err)
+	}
+	res, err := exec.Exec(`
+		UPDATE kb_documents
+		SET title = ?, content = ?, content_hash = ?, version = version + 1,
+		    index_status = ?, last_index_error = '', updated_at = ?
+		WHERE id = ?`,
+		strings.TrimSpace(title), content, strings.TrimSpace(contentHash),
+		KBIndexStatusPending, now, strings.TrimSpace(id))
+	if err != nil {
+		return KBDocument{}, fmt.Errorf("update kb document content: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return KBDocument{}, fmt.Errorf("read affected rows: %w", err)
+	}
+	if affected == 0 {
+		return KBDocument{}, modelerror.ErrNotFound
+	}
+	return GetKBDocumentByID(ctx, id)
 }

@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	IntegrationScenarioLLM     = "llm"
-	IntegrationScenarioPayment = "payment"
-	IntegrationScenarioSMS     = "sms"
-	IntegrationScenarioEmail   = "email"
-	IntegrationScenarioOSS     = "oss"
+	IntegrationScenarioLLM       = "llm"
+	IntegrationScenarioPayment   = "payment"
+	IntegrationScenarioSMS       = "sms"
+	IntegrationScenarioEmail     = "email"
+	IntegrationScenarioOSS       = "oss"
+	IntegrationScenarioEmbedding = "embedding"
 
 	deepSeekOpenAICompatibleAdapterKey = "llm.deepseek.openai_compatible"
 	defaultDeepSeekModelCode           = "deepseek-chat"
@@ -193,6 +194,68 @@ type PaymentConfigQuery struct {
 	Scenario    string
 	Operation   string
 	ChannelCode string
+}
+
+type IntegrationEmbeddingConfig struct {
+	Channel         IntegrationChannel
+	Credential      IntegrationCredential
+	Policy          IntegrationPolicy
+	Model           IntegrationModelOption
+	OperationConfig IntegrationOperationConfig
+}
+
+type EmbeddingConfigQuery struct {
+	Scenario    string
+	Operation   string
+	ChannelCode string
+	ModelCode   string
+}
+
+func GetEnabledEmbeddingConfig(ctx context.Context, qry EmbeddingConfigQuery) (IntegrationEmbeddingConfig, error) {
+	operationConfig, err := findEnabledOperationConfig(ctx, qry.Scenario, qry.Operation)
+	if err != nil {
+		return IntegrationEmbeddingConfig{}, err
+	}
+
+	channelCode := qry.ChannelCode
+	if channelCode == "" {
+		channelCode = operationConfig.ChannelCode
+	}
+	modelCode := qry.ModelCode
+	if modelCode == "" {
+		modelCode = operationConfig.ModelCode
+	}
+
+	channel, err := findEnabledChannel(ctx, qry.Scenario, channelCode)
+	if err != nil {
+		return IntegrationEmbeddingConfig{}, err
+	}
+
+	credential, err := getEnabledCredentialByID(ctx, channel.CredentialID)
+	if err != nil {
+		return IntegrationEmbeddingConfig{}, err
+	}
+
+	policy := IntegrationPolicy{}
+	if channel.PolicyID != "" {
+		policy, err = getEnabledPolicyByID(ctx, channel.PolicyID)
+		if err != nil {
+			return IntegrationEmbeddingConfig{}, err
+		}
+	}
+
+	model, err := findEnabledModelOption(ctx, qry.Scenario, channel.ID, modelCode)
+	if err != nil {
+		return IntegrationEmbeddingConfig{}, err
+	}
+
+	return IntegrationEmbeddingConfig{
+		Channel:         channel,
+		Credential:      credential,
+		Policy:          policy,
+		Model:           model,
+		OperationConfig: operationConfig,
+	}, nil
 }
 
 func GetEnabledPrimaryOSSChannelConfig(ctx context.Context) (IntegrationChannelConfig, error) {

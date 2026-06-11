@@ -521,3 +521,104 @@ export function saveWorkerLimit(limit) {
     body: { limit }
   });
 }
+
+// --- Support Chat public API ---
+
+export function startSupportConversation(visitorId, sourcePage, sourceReferrer) {
+  return request('/api/public/support/conversations', {
+    method: 'POST',
+    body: {
+      visitor_id: visitorId || '',
+      source_page: sourcePage || '',
+      source_referrer: sourceReferrer || ''
+    }
+  });
+}
+
+export function sendSupportMessage(conversationId, message) {
+  return request(`/api/public/support/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    method: 'POST',
+    body: { message }
+  });
+}
+
+export function getSupportMessages(conversationId) {
+  return request(`/api/public/support/conversations/${encodeURIComponent(conversationId)}/messages`);
+}
+
+export function submitSupportLead(conversationId, data) {
+  return request(`/api/public/support/conversations/${encodeURIComponent(conversationId)}/lead`, {
+    method: 'POST',
+    body: data
+  });
+}
+
+// --- Knowledge Base admin API ---
+
+export function listKBSources() {
+  return request('/api/admin/kb/sources');
+}
+
+export function createKBSource(data) {
+  return request('/api/admin/kb/sources', {
+    method: 'POST',
+    body: data
+  });
+}
+
+export function updateKBSource(id, data) {
+  return request(`/api/admin/kb/sources/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: data
+  });
+}
+
+export function setKBSourceEnabled(id, enabled) {
+  return request(`/api/admin/kb/sources/${encodeURIComponent(id)}/enabled`, {
+    method: 'PATCH',
+    body: { enabled }
+  });
+}
+
+export function listKBDocuments(sourceId) {
+  return request(`/api/admin/kb/sources/${encodeURIComponent(sourceId)}/documents`);
+}
+
+export function createKBDocument(sourceId, data) {
+  return request(`/api/admin/kb/sources/${encodeURIComponent(sourceId)}/documents`, {
+    method: 'POST',
+    body: data
+  });
+}
+
+export function updateKBDocument(sourceId, documentId, data) {
+  return request(`/api/admin/kb/sources/${encodeURIComponent(sourceId)}/documents/${encodeURIComponent(documentId)}`, {
+    method: 'PUT',
+    body: data
+  });
+}
+
+export function setKBDocumentEnabled(sourceId, documentId, enabled) {
+  return request(`/api/admin/kb/sources/${encodeURIComponent(sourceId)}/documents/${encodeURIComponent(documentId)}/enabled`, {
+    method: 'PATCH',
+    body: { enabled }
+  });
+}
+
+// --- Support Console admin API ---
+
+export function listSupportConversations(page = 1, pageSize = 20) {
+  return request(`/api/admin/support/conversations?page=${page}&page_size=${pageSize}`);
+}
+
+export function getSupportConversation(id) {
+  return request(`/api/admin/support/conversations/${encodeURIComponent(id)}`);
+}
+
+export function listSupportLeads(page = 1, pageSize = 20) {
+  return request(`/api/admin/support/leads?page=${page}&page_size=${pageSize}`);
+}
+
+export function getSupportLead(id) {
+  return request(`/api/admin/support/leads/${encodeURIComponent(id)}`);
+}

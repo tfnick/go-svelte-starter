@@ -7,7 +7,9 @@
     CreditCard,
     FlaskConical,
     Gauge,
+    Headset,
     Home,
+    Library,
     ListChecks,
     LogOut,
     Menu,
@@ -34,6 +36,7 @@
   } = $props();
 
   const routeIcons = {
+    book: Library,
     checkout: CreditCard,
     dashboard: Gauge,
     dictionary: BookOpen,
@@ -45,6 +48,7 @@
     products: Package,
     scheduler: CalendarClock,
     settings: Settings,
+    support: Headset,
     users: Users,
     variables: Boxes
   };
