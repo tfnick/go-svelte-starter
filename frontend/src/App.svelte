@@ -2,8 +2,6 @@
   import AppSidebar from './components/AppSidebar.svelte';
   import Header from './components/Header.svelte';
   import AppCheckout from './pages/AppCheckout.svelte';
-  import NotificationCenter from './components/NotificationCenter.svelte';
-  import TaskCenter from './components/TaskCenter.svelte';
   import Dashboard from './pages/Dashboard.svelte';
   import DashboardHome from './pages/DashboardHome.svelte';
   import Dictionary from './pages/Dictionary.svelte';
@@ -22,7 +20,7 @@
   import Users from './pages/Users.svelte';
   import Variables from './pages/Variables.svelte';
   import { getAuthStatus, getSiteSettings, realtimeWebSocketURL } from './api.js';
-  import { appHomePath, canAccessAppRoute, isAuthRoute, normalizePath, routeTitle, visibleAppRoutes } from './router.js';
+  import { appHomePath, canAccessAppRoute, isAuthRoute, normalizePath, routeTitle } from './router.js';
   import { normalizeRealtimeMessage, toastFromRealtimeMessage } from './helpers/realtimeMessages.js';
   import { createRealtimeWebSocketClient } from './helpers/realtimeWebSocket.js';
   import { onMount } from 'svelte';
@@ -128,14 +126,8 @@
 </script>
 
 <div class="app-shell">
-  <Header {auth} {siteSettings} onAuthChanged={handleAuthChanged} />
-
-  {#if auth.logged_in}
-    <NotificationCenter {notifications} />
-    <TaskCenter refreshTrigger={taskRefreshTrigger} />
-  {/if}
-
   {#if isAuthRoute(path)}
+    <Header {auth} {siteSettings} onAuthChanged={handleAuthChanged} />
     <main class="page-wrap py-8">
       {#if path === '/app/login'}
         <Login onSuccess={handleAuthChanged} />
@@ -150,17 +142,26 @@
       {/if}
     </main>
   {:else if auth.loading}
+    <Header {auth} {siteSettings} onAuthChanged={handleAuthChanged} />
     <main class="page-wrap py-8">
       <div class="flex min-h-64 items-center justify-center">
         <span class="loading loading-spinner loading-md" aria-label="Loading"></span>
       </div>
     </main>
   {:else if !auth.logged_in}
+    <Header {auth} {siteSettings} onAuthChanged={handleAuthChanged} />
     <main class="page-wrap py-8">
       <Login onSuccess={handleAuthChanged} />
     </main>
   {:else}
-    <AppSidebar path={canAccessCurrentPath() ? path : appHomePath} {auth}>
+    <AppSidebar
+      path={canAccessCurrentPath() ? path : appHomePath}
+      {auth}
+      {siteSettings}
+      {notifications}
+      {taskRefreshTrigger}
+      onAuthChanged={handleAuthChanged}
+    >
       {#snippet children()}
         {#if !canAccessCurrentPath()}
           <DashboardHome {auth} />

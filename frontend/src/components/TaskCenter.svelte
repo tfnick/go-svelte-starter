@@ -1,7 +1,9 @@
 <script>
+  import { ClipboardCheck, RefreshCw, X } from 'lucide-svelte';
+
   import { listMyTasks } from '../api.js';
 
-  let { refreshTrigger = 0 } = $props();
+  let { refreshTrigger = 0, docked = false } = $props();
   let open = $state(false);
   let tasks = $state([]);
   let loading = $state(false);
@@ -41,34 +43,34 @@
   });
 </script>
 
-<div class="fixed bottom-16 left-4 z-50">
+<div class={docked ? '' : 'fixed bottom-16 left-4 z-50'}>
   {#if open}
-    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-xl w-96 max-h-96 flex flex-col">
-      <div class="card-body p-3 gap-2 overflow-y-auto">
+    <div class={docked ? 'absolute bottom-12 left-0 z-50 flex max-h-96 w-[min(24rem,calc(100vw-2rem))] min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl' : 'card flex max-h-96 w-96 min-w-0 flex-col border border-base-200 bg-base-100 shadow-xl'}>
+      <div class="card-body gap-2 overflow-y-auto p-3">
         <div class="flex items-center justify-between">
           <h3 class="card-title text-sm">Tasks</h3>
           <div class="flex items-center gap-1">
-            <button class="btn btn-ghost btn-xs" onclick={loadTasks} disabled={loading}>
+            <button class="btn btn-square btn-ghost btn-xs" type="button" aria-label="Refresh tasks" onclick={loadTasks} disabled={loading}>
               {#if loading}
                 <span class="loading loading-spinner loading-xs"></span>
               {:else}
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                <RefreshCw size={14} />
               {/if}
             </button>
-            <button class="btn btn-ghost btn-xs" onclick={toggle}>&times;</button>
+            <button class="btn btn-square btn-ghost btn-xs" type="button" aria-label="Close tasks" onclick={toggle}>
+              <X size={14} />
+            </button>
           </div>
         </div>
         {#if tasks.length === 0}
-          <div class="text-sm text-base-content/50 py-4 text-center">No tasks</div>
+          <div class="py-4 text-center text-sm text-base-content/50">No tasks</div>
         {:else}
           {#each tasks as task (task.id)}
             <div class="flex items-center justify-between gap-2 border-b border-base-200 pb-2">
-              <div class="flex-1 min-w-0">
-                <div class="text-xs font-medium truncate">{task.task_type}</div>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-xs font-medium">{task.task_type}</div>
                 {#if task.error_message}
-                  <div class="text-xs text-error truncate">{task.error_message}</div>
+                  <div class="truncate text-xs text-error">{task.error_message}</div>
                 {/if}
               </div>
               <span class="badge badge-xs {statusBadge(task.status)}">{task.status}</span>
@@ -79,9 +81,7 @@
     </div>
   {/if}
 
-  <button class="btn btn-circle btn-ghost" onclick={toggle} aria-label="Tasks">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-    </svg>
+  <button class={docked ? 'btn btn-square btn-ghost' : 'btn btn-circle btn-ghost'} type="button" onclick={toggle} aria-label="Tasks">
+    <ClipboardCheck size={18} />
   </button>
 </div>

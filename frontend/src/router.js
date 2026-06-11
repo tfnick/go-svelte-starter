@@ -1,154 +1,167 @@
 const aliases = new Map([
-  ['/index.html', '/'],
-  ['/dashboard', '/app'],
-  ['/login', '/app/login'],
-  ['/login.html', '/app/login'],
-  ['/login/oauth/callback', '/app/login/oauth/callback'],
-  ['/login-oauth-callback.html', '/app/login/oauth/callback'],
-  ['/register', '/app/register'],
-  ['/register.html', '/app/register'],
-  ['/forgot-password', '/app/forgot-password'],
-  ['/forgot-password.html', '/app/forgot-password'],
-  ['/reset-password', '/app/reset-password'],
-  ['/reset-password.html', '/app/reset-password'],
-  ['/orders', '/app/orders'],
-  ['/orders.html', '/app/orders'],
-  ['/products', '/app/products'],
-  ['/products.html', '/app/products'],
-  ['/users', '/app/users'],
-  ['/users.html', '/app/users'],
-  ['/scheduler', '/app/scheduler'],
-  ['/scheduler.html', '/app/scheduler'],
-  ['/events', '/app/events'],
-  ['/events.html', '/app/events'],
-  ['/experiments', '/app/experiments'],
-  ['/experiments.html', '/app/experiments'],
-  ['/dictionary', '/app/dictionary'],
-  ['/dictionary.html', '/app/dictionary'],
-  ['/parameters', '/app/parameters'],
-  ['/parameters.html', '/app/parameters'],
-  ['/notifications', '/app/notifications'],
-  ['/notifications.html', '/app/notifications'],
-  ['/settings', '/app/settings'],
-  ['/settings.html', '/app/settings'],
-  ['/variables', '/app/variables'],
-  ['/variables.html', '/app/variables']
+  ["/index.html", "/"],
+  ["/dashboard", "/app"],
+  ["/login", "/app/login"],
+  ["/login.html", "/app/login"],
+  ["/login/oauth/callback", "/app/login/oauth/callback"],
+  ["/login-oauth-callback.html", "/app/login/oauth/callback"],
+  ["/register", "/app/register"],
+  ["/register.html", "/app/register"],
+  ["/forgot-password", "/app/forgot-password"],
+  ["/forgot-password.html", "/app/forgot-password"],
+  ["/reset-password", "/app/reset-password"],
+  ["/reset-password.html", "/app/reset-password"],
+  ["/orders", "/app/orders"],
+  ["/orders.html", "/app/orders"],
+  ["/products", "/app/products"],
+  ["/products.html", "/app/products"],
+  ["/users", "/app/users"],
+  ["/users.html", "/app/users"],
+  ["/scheduler", "/app/scheduler"],
+  ["/scheduler.html", "/app/scheduler"],
+  ["/events", "/app/events"],
+  ["/events.html", "/app/events"],
+  ["/experiments", "/app/experiments"],
+  ["/experiments.html", "/app/experiments"],
+  ["/dictionary", "/app/dictionary"],
+  ["/dictionary.html", "/app/dictionary"],
+  ["/parameters", "/app/parameters"],
+  ["/parameters.html", "/app/parameters"],
+  ["/notifications", "/app/notifications"],
+  ["/notifications.html", "/app/notifications"],
+  ["/settings", "/app/settings"],
+  ["/settings.html", "/app/settings"],
+  ["/variables", "/app/variables"],
+  ["/variables.html", "/app/variables"],
 ]);
 
-export const appHomePath = '/app';
+export const appHomePath = "/app";
 
 export const appRoutes = Object.freeze([
   {
     path: appHomePath,
-    label: 'Dashboard',
-    description: 'Welcome'
+    label: "Dashboard",
+    description: "Welcome",
+    icon: "dashboard",
   },
   {
-    path: '/app/orders',
-    label: 'Order',
-    description: 'Orders and points'
+    path: "/app/orders",
+    label: "Order",
+    description: "Orders and points",
+    icon: "orders",
   },
   {
-    path: '/app/products',
-    label: 'Product',
-    description: 'Checkout catalog',
-    adminOnly: true
+    path: "/app/products",
+    label: "Product",
+    description: "Checkout catalog",
+    icon: "products",
+    adminOnly: true,
   },
   {
-    path: '/app/users',
-    label: 'User',
-    description: 'Accounts',
-    adminOnly: true
+    path: "/app/users",
+    label: "User",
+    description: "Accounts",
+    icon: "users",
+    adminOnly: true,
   },
   {
-    path: '/app/scheduler',
-    label: 'Scheduler',
-    description: 'Reserved',
-    adminOnly: true
+    path: "/app/scheduler",
+    label: "Scheduler",
+    description: "Reserved",
+    icon: "scheduler",
+    adminOnly: true,
   },
   {
-    path: '/app/events',
-    label: 'Event',
-    description: 'Domain deliveries',
-    adminOnly: true
+    path: "/app/events",
+    label: "Event",
+    description: "Domain deliveries",
+    icon: "events",
+    adminOnly: true,
   },
   {
-    path: '/app/experiments',
-    label: 'Experiment',
-    description: 'LLM and realtime'
+    path: "/app/experiments",
+    label: "Experiment",
+    description: "LLM and realtime",
+    icon: "experiments",
   },
   {
-    path: '/app/dictionary',
-    label: 'Dictionary',
-    description: 'Selectable values',
-    adminOnly: true
+    path: "/app/dictionary",
+    label: "Dictionary",
+    description: "Selectable values",
+    icon: "dictionary",
+    adminOnly: true,
   },
   {
-    path: '/app/parameters',
-    label: 'Parameter',
-    description: 'Integration settings',
-    adminOnly: true
+    path: "/app/parameters",
+    label: "Parameter",
+    description: "Integration settings",
+    icon: "parameters",
+    adminOnly: true,
   },
   {
-    path: '/app/notifications',
-    label: 'Notification',
-    description: 'Delivery ledger',
-    adminOnly: true
+    path: "/app/notifications",
+    label: "Notification",
+    description: "Delivery ledger",
+    icon: "notifications",
+    adminOnly: true,
   },
   {
-    path: '/app/variables',
-    label: 'Variable',
-    description: 'Global controls',
-    adminOnly: true
+    path: "/app/variables",
+    label: "Variable",
+    description: "Global controls",
+    icon: "variables",
+    adminOnly: true,
   },
   {
-    path: '/app/settings',
-    label: 'Setting',
-    description: 'Site preferences',
-    adminOnly: true
+    path: "/app/settings",
+    label: "Setting",
+    description: "Site preferences",
+    icon: "settings",
+    adminOnly: true,
   },
   {
-    path: '/app/checkout',
-    label: 'Checkout',
-    description: 'Payment handoff',
-    hidden: true
-  }
+    path: "/app/checkout",
+    label: "Checkout",
+    description: "Payment handoff",
+    icon: "checkout",
+    hidden: true,
+  },
 ]);
 
 export function normalizePath(pathname = window.location.pathname) {
-  const pathOnly = String(pathname || '').split(/[?#]/)[0] || '/';
+  const pathOnly = String(pathname || "").split(/[?#]/)[0] || "/";
   const normalized = aliases.get(pathOnly) || pathOnly;
-  if (normalized === '') {
-    return '/';
+  if (normalized === "") {
+    return "/";
   }
   return normalized;
 }
 
 export function normalizeRouteTarget(value) {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) {
-    return '';
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "";
   }
 
   try {
-    const parsed = new URL(value, 'http://app.local');
+    const parsed = new URL(value, "http://app.local");
     return `${normalizePath(parsed.pathname)}${parsed.search}${parsed.hash}`;
   } catch {
-    return '';
+    return "";
   }
 }
 
 export function navigate(path) {
-  window.history.pushState({}, '', path);
-  window.dispatchEvent(new PopStateEvent('popstate'));
+  window.history.pushState({}, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
 export function isAuthRoute(path) {
   switch (normalizePath(path)) {
-    case '/app/login':
-    case '/app/login/oauth/callback':
-    case '/app/register':
-    case '/app/forgot-password':
-    case '/app/reset-password':
+    case "/app/login":
+    case "/app/login/oauth/callback":
+    case "/app/register":
+    case "/app/forgot-password":
+    case "/app/reset-password":
       return true;
     default:
       return false;
@@ -161,8 +174,14 @@ export function isAppRoute(path) {
 }
 
 export function visibleAppRoutes(user = null) {
-  const isAdmin = user?.is_admin === true || user?.is_admin === 1 || user?.is_admin === '1' || user?.is_admin === 'true';
-  return appRoutes.filter((route) => !route.hidden && (!route.adminOnly || isAdmin));
+  const isAdmin =
+    user?.is_admin === true ||
+    user?.is_admin === 1 ||
+    user?.is_admin === "1" ||
+    user?.is_admin === "true";
+  return appRoutes.filter(
+    (route) => !route.hidden && (!route.adminOnly || isAdmin),
+  );
 }
 
 export function canAccessAppRoute(path, user = null) {
@@ -171,49 +190,53 @@ export function canAccessAppRoute(path, user = null) {
   if (!route) {
     return false;
   }
-  const isAdmin = user?.is_admin === true || user?.is_admin === 1 || user?.is_admin === '1' || user?.is_admin === 'true';
+  const isAdmin =
+    user?.is_admin === true ||
+    user?.is_admin === 1 ||
+    user?.is_admin === "1" ||
+    user?.is_admin === "true";
   return !route.adminOnly || isAdmin;
 }
 
 export function routeTitle(path) {
   switch (normalizePath(path)) {
-    case '/app/login':
-      return 'Login';
-    case '/app/login/oauth/callback':
-      return 'Login';
-    case '/app/register':
-      return 'Register';
-    case '/app/forgot-password':
-      return 'Forgot Password';
-    case '/app/reset-password':
-      return 'Reset Password';
-    case '/app/orders':
-      return 'Order';
-    case '/app/products':
-      return 'Product';
-    case '/app/users':
-      return 'User';
-    case '/app/scheduler':
-      return 'Scheduler';
-    case '/app/events':
-      return 'Event';
-    case '/app/experiments':
-      return 'Experiment';
-    case '/app/dictionary':
-      return 'Dictionary';
-    case '/app/parameters':
-      return 'Parameter';
-    case '/app/notifications':
-      return 'Notification';
-    case '/app/settings':
-      return 'Setting';
-    case '/app/variables':
-      return 'Variable';
-    case '/app/checkout':
-      return 'Checkout';
-    case '/app':
-      return 'Dashboard';
+    case "/app/login":
+      return "Login";
+    case "/app/login/oauth/callback":
+      return "Login";
+    case "/app/register":
+      return "Register";
+    case "/app/forgot-password":
+      return "Forgot Password";
+    case "/app/reset-password":
+      return "Reset Password";
+    case "/app/orders":
+      return "Order";
+    case "/app/products":
+      return "Product";
+    case "/app/users":
+      return "User";
+    case "/app/scheduler":
+      return "Scheduler";
+    case "/app/events":
+      return "Event";
+    case "/app/experiments":
+      return "Experiment";
+    case "/app/dictionary":
+      return "Dictionary";
+    case "/app/parameters":
+      return "Parameter";
+    case "/app/notifications":
+      return "Notification";
+    case "/app/settings":
+      return "Setting";
+    case "/app/variables":
+      return "Variable";
+    case "/app/checkout":
+      return "Checkout";
+    case "/app":
+      return "Dashboard";
     default:
-      return 'Dashboard';
+      return "Dashboard";
   }
 }

@@ -1,5 +1,7 @@
 <script>
-  let { notifications = [] } = $props();
+  import { Bell, X } from 'lucide-svelte';
+
+  let { notifications = [], docked = false } = $props();
   let open = $state(false);
 
   function count() {
@@ -20,19 +22,21 @@
   }
 </script>
 
-<div class="fixed bottom-4 left-4 z-50">
+<div class={docked ? '' : 'fixed bottom-4 left-4 z-50'}>
   {#if open}
-    <div class="card min-w-0 border border-base-200 bg-base-100 shadow-xl w-80 max-h-96 flex flex-col">
-      <div class="card-body p-3 gap-2 overflow-y-auto">
+    <div class={docked ? 'absolute bottom-12 left-0 z-50 flex max-h-96 w-[min(20rem,calc(100vw-2rem))] min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl' : 'card flex max-h-96 w-80 min-w-0 flex-col border border-base-200 bg-base-100 shadow-xl'}>
+      <div class="card-body gap-2 overflow-y-auto p-3">
         <div class="flex items-center justify-between">
           <h3 class="card-title text-sm">Notifications</h3>
-          <button class="btn btn-ghost btn-xs" onclick={toggle}>&times;</button>
+          <button class="btn btn-square btn-ghost btn-xs" type="button" aria-label="Close notifications" onclick={toggle}>
+            <X size={14} />
+          </button>
         </div>
         {#if notifications.length === 0}
-          <div class="text-sm text-base-content/50 py-4 text-center">No notifications</div>
+          <div class="py-4 text-center text-sm text-base-content/50">No notifications</div>
         {:else}
           {#each notifications as notification (notification.id)}
-            <div class="alert {levelClass(notification.level)} text-xs p-2">
+            <div class="alert {levelClass(notification.level)} p-2 text-xs">
               <span>{notification.message}</span>
             </div>
           {/each}
@@ -41,12 +45,10 @@
     </div>
   {/if}
 
-  <button class="btn btn-circle btn-ghost relative" onclick={toggle} aria-label="Notifications">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-    </svg>
+  <button class={docked ? 'btn btn-square btn-ghost relative' : 'btn btn-circle btn-ghost relative'} type="button" onclick={toggle} aria-label="Notifications">
+    <Bell size={18} />
     {#if count() > 0}
-      <span class="badge badge-sm badge-error absolute -top-1 -right-1">{count()}</span>
+      <span class="badge badge-error badge-sm absolute -right-1 -top-1">{count()}</span>
     {/if}
   </button>
 </div>
