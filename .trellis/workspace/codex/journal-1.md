@@ -483,3 +483,36 @@ Upgraded frontend daisyUI to 5.5.23, adjusted initial login/product styling comp
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: Home layout optimization
+
+**Date**: 2026-06-11
+**Task**: Home layout optimization
+**Branch**: `master`
+
+### Summary
+
+Optimized the logged-in app shell into a left sidebar and right work area, removed the workspace block, added icon-based navigation, docked profile notifications and tasks, and verified desktop/mobile layout plus quality gates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `65170e8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
