@@ -2,7 +2,7 @@
 setlocal
 
 set APP_NAME=svelte-go-starter.exe
-set OUT_DIR=tmp
+set OUT_DIR=bin
 
 where npm >nul 2>nul
 if errorlevel 1 (

@@ -71,9 +71,9 @@ data/.env
 * 生产部署必须设置稳定的 `APP_JWT_SECRET` 和 `APP_INTEGRATION_MASTER_KEY`；不要把这些 secret 写进 Dockerfile、README 明文示例或 Docker build args。
 * 可执行文件启动时会读取 dotenv-style env file，并且只填充进程里尚未存在的变量；系统/容器环境变量优先级高于 env file。
 * env file 支持 `KEY=value`、`export KEY=value`、单引号/双引号值、空行和 `#` 注释。日志只允许记录 env file 路径和填充数量，不得记录具体值。
-* 本地 Windows build 输出通常位于 `tmp/`，因此启动时会额外检查 executable parent 下的 `.env` 和 `data/.env`；Linux/Docker 部署可把 env file 放在二进制旁边或持久化的 `/app/data/.env`。
+* 本地 Windows build 输出通常位于 `bin/`，因此启动时会额外检查 executable parent 下的 `.env` 和 `data/.env`；Linux/Docker 部署可把 env file 放在二进制旁边或持久化的 `/app/data/.env`。
 * `.env` 和 `data/.env` 必须被 git 忽略；只允许提交 `.env.example` 这类无真实 secret 的模板文件。
-* `.dockerignore` 必须排除本地 runtime/build artifact，例如 `data/`、`logs/`、`tmp/`、`frontend/node_modules/`、`frontend/dist/`。
+* `.dockerignore` 必须排除本地 runtime/build artifact，例如 `data/`、`logs/`、`bin/`、`tmp/`、`frontend/node_modules/`、`frontend/dist/`。
 
 ### 4. Validation & Error Matrix
 

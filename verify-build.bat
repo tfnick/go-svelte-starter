@@ -2,7 +2,7 @@
 setlocal
 
 set APP_NAME=svelte-go-starter.exe
-set SOURCE_EXE=tmp\%APP_NAME%
+set SOURCE_EXE=bin\%APP_NAME%
 set VERIFY_DIR=tmp\verify-empty
 set VERIFY_PORT=3099
 

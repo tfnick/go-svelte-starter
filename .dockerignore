@@ -6,6 +6,7 @@
 
 data/
 logs/
+bin/
 tmp/
 
 frontend/node_modules/

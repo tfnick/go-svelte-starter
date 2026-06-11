@@ -46,7 +46,7 @@ Make:
 make build
 ```
 
-The final executable is written under `tmp/`. It should run without `frontend/`, `frontend/dist/`, or `public/` present on disk because the frontend assets are compiled into the binary.
+The final executable is written under `bin/`. It should run without `frontend/`, `frontend/dist/`, or `public/` present on disk because the frontend assets are compiled into the binary.
 
 To verify that property on Windows:
 
@@ -121,7 +121,7 @@ Persistent storage:
 Runtime environment files:
 
 - The executable automatically loads dotenv-style files at startup and only fills variables that are not already set by the operating system.
-- Checked paths are `.env`, `data/.env`, `.env` and `data/.env` next to the executable, and the same two paths in the executable directory's parent. The parent lookup is useful when the Windows build output runs from `tmp/`.
+- Checked paths are `.env`, `data/.env`, `.env` and `data/.env` next to the executable, and the same two paths in the executable directory's parent. The parent lookup is useful when the Windows build output runs from `bin/`.
 - The format is `KEY=value`; blank lines and `#` comments are ignored, `export KEY=value` is accepted, and single or double quoted values are supported.
 - For Docker/Dokploy, you can still set real environment variables or mount a persistent env file such as `/app/data/.env`.
 

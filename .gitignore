@@ -10,5 +10,6 @@ data/.env
 frontend/dist/
 frontend/node_modules/
 logs/
+bin/
 tmp/
 .idea/
