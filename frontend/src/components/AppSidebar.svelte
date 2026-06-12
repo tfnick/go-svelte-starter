@@ -29,6 +29,7 @@
     siteSettings,
     notifications = [],
     taskRefreshTrigger = 0,
+    onNotificationsCleared,
     onAuthChanged,
     children
   } = $props();
@@ -192,7 +193,7 @@
           </div>
 
           <div class="mt-3 grid grid-cols-3 gap-2">
-            <NotificationCenter {notifications} docked />
+            <NotificationCenter {notifications} onCleared={onNotificationsCleared} docked />
             <TaskCenter refreshTrigger={taskRefreshTrigger} docked />
             <button class="btn btn-square btn-ghost" type="button" aria-label="Sign out" onclick={handleLogout} disabled={busy}>
               {#if busy}

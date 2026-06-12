@@ -201,6 +201,7 @@ getProducts()
 triggerExportToast()
 summarizeTextWithLLM({ text, prompt, dimensions })
 listNotifications({ page, pageSize, type, email, phone })
+clearMyNotifications()
 listScheduledTasks()
 createScheduledTask(payload)
 updateScheduledTask(id, payload)
@@ -229,7 +230,7 @@ createRealtimeWebSocketClient(options)
 
 Frontend API helper namespace conventions:
 
-* 当前用户自服务 helper 默认使用 `/api/user/...`，例如 `getCurrentUser()`、`getMyOrders()`、`createOrder()`、`getMyPoints()`、`listMyTasks()`、`clearMyTasks()`、`getTaskDownload()`、`realtimeWebSocketURL()`。
+* 当前用户自服务 helper 默认使用 `/api/user/...`，例如 `getCurrentUser()`、`getMyOrders()`、`createOrder()`、`getMyPoints()`、`clearMyNotifications()`、`listMyTasks()`、`clearMyTasks()`、`getTaskDownload()`、`realtimeWebSocketURL()`。
 * 管理页面 helper 默认使用 `/api/admin/...`，例如 users、dictionary management、scheduler、events、messages、parameters、notifications、variables、settings upload 和 products write。
 * 公开读取 helper 默认使用 `/api/public/...`，例如 `getDictionaries()` 和 `getSiteSettings()`；`getProducts()` 目前保留 `GET /api/products`。
 * Legacy helper 只用于迁移兼容，例如 `getUserOrders(userId, ...)`；新页面不要继续依赖旧 path。
@@ -889,7 +890,7 @@ deliveries = await listEventDeliveries(event.id);
 
 ### 1. Scope / Trigger
 
-修改 `frontend/src/pages/Notifications.svelte`、`/notifications` admin 菜单路由、notification API helper、或 realtime `notification` toast 行为时，遵守本节。
+修改 `frontend/src/pages/Notifications.svelte`、左下角 `NotificationCenter.svelte`、`/notifications` admin 菜单路由、notification API helper、或 realtime `notification` toast 行为时，遵守本节。
 
 ### 2. Signatures
 
@@ -898,12 +899,14 @@ Frontend helpers:
 ```js
 getDictionaries(['notification_type'])
 listNotifications({ page, pageSize, type, email, phone })
+clearMyNotifications()
 ```
 
 Backend API path:
 
 ```text
-GET /api/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138
+GET  /api/admin/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138
+POST /api/user/notifications/clear
 ```
 
 Route entry:
@@ -921,8 +924,10 @@ Realtime message:
 ### 3. Contracts
 
 * `Notifications.svelte` must call helpers from `frontend/src/api.js`; no direct `fetch('/api/...')` in the component.
+* `NotificationCenter.svelte` must call `clearMyNotifications()` for user-side clearing; no direct `fetch('/api/user/notifications/clear')` in the component.
 * `/notifications` is an admin-only app route. Regular users do not see the menu entry; backend still enforces `RequireAdmin()`.
 * Page is read-only for MVP. Do not add a create form or POST helper until backend exposes an explicit admin creation contract.
+* Admin notification management remains read-only and audit-oriented. User-side clearing must not hide rows from the admin page.
 * Type filter options come from dynamic dictionary lookup `notification_type`.
 * List data uses standard `{items, pagination}` payload from the internal API envelope after `request()` unwraps `data`.
 * Filters are `type`, `email`, and `phone`; applying filters resets to page 1.
@@ -930,6 +935,9 @@ Realtime message:
 * Use `formatLocalDateTime(value)` for notification timestamps.
 * `frontend/src/helpers/realtimeMessages.js` treats `notification` as a toast by default, builds toast text from `summary`, then `title`, before falling back, and maps optional payload `status` to toast level.
 * Realtime `notification` payload must not assume or display raw `payload_json`.
+* Left-bottom `NotificationCenter` clear UI mirrors `TaskCenter`: `ArchiveX` icon button, disabled while loading, loading spinner during request, and panel-local safe error message on failure.
+* `NotificationCenter` receives an `onCleared` callback from the app shell. After `clearMyNotifications()` succeeds, it calls `onCleared()` so the parent in-memory notification list and badge clear immediately.
+* If `clearMyNotifications()` fails, keep the current notification list intact and show the API client safe error in the panel.
 
 ### 4. Validation & Error Matrix
 
@@ -940,6 +948,8 @@ Realtime message:
 | dictionary lookup fails | page displays safe API client message through `Notice` |
 | list request fails | page displays safe API client message through `Notice` |
 | notification list empty | page shows empty state |
+| user clicks NotificationCenter clear | call `clearMyNotifications()` once, show loading, then clear the local notification list on success |
+| clear request fails | show a safe panel error and keep the existing notification list visible |
 | invalid filter type reaches backend | page displays backend validation message |
 | mobile/narrow width | table scrolls horizontally and page avoids page-level horizontal overflow |
 
@@ -947,13 +957,17 @@ Realtime message:
 
 Good: Admin opens `/notifications`, filters by `type=sms` and `phone=138`, then pages through the ledger.
 
+Good: User clicks the left-bottom NotificationCenter clear icon, the helper calls `/api/user/notifications/clear`, and the badge/list clear only after the request succeeds.
+
 Base: A notification without `sent_at` renders the fallback display from `formatLocalDateTime`.
 
 Bad: Add a local hard-coded notification type enum in the page; types are dictionary-managed and must be loaded dynamically.
 
+Bad: Clear only the Svelte array without calling `clearMyNotifications()`; old durable notifications could reappear when a future user-side history list is added.
+
 ### 6. Tests Required
 
-* `frontend/src/api.test.js` covers `listNotifications({page,pageSize,type,email,phone})` path and query encoding.
+* `frontend/src/api.test.js` covers `listNotifications({page,pageSize,type,email,phone})` path/query encoding and `clearMyNotifications()` method/path.
 * `frontend/src/router.test.js` covers `/notifications.html` alias, admin-only menu visibility, app-route detection, and title.
 * `frontend/src/realtimeMessages.test.js` covers `notification` default toast presentation, toast text, and status-to-level mapping.
 * `cd frontend && npm test`
@@ -978,6 +992,20 @@ notifications = await listNotifications({
   email: filters.email.trim(),
   phone: filters.phone.trim()
 });
+```
+
+#### Wrong
+
+```svelte
+notifications = [];
+await fetch('/api/user/notifications/clear', { method: 'POST' });
+```
+
+#### Correct
+
+```svelte
+await clearMyNotifications();
+onCleared?.();
 ```
 
 ---

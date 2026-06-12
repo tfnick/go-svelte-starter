@@ -23,6 +23,7 @@ type NotificationResponse struct {
 	Status                string `json:"status"`
 	LastError             string `json:"last_error"`
 	SentAt                string `json:"sent_at"`
+	ClearedAt             string `json:"cleared_at"`
 	CreatedAt             string `json:"created_at"`
 	UpdatedAt             string `json:"updated_at"`
 }
@@ -30,6 +31,10 @@ type NotificationResponse struct {
 type NotificationsResponse struct {
 	Items      []NotificationResponse `json:"items"`
 	Pagination PaginationResponse     `json:"pagination"`
+}
+
+type ClearNotificationsResponse struct {
+	ClearedCount int `json:"cleared_count"`
 }
 
 func ListNotifications(c echo.Context) error {
@@ -49,6 +54,18 @@ func ListNotifications(c echo.Context) error {
 	return httpresponse.OK(c, ToNotificationsResponse(notifications))
 }
 
+func ClearMyNotifications(c echo.Context) error {
+	ctx := fwcontext.InternalUsecaseContext(c)
+	result, err := usecase.ClearMyNotifications(ctx)
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.OK(c, ClearNotificationsResponse{
+		ClearedCount: result.ClearedCount,
+	})
+}
+
 func ToNotificationResponse(notification usecase.NotificationCo) NotificationResponse {
 	return NotificationResponse{
 		ID:                    notification.ID,
@@ -65,6 +82,7 @@ func ToNotificationResponse(notification usecase.NotificationCo) NotificationRes
 		Status:                notification.Status,
 		LastError:             notification.LastError,
 		SentAt:                notification.SentAt,
+		ClearedAt:             notification.ClearedAt,
 		CreatedAt:             notification.CreatedAt,
 		UpdatedAt:             notification.UpdatedAt,
 	}

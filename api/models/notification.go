@@ -33,6 +33,7 @@ type Notification struct {
 	Status           string `db:"status"`
 	LastError        string `db:"last_error"`
 	SentAt           string `db:"sent_at"`
+	ClearedAt        string `db:"cleared_at"`
 	CreatedAt        string `db:"created_at"`
 	UpdatedAt        string `db:"updated_at"`
 }
@@ -169,11 +170,37 @@ func ListNotifications(ctx context.Context, query NotificationQuery) ([]Notifica
 	return notifications, nil
 }
 
+func ClearNotificationsByUser(ctx context.Context, userID string) (int, error) {
+	now := timefmt.NowSQLiteDateTime()
+
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return 0, fmt.Errorf("database unavailable: %w", err)
+	}
+
+	query := d.Rebind(`
+		UPDATE notifications
+		SET cleared_at = ?, updated_at = ?
+		WHERE user_id = ?
+		  AND cleared_at = ''
+	`)
+	result, err := d.Exec(query, now, now, userID)
+	if err != nil {
+		return 0, fmt.Errorf("clear notifications failed: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("read affected rows failed: %w", err)
+	}
+	return int(rows), nil
+}
+
 func notificationSelectSQL() string {
 	return `
 		SELECT id, notification_type, source_type, source_id, user_id, recipient_email,
 			recipient_phone, title, summary, payload_json, status, last_error,
-			COALESCE(sent_at, '') AS sent_at, created_at, updated_at
+			COALESCE(sent_at, '') AS sent_at, cleared_at, created_at, updated_at
 		FROM notifications
 	`
 }

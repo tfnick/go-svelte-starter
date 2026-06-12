@@ -64,6 +64,10 @@
     notifications = [{ ...msg, id: msg.id || Date.now() }, ...notifications].slice(0, 50);
   }
 
+  function clearNotifications() {
+    notifications = [];
+  }
+
   async function refreshAuth() {
     auth = { ...auth, loading: true };
     try {
@@ -160,6 +164,7 @@
       {siteSettings}
       {notifications}
       {taskRefreshTrigger}
+      onNotificationsCleared={clearNotifications}
       onAuthChanged={handleAuthChanged}
     >
       {#snippet children()}

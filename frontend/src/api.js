@@ -384,6 +384,12 @@ export function listNotifications(filters = {}) {
   return request(`/api/admin/notifications${query ? `?${query}` : ''}`);
 }
 
+export function clearMyNotifications() {
+  return request('/api/user/notifications/clear', {
+    method: 'POST'
+  });
+}
+
 export function listScheduledTasks() {
   return request('/api/admin/scheduler/tasks');
 }

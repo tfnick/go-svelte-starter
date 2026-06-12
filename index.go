@@ -200,6 +200,7 @@ func main() {
 
 			protected.POST("/notifications/test-export-toast", user.TriggerExportToast)
 			protected.POST("/user/notifications/test-export-toast", user.TriggerExportToast)
+			protected.POST("/user/notifications/clear", user.ClearMyNotifications)
 
 			protected.GET("/products", user.ListProducts)
 

@@ -82,6 +82,7 @@ type NotificationCo struct {
 	Status                string
 	LastError             string
 	SentAt                string
+	ClearedAt             string
 	CreatedAt             string
 	UpdatedAt             string
 }
@@ -89,6 +90,10 @@ type NotificationCo struct {
 type NotificationsCo struct {
 	Items      []NotificationCo
 	Pagination fwusecase.PageResult
+}
+
+type ClearMyNotificationsCo struct {
+	ClearedCount int
 }
 
 func SendNotification(ctx fwusecase.Context, cmd SendNotificationCmd) (NotificationCo, error) {
@@ -216,6 +221,19 @@ func ListNotifications(ctx fwusecase.Context, qry NotificationsQry) (Notificatio
 		Items:      notificationCosFromModels(notifications, labels),
 		Pagination: fwusecase.NewPageResult(pageQuery, totalItems),
 	}, nil
+}
+
+func ClearMyNotifications(ctx fwusecase.Context) (ClearMyNotificationsCo, error) {
+	userID := strings.TrimSpace(ctx.Actor.UserID)
+	if userID == "" {
+		return ClearMyNotificationsCo{}, fwusecase.E(fwusecase.CodeUnauthorized, "not logged in", nil)
+	}
+
+	count, err := models.ClearNotificationsByUser(ctx.Std(), userID)
+	if err != nil {
+		return ClearMyNotificationsCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to clear notifications", err)
+	}
+	return ClearMyNotificationsCo{ClearedCount: count}, nil
 }
 
 func normalizeStorePolicy(policy NotificationStorePolicy) (NotificationStorePolicy, error) {
@@ -433,6 +451,7 @@ func notificationCoFromModel(notification models.Notification, labels map[string
 		Status:                notification.Status,
 		LastError:             notification.LastError,
 		SentAt:                notification.SentAt,
+		ClearedAt:             notification.ClearedAt,
 		CreatedAt:             notification.CreatedAt,
 		UpdatedAt:             notification.UpdatedAt,
 	}

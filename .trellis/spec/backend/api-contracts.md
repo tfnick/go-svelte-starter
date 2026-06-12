@@ -830,16 +830,18 @@ return httpresponse.OK(c, ToDomainEventsResponse(events))
 
 ### 1. Scope / Trigger
 
-修改 Notification Center、`notifications` 台账、业务通知创建 usecase、realtime notification envelope、或 admin `/api/notifications` 查询接口时，遵守本节。
+修改 Notification Center、`notifications` 台账、业务通知创建 usecase、realtime notification envelope、当前用户通知清除接口、或 admin notification 查询接口时，遵守本节。
 
 Notification Center 的定位是业务 WebSocket 发送入口与可选台账，不替代外部渠道 port/provider adapter。业务场景需要向用户发送 realtime 消息时必须调用 `usecase.SendNotification(...)`，通过 `StorePolicy` 决定是否写入 `notifications`。`StorePolicyDefault` / `StorePolicyStore` 会创建台账；`StorePolicyTransient` 只实时投递，不写台账。只有 WebSocket route/subscription infrastructure、`api/framework/realtime` 本身、以及 notification usecase 内部可以直接调用 realtime primitive。
 
 ### 2. Signatures
 
-Admin query API:
+Backend API:
 
 ```text
-GET /api/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138
+GET  /api/admin/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138
+GET  /api/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138 # legacy admin path
+POST /api/user/notifications/clear
 ```
 
 Usecase:
@@ -881,9 +883,14 @@ type SendNotificationCmd struct {
     PayloadJSON      string
 }
 
+type ClearMyNotificationsCo struct {
+    ClearedCount int
+}
+
 func SendNotification(ctx fwusecase.Context, cmd SendNotificationCmd) (NotificationCo, error)
 func CreateNotification(ctx fwusecase.Context, cmd CreateNotificationCmd) (NotificationCo, error)
 func ListNotifications(ctx fwusecase.Context, qry NotificationsQry) (NotificationsCo, error)
+func ClearMyNotifications(ctx fwusecase.Context) (ClearMyNotificationsCo, error)
 ```
 
 DB:
@@ -892,7 +899,7 @@ DB:
 notifications(
   id, notification_type, source_type, source_id, user_id,
   recipient_email, recipient_phone, title, summary, payload_json,
-  status, last_error, sent_at, created_at, updated_at
+  status, last_error, sent_at, cleared_at, created_at, updated_at
 )
 dictionary_types(type_key='notification_type')
 dictionary_values(value_code='realtime'|'sms'|'email'|'wechat_official_account')
@@ -903,9 +910,9 @@ dictionary_values(value_code='realtime'|'sms'|'email'|'wechat_official_account')
 * Notification type is dictionary-managed through `notification_type`; usecases validate against enabled dictionary values.
 * Notification status is code-owned, not dictionary-managed. Allowed values are `pending`, `sent`, `failed`, and `skipped`; DB must enforce them with `CHECK`.
 * There is no admin HTTP create API for MVP. Creation is usecase-only so business usecases and event subscribers share the same entry.
-* `GET /api/notifications` is admin-only and uses the standard pagination contract.
+* `GET /api/admin/notifications` is admin-only and uses the standard pagination contract. Legacy `GET /api/notifications` is also admin-only during migration.
 * Filter parameters are `type`, `email`, and `phone`; email/phone are substring filters over `recipient_email` and `recipient_phone`.
-* List DTO includes both `notification_type` and `notification_type_label`.
+* List DTO includes both `notification_type` and `notification_type_label`, and includes `cleared_at` for audit/debug visibility.
 * Non-realtime types are ledger-only in the MVP and must be stored as `skipped`; they do not call SMS, email, or WeChat provider ports yet.
 * Business code must use `SendNotification`, not `api/framework/realtime.Publish`, for realtime delivery.
 * `StorePolicyDefault` and `StorePolicyStore` both create the ledger record first, publish a realtime message, then update status to `sent` or `failed`.
@@ -913,6 +920,10 @@ dictionary_values(value_code='realtime'|'sms'|'email'|'wechat_official_account')
 * Stored notifications default to realtime message type `notification`. When a workflow needs an existing envelope such as `points`, `async_export_task`, or `heavy_task`, pass `MessageType` / `Presentation` through `SendNotification`; the business caller still must not import `api/framework/realtime`.
 * Realtime `notification` payload is a safe presentation snapshot only: `id`, `title`, `summary`, `source_type`, `source_id`, and optional `status`. Do not push raw `payload_json` or provider/channel secrets.
 * `payload_json` must be a JSON object and remains an internal ledger payload.
+* `POST /api/user/notifications/clear` derives scope from `ctx.Actor.UserID`; it must not accept or trust a user id from the client.
+* Notification clearing is a user-side visibility action, not a ledger deletion. It sets `notifications.cleared_at` for the current user's rows where `cleared_at = ''`.
+* Admin notification lists remain audit-visible after user-side clearing. Future current-user notification history APIs must filter `cleared_at = ''` by default.
+* New realtime notifications created after clearing remain visible to the user.
 
 Successful list response:
 
@@ -934,12 +945,19 @@ Successful list response:
       "status": "sent",
       "last_error": "",
       "sent_at": "2026-06-07 10:00:00",
+      "cleared_at": "",
       "created_at": "2026-06-07 10:00:00",
       "updated_at": "2026-06-07 10:00:00"
     }
   ],
   "pagination": {}
 }
+```
+
+Successful current-user clear response:
+
+```json
+{"cleared_count":2}
 ```
 
 Realtime message:
@@ -961,6 +979,9 @@ Realtime message:
 | realtime publish fails | ledger status becomes `failed`, `last_error` stores a safe message, caller receives `CodeInternal` |
 | invalid pagination query | `CodeValidation` -> internal `400` envelope |
 | non-admin list request | middleware returns `403` before handler |
+| unauthenticated `/api/user/notifications/clear` | `CodeUnauthorized`, safe message `not logged in` |
+| clear when the current user has no visible notifications | success response with `cleared_count:0` |
+| notification clear database failure | `CodeInternal`, safe message `failed to clear notifications` |
 
 ### 5. Good/Base/Bad Cases
 
@@ -968,15 +989,20 @@ Good: Order export worker calls `SendNotification` with `StorePolicyStore`, `Mes
 
 Base: Points subscriber calls `SendNotification` with `StorePolicyTransient`, `MessageType=points`, and `Presentation=refresh`; user receives a points refresh and no notification ledger row is created.
 
+Base: User clicks the NotificationCenter clear icon; backend marks only that user's existing notification rows with `cleared_at`, frontend clears the in-memory list, and admin can still inspect the rows.
+
 Bad: Business usecase imports `api/framework/realtime` and calls `realtime.Publish` directly; this bypasses `StorePolicy`, ledger behavior, and the archguard notification boundary.
+
+Bad: Implement notification clearing as `DELETE FROM notifications WHERE user_id = ?`; this removes the audit/debug ledger that admin notification management depends on.
 
 ### 6. Tests Required
 
-* `api/usecase/notification_test.go` covers realtime create/publish/status, `SendNotification` default storage, transient no-ledger delivery, non-realtime skipped ledger, dictionary type validation, and list filters.
-* `api/routes/notification_test.go` covers admin list DTO envelope, pagination, filters, and invalid type mapping.
+* `api/models/notification_test.go` covers current-user soft clearing, row preservation, other-user isolation, and repeated clear count.
+* `api/usecase/notification_test.go` covers realtime create/publish/status, `SendNotification` default storage, transient no-ledger delivery, non-realtime skipped ledger, dictionary type validation, list filters, current-user clear scope, and unauthenticated clear rejection.
+* `api/routes/notification_test.go` covers admin list DTO envelope, pagination, filters, invalid type mapping, current-user clear envelope, and unauthorized clear mapping.
 * `api/framework/archguard/layer_boundary_test.go` covers that business realtime publishing stays behind the notification boundary.
 * `api/framework/realtime/realtime_test.go` covers realtime envelope defaults.
-* `frontend/src/api.test.js`, `frontend/src/router.test.js`, and `frontend/src/realtimeMessages.test.js` cover helper path, admin route, and realtime toast behavior.
+* `frontend/src/api.test.js`, `frontend/src/router.test.js`, and `frontend/src/realtimeMessages.test.js` cover helper paths, admin route, current-user clear path, and realtime toast behavior.
 * Run `go test ./...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
 
 ### 7. Wrong vs Correct
@@ -997,6 +1023,19 @@ notification, err := usecase.SendNotification(ctx, usecase.SendNotificationCmd{
     Title:       "Order paid",
     Summary:     "Your points have been awarded",
 })
+```
+
+#### Wrong
+
+```go
+_, _ = db.ExecContext(ctx, "DELETE FROM notifications WHERE user_id = ?", userID)
+```
+
+#### Correct
+
+```go
+cleared, err := usecase.ClearMyNotifications(ctx)
+return httpresponse.OK(c, ClearNotificationsResponse{ClearedCount: cleared.ClearedCount})
 ```
 
 ---
