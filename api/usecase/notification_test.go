@@ -54,6 +54,9 @@ func TestCreateNotificationRealtimeCreatesLedgerAndPublishesSafeRealtimePayload(
 		if message.Payload["id"] != notification.ID || message.Payload["title"] != "Order paid" {
 			t.Fatalf("unexpected notification payload: %#v", message.Payload)
 		}
+		if _, exists := message.Payload["status"]; exists {
+			t.Fatalf("expected empty status for payload without status, got %#v", message.Payload)
+		}
 		if _, exists := message.Payload["payload_json"]; exists {
 			t.Fatalf("expected realtime payload to omit raw payload_json: %#v", message.Payload)
 		}
@@ -70,6 +73,50 @@ func TestCreateNotificationRealtimeCreatesLedgerAndPublishesSafeRealtimePayload(
 	}
 	if persisted.Status != models.NotificationStatusSent || persisted.PayloadJSON != `{"order_id":"order-1","secret":"do-not-push"}` {
 		t.Fatalf("unexpected persisted notification: %#v", persisted)
+	}
+}
+
+func TestSendNotificationDefaultPolicyStoresAndPublishesNotification(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	sub := realtime.SubscribeClient("notify-user-2", "notify-client-2")
+	defer sub.Close()
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	notification, err := usecase.SendNotification(ctx, usecase.SendNotificationCmd{
+		UserID:     "notify-user-2",
+		SourceType: "async_task",
+		SourceID:   "task-1",
+		Title:      "Task failed",
+		Summary:    "Export failed",
+		Payload: map[string]string{
+			"task_id": "task-1",
+			"status":  "failed",
+		},
+	})
+	if err != nil {
+		t.Fatalf("send stored notification: %v", err)
+	}
+	if notification.ID == "" || notification.Status != models.NotificationStatusSent {
+		t.Fatalf("expected stored notification, got %#v", notification)
+	}
+
+	select {
+	case raw := <-sub.Messages:
+		var message struct {
+			Type    string `json:"type"`
+			Payload struct {
+				ID     string `json:"id"`
+				Status string `json:"status"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(raw, &message); err != nil {
+			t.Fatalf("decode realtime message: %v", err)
+		}
+		if message.Type != "notification" || message.Payload.ID != notification.ID || message.Payload.Status != "failed" {
+			t.Fatalf("unexpected realtime notification: %#v", message)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("expected realtime notification")
 	}
 }
 

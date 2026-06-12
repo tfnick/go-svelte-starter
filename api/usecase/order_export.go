@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	"github.com/tfnick/go-svelte-starter/api/framework/timefmt"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
@@ -423,30 +422,26 @@ func GetMyTaskDownload(ctx fwusecase.Context, qry TaskDownloadQry) (TaskDownload
 }
 
 func publishOrderExportTaskFinished(ctx context.Context, task models.AsyncTask, status string, message string) {
-	payload := realtime.AsyncExportTaskPayload{
-		TaskID:  task.ID,
-		Status:  status,
-		Message: message,
-	}
-	_ = realtime.Publish(task.UserID, realtime.NewAsyncExportTaskMessage(payload, realtime.PresentationRefresh))
-
 	title := "Order export completed"
 	if status == models.AsyncTaskStatusFailed {
 		title = "Order export failed"
 	}
-	payloadJSON, _ := json.Marshal(map[string]string{
+	payload := map[string]string{
 		"task_id": task.ID,
 		"status":  status,
-	})
+		"message": message,
+	}
 	ucCtx := fwusecase.NewContext(ctx, fwusecase.SurfaceSystem)
-	_, _ = CreateNotification(ucCtx, CreateNotificationCmd{
-		NotificationType: NotificationTypeRealtime,
-		SourceType:       "async_task",
-		SourceID:         task.ID,
-		UserID:           task.UserID,
-		Title:            title,
-		Summary:          message,
-		PayloadJSON:      string(payloadJSON),
+	_, _ = SendNotification(ucCtx, SendNotificationCmd{
+		StorePolicy:  StorePolicyStore,
+		MessageType:  RealtimeMessageTypeAsyncExportTask,
+		Presentation: RealtimePresentationToast,
+		SourceType:   "async_task",
+		SourceID:     task.ID,
+		UserID:       task.UserID,
+		Title:        title,
+		Summary:      message,
+		Payload:      payload,
 	})
 }
 

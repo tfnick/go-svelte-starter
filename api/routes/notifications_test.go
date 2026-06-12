@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/tfnick/go-svelte-starter/api/db"
 	fwcontext "github.com/tfnick/go-svelte-starter/api/framework/http/context"
 	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	"github.com/tfnick/go-svelte-starter/api/models"
@@ -15,6 +16,7 @@ import (
 )
 
 func TestTriggerExportToastPublishesNotificationAndReturnsEnvelope(t *testing.T) {
+	setupRouteTestDBs(t)
 	sub := realtime.SubscribeClient("u1", "route-export-toast")
 	defer sub.Close()
 
@@ -38,11 +40,23 @@ func TestTriggerExportToastPublishesNotificationAndReturnsEnvelope(t *testing.T)
 
 	select {
 	case message := <-sub.Messages:
-		if !strings.Contains(string(message), `"type":"async_export_task"`) {
-			t.Fatalf("expected async export task realtime message, got %s", message)
+		if !strings.Contains(string(message), `"type":"notification"`) || !strings.Contains(string(message), `"source_type":"experiment"`) {
+			t.Fatalf("expected notification realtime message, got %s", message)
 		}
 	case <-time.After(time.Second):
 		t.Fatalf("expected realtime message")
+	}
+
+	appDB, err := db.DefaultManager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	var count int
+	if err := appDB.Get(&count, `SELECT COUNT(*) FROM notifications WHERE user_id = 'u1' AND source_type = 'experiment'`); err != nil {
+		t.Fatalf("count notifications: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one stored notification, got %d", count)
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tfnick/go-svelte-starter/api/db"
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
+	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/oss"
@@ -156,8 +157,35 @@ func TestOrderExcelExportTaskStreamsUploadsAndDownloadsForOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal task message: %v", err)
 	}
+	sub := realtime.SubscribeClient("admin1", "client-order-export-"+taskID)
+	defer sub.Close()
+
 	if err := HandleHeavyTaskMessage(t.Context(), messageJSON); err != nil {
 		t.Fatalf("handle heavy task message: %v", err)
+	}
+
+	select {
+	case raw := <-sub.Messages:
+		var message struct {
+			Type         string `json:"type"`
+			Presentation string `json:"presentation"`
+			Payload      struct {
+				TaskID  string `json:"task_id"`
+				Status  string `json:"status"`
+				Message string `json:"message"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(raw, &message); err != nil {
+			t.Fatalf("decode realtime message: %v", err)
+		}
+		if message.Type != RealtimeMessageTypeAsyncExportTask || message.Presentation != RealtimePresentationToast {
+			t.Fatalf("expected async export toast message, got %#v", message)
+		}
+		if message.Payload.TaskID != taskID || message.Payload.Status != models.AsyncTaskStatusCompleted || message.Payload.Message != "Order export completed" {
+			t.Fatalf("unexpected async export payload: %#v", message.Payload)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("expected async export realtime message")
 	}
 
 	task, err := models.GetAsyncTaskByID(t.Context(), taskID)

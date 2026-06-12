@@ -178,7 +178,7 @@
     realtimeMessage = '';
     try {
       await triggerExportToast();
-      realtimeMessage = 'Export completion event requested';
+      realtimeMessage = 'Notification event requested';
     } catch (err) {
       realtimeError = err.message || 'Failed to trigger export notification';
     } finally {

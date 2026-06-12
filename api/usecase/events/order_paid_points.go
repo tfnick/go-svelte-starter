@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	fwevents "github.com/tfnick/go-svelte-starter/api/framework/events"
-	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
 )
@@ -30,6 +29,8 @@ var (
 	ErrOrderPaidPointsSubscriberMissing = errors.New("order paid points subscriber is not registered")
 	// ErrAwardOrderPaidPointsFuncMissing 表示启动注册时没有注入真正的积分发放用例。
 	ErrAwardOrderPaidPointsFuncMissing = errors.New("award order paid points function is required")
+	// ErrSendPointsRealtimeNotificationFuncMissing 表示启动注册时没有注入统一 notification 发送入口。
+	ErrSendPointsRealtimeNotificationFuncMissing = errors.New("send points realtime notification function is required")
 
 	// registerEventHandlersOnce 保证同一个进程内只注册一次 subscriber。
 	// framework/events 要求 (topic, subscriber) 唯一；重复注册会导致启动失败。
@@ -63,6 +64,15 @@ type PointsResult struct {
 	Balance int64
 }
 
+// SendRealtimeNotificationCmd 是事件包注入 notification 封装时使用的最小命令。
+// 这里不导入父级 api/usecase，避免 api/usecase/events 反向依赖具体 usecase 实现。
+type SendRealtimeNotificationCmd struct {
+	UserID       string
+	MessageType  string
+	Presentation string
+	Payload      interface{}
+}
+
 // AwardOrderPaidPointsFunc 是从事件适配层注入的业务函数类型。
 //
 // api/usecase/events 负责订阅 order.paid，但真正的积分发放逻辑在 api/usecase。
@@ -71,10 +81,14 @@ type PointsResult struct {
 // bool 返回值表示本次是否真的发放了积分；重复事件可能因为幂等约束不再发放。
 type AwardOrderPaidPointsFunc func(fwusecase.Context, AwardOrderPaidPointsCmd) (PointsResult, bool, error)
 
+// SendRealtimeNotificationFunc 是从启动层注入的统一 realtime notification 发送函数。
+type SendRealtimeNotificationFunc func(fwusecase.Context, SendRealtimeNotificationCmd) error
+
 // orderPaidPointsHandler 是 framework/events.Handler 的业务适配器。
 // 它持有被注入的积分发放函数，并把事件 payload 转成积分命令。
 type orderPaidPointsHandler struct {
 	award AwardOrderPaidPointsFunc
+	send  SendRealtimeNotificationFunc
 }
 
 // RegisterEventHandlers 注册 order.paid -> points.award_on_order_paid 订阅。
@@ -83,16 +97,19 @@ type orderPaidPointsHandler struct {
 // order.paid 事件时，framework/events 会为该 subscriber 创建独立 delivery 和队列消息。
 //
 // RegisterTransactional 会让 Handle 在系统上下文中运行，并包一层 app DB 事务。
-func RegisterEventHandlers(award AwardOrderPaidPointsFunc) error {
+func RegisterEventHandlers(award AwardOrderPaidPointsFunc, send SendRealtimeNotificationFunc) error {
 	if award == nil {
 		return ErrAwardOrderPaidPointsFuncMissing
+	}
+	if send == nil {
+		return ErrSendPointsRealtimeNotificationFuncMissing
 	}
 
 	registerEventHandlersOnce.Do(func() {
 		registerEventHandlersErr = fwevents.RegisterTransactional[OrderPaidPayload](fwevents.Subscription{
 			Topic:      OrderPaidTopic,
 			Subscriber: OrderPaidSubscriber,
-		}, orderPaidPointsHandler{award: award}.Handle)
+		}, orderPaidPointsHandler{award: award, send: send}.Handle)
 	})
 	return registerEventHandlersErr
 }
@@ -134,10 +151,16 @@ func (h orderPaidPointsHandler) Handle(txCtx fwusecase.Context, _ fwevents.Event
 		return nil
 	}
 
-	return fwusecase.RegisterAfterCommit(txCtx, func(context.Context) {
-		_ = realtime.Publish(points.UserID, realtime.NewPointsMessage(realtime.PointsPayload{
-			UserID:  points.UserID,
-			Balance: points.Balance,
-		}, ""))
+	return fwusecase.RegisterAfterCommit(txCtx, func(runCtx context.Context) {
+		notifyCtx := fwusecase.NewContext(runCtx, fwusecase.SurfaceSystem)
+		_ = h.send(notifyCtx, SendRealtimeNotificationCmd{
+			UserID:       points.UserID,
+			MessageType:  "points",
+			Presentation: "refresh",
+			Payload: map[string]interface{}{
+				"user_id": points.UserID,
+				"balance": points.Balance,
+			},
+		})
 	})
 }

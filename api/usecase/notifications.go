@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"github.com/google/uuid"
-	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 )
 
@@ -15,11 +14,21 @@ func TriggerExportToast(ctx fwusecase.Context, cmd TriggerExportToastCmd) error 
 		return fwusecase.E(fwusecase.CodeValidation, "user ID is required", nil)
 	}
 
-	err := realtime.Publish(cmd.UserID, realtime.NewAsyncExportTaskMessage(realtime.AsyncExportTaskPayload{
-		TaskID:  uuid.Must(uuid.NewV7()).String(),
-		Status:  "completed",
-		Message: "Export completed",
-	}, ""))
+	payload := map[string]string{
+		"task_id": uuid.Must(uuid.NewV7()).String(),
+		"status":  "completed",
+		"message": "Export completed",
+	}
+	_, err := SendNotification(ctx, SendNotificationCmd{
+		StorePolicy: StorePolicyStore,
+		MessageType: RealtimeMessageTypeNotification,
+		SourceType:  "experiment",
+		SourceID:    "export-toast",
+		UserID:      cmd.UserID,
+		Title:       "Export completed",
+		Summary:     "Export completed",
+		Payload:     payload,
+	})
 	if err != nil {
 		return fwusecase.E(fwusecase.CodeInternal, "failed to publish export notification", err)
 	}

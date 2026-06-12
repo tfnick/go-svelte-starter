@@ -127,7 +127,7 @@ func main() {
 			UserID:  points.UserID,
 			Balance: points.Balance,
 		}, awarded, err
-	}); err != nil {
+	}, sendPointsRealtimeNotification); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register event handlers")
 	}
 	if err := usecaseevents.RegisterMembershipEventHandlers(func(ctx fwusecase.Context, cmd usecaseevents.ApplyOrderMembershipCmd) (usecaseevents.MembershipResult, bool, error) {
@@ -339,6 +339,18 @@ func main() {
 		}
 		stopApp()
 	}
+}
+
+func sendPointsRealtimeNotification(ctx fwusecase.Context, cmd usecaseevents.SendRealtimeNotificationCmd) error {
+	ucCtx := fwusecase.NewContext(ctx.Std(), fwusecase.SurfaceSystem)
+	_, err := appusecase.SendNotification(ucCtx, appusecase.SendNotificationCmd{
+		StorePolicy:  appusecase.StorePolicyTransient,
+		MessageType:  cmd.MessageType,
+		Presentation: cmd.Presentation,
+		UserID:       cmd.UserID,
+		Payload:      cmd.Payload,
+	})
+	return err
 }
 
 func startQueueRunners(ctx context.Context, queueManager *queue.Manager, logger zerolog.Logger) error {

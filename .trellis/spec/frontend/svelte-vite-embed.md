@@ -402,8 +402,8 @@ proxy: {
 {"type":"notification","presentation":"toast","payload":{"id":"notification-id","title":"Order paid","summary":"Your points have been awarded","source_type":"order","source_id":"order-id"}}
 ```
 
-* `points` 默认展示方式是 `refresh`，用于刷新积分余额；`async_export_task` 和 `notification` 默认展示方式是 `toast`，用于页面可见通知。
-* Header 登录态下登出按钮后可以放一个验证按钮，调用 `triggerExportToast()`，由后端发布 `async_export_task` toast；按钮不要在前端本地伪造 toast。
+* `points` 默认展示方式是 `refresh`，用于刷新积分余额；`async_export_task`、`heavy_task` 和 `notification` 默认展示方式是 `toast`，用于页面可见通知。
+* 业务后端必须通过 notification 封装发送 realtime envelope；前端不关心该消息是否写入 `notifications`，只按 envelope 的 `type` 和 `presentation` 分发。
 * WebSocket 断开不应阻塞支付；页面支付成功后不应主动调用 `getMyPoints()` 刷新积分。积分展示应等待 WebSocket `points` + `refresh` 通知，初始加载和用户显式刷新仍可调用 `getMyPoints()`。
 
 ### 4. Validation & Error Matrix
@@ -516,7 +516,7 @@ GET  /api/user/realtime/ws?access_token=<jwt>
 
 Good: User opens `/experiments`, submits text + prompt in the `LLM` tab, and sees the DeepSeek-backed summary appended to the chat surface with model/channel metadata.
 
-Base: User opens the `Realtime` tab, socket connects through `realtimeWebSocketURL()`, clicks `Trigger export completed`, and sees the backend `async_export_task` toast message arrive through WebSocket.
+Base: User opens the `Realtime` tab, socket connects through `realtimeWebSocketURL()`, clicks `Trigger export completed`, and sees the backend stored `notification` toast message arrive through WebSocket.
 
 Bad: Component directly calls `fetch('/api/llm/summaries')` or creates a fake toast immediately after clicking the realtime button; this bypasses helper tests and hides backend delivery behavior.
 
@@ -928,7 +928,7 @@ Realtime message:
 * Filters are `type`, `email`, and `phone`; applying filters resets to page 1.
 * Table should show notification identity, type label, status, recipient, source, created time, sent time, and safe `last_error`.
 * Use `formatLocalDateTime(value)` for notification timestamps.
-* `frontend/src/helpers/realtimeMessages.js` treats `notification` as a toast by default and builds toast text from `summary`, then `title`, before falling back.
+* `frontend/src/helpers/realtimeMessages.js` treats `notification` as a toast by default, builds toast text from `summary`, then `title`, before falling back, and maps optional payload `status` to toast level.
 * Realtime `notification` payload must not assume or display raw `payload_json`.
 
 ### 4. Validation & Error Matrix
@@ -955,7 +955,7 @@ Bad: Add a local hard-coded notification type enum in the page; types are dictio
 
 * `frontend/src/api.test.js` covers `listNotifications({page,pageSize,type,email,phone})` path and query encoding.
 * `frontend/src/router.test.js` covers `/notifications.html` alias, admin-only menu visibility, app-route detection, and title.
-* `frontend/src/realtimeMessages.test.js` covers `notification` default toast presentation and toast text.
+* `frontend/src/realtimeMessages.test.js` covers `notification` default toast presentation, toast text, and status-to-level mapping.
 * `cd frontend && npm test`
 * `cd frontend && npm run build`
 * Browser smoke check at `/notifications` on desktop and mobile widths when layout changes.

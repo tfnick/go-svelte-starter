@@ -27,6 +27,38 @@ type CreateNotificationCmd struct {
 	PayloadJSON      string
 }
 
+type NotificationStorePolicy string
+
+const (
+	StorePolicyDefault   NotificationStorePolicy = ""
+	StorePolicyStore     NotificationStorePolicy = "store"
+	StorePolicyTransient NotificationStorePolicy = "transient"
+
+	RealtimeMessageTypePoints          = string(realtime.MessageTypePoints)
+	RealtimeMessageTypeAsyncExportTask = string(realtime.MessageTypeAsyncExportTask)
+	RealtimeMessageTypeNotification    = string(realtime.MessageTypeNotification)
+	RealtimeMessageTypeHeavyTask       = string(realtime.MessageTypeHeavyTask)
+
+	RealtimePresentationRefresh = string(realtime.PresentationRefresh)
+	RealtimePresentationToast   = string(realtime.PresentationToast)
+)
+
+type SendNotificationCmd struct {
+	StorePolicy      NotificationStorePolicy
+	MessageType      string
+	Presentation     string
+	Payload          interface{}
+	NotificationType string
+	SourceType       string
+	SourceID         string
+	UserID           string
+	RecipientEmail   string
+	RecipientPhone   string
+	Title            string
+	Summary          string
+	PayloadJSON      string
+}
+
 type NotificationsQry struct {
 	Page     int
 	PageSize int
@@ -59,7 +91,53 @@ type NotificationsCo struct {
 	Pagination fwusecase.PageResult
 }
 
+func SendNotification(ctx fwusecase.Context, cmd SendNotificationCmd) (NotificationCo, error) {
+	storePolicy, err := normalizeStorePolicy(cmd.StorePolicy)
+	if err != nil {
+		return NotificationCo{}, err
+	}
+
+	if storePolicy == StorePolicyTransient {
+		if err := publishTransientRealtimeMessage(cmd); err != nil {
+			if fwusecase.CodeOf(err) != fwusecase.CodeInternal {
+				return NotificationCo{}, err
+			}
+			return NotificationCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to publish realtime notification", err)
+		}
+		return NotificationCo{}, nil
+	}
+
+	notificationType := strings.TrimSpace(cmd.NotificationType)
+	if notificationType == "" {
+		notificationType = NotificationTypeRealtime
+	}
+	payloadJSON, err := notificationPayloadJSON(cmd)
+	if err != nil {
+		return NotificationCo{}, err
+	}
+
+	return createNotification(ctx, CreateNotificationCmd{
+		NotificationType: notificationType,
+		SourceType:       cmd.SourceType,
+		SourceID:         cmd.SourceID,
+		UserID:           cmd.UserID,
+		RecipientEmail:   cmd.RecipientEmail,
+		RecipientPhone:   cmd.RecipientPhone,
+		Title:            cmd.Title,
+		Summary:          cmd.Summary,
+		PayloadJSON:      payloadJSON,
+	}, func(notification models.Notification) (string, error) {
+		return publishStoredRealtimeMessage(notification, cmd)
+	})
+}
+
 func CreateNotification(ctx fwusecase.Context, cmd CreateNotificationCmd) (NotificationCo, error) {
+	return createNotification(ctx, cmd, publishRealtimeNotification)
+}
+
+type notificationPublisher func(models.Notification) (string, error)
+
+func createNotification(ctx fwusecase.Context, cmd CreateNotificationCmd, publisher notificationPublisher) (NotificationCo, error) {
 	notification, labels, err := notificationInput(ctx, cmd)
 	if err != nil {
 		return NotificationCo{}, err
@@ -74,7 +152,7 @@ func CreateNotification(ctx fwusecase.Context, cmd CreateNotificationCmd) (Notif
 	}
 
 	if notification.NotificationType == NotificationTypeRealtime {
-		published, err := publishRealtimeNotification(notification)
+		published, err := publisher(notification)
 		if err != nil {
 			notification.Status = models.NotificationStatusFailed
 			notification.LastError = "failed to publish realtime notification"
@@ -138,6 +216,17 @@ func ListNotifications(ctx fwusecase.Context, qry NotificationsQry) (Notificatio
 		Items:      notificationCosFromModels(notifications, labels),
 		Pagination: fwusecase.NewPageResult(pageQuery, totalItems),
 	}, nil
+}
+
+func normalizeStorePolicy(policy NotificationStorePolicy) (NotificationStorePolicy, error) {
+	switch policy {
+	case StorePolicyDefault, StorePolicyStore:
+		return StorePolicyStore, nil
+	case StorePolicyTransient:
+		return StorePolicyTransient, nil
+	default:
+		return "", fwusecase.E(fwusecase.CodeValidation, "notification store policy is invalid", nil)
+	}
 }
 
 func notificationInput(ctx fwusecase.Context, cmd CreateNotificationCmd) (models.Notification, map[string]string, error) {
@@ -219,19 +308,108 @@ func normalizeNotificationPayloadJSON(value string) (string, error) {
 	return string(normalized), nil
 }
 
+func notificationPayloadJSON(cmd SendNotificationCmd) (string, error) {
+	if cmd.PayloadJSON != "" {
+		return normalizeNotificationPayloadJSON(cmd.PayloadJSON)
+	}
+	if cmd.Payload == nil {
+		return "{}", nil
+	}
+
+	encoded, err := json.Marshal(cmd.Payload)
+	if err != nil {
+		return "", fwusecase.E(fwusecase.CodeInternal, "failed to encode notification payload", err)
+	}
+	return normalizeNotificationPayloadJSON(string(encoded))
+}
+
+func publishTransientRealtimeMessage(cmd SendNotificationCmd) error {
+	userID := strings.TrimSpace(cmd.UserID)
+	if userID == "" {
+		return fwusecase.E(fwusecase.CodeValidation, "user ID is required for realtime notification", nil)
+	}
+
+	messageType := strings.TrimSpace(cmd.MessageType)
+	if messageType == "" {
+		messageType = RealtimeMessageTypeNotification
+	}
+
+	payload, err := realtimePayload(cmd)
+	if err != nil {
+		return err
+	}
+
+	return publishRealtimeMessage(userID, messageType, strings.TrimSpace(cmd.Presentation), payload)
+}
+
+func publishStoredRealtimeMessage(notification models.Notification, cmd SendNotificationCmd) (string, error) {
+	messageType := strings.TrimSpace(cmd.MessageType)
+	if messageType == "" || messageType == RealtimeMessageTypeNotification {
+		return publishRealtimeNotification(notification)
+	}
+
+	payload, err := realtimePayload(cmd)
+	if err != nil {
+		return "", err
+	}
+	sentAt := timefmt.NowSQLiteDateTime()
+	if err := publishRealtimeMessage(notification.UserID, messageType, strings.TrimSpace(cmd.Presentation), payload); err != nil {
+		return "", err
+	}
+	return sentAt, nil
+}
+
+func realtimePayload(cmd SendNotificationCmd) (interface{}, error) {
+	if cmd.Payload != nil {
+		return cmd.Payload, nil
+	}
+	payloadJSON := strings.TrimSpace(cmd.PayloadJSON)
+	if payloadJSON == "" {
+		return map[string]interface{}{}, nil
+	}
+
+	normalized, err := normalizeNotificationPayloadJSON(payloadJSON)
+	if err != nil {
+		return nil, err
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(normalized), &payload); err != nil {
+		return nil, fwusecase.E(fwusecase.CodeInternal, "failed to decode notification payload", err)
+	}
+	return payload, nil
+}
+
+func publishRealtimeMessage(userID string, messageType string, presentation string, payload interface{}) error {
+	return realtime.Publish(userID, realtime.NewMessage(
+		realtime.MessageType(messageType),
+		realtime.Presentation(presentation),
+		payload,
+	))
+}
+
 func publishRealtimeNotification(notification models.Notification) (string, error) {
 	sentAt := timefmt.NowSQLiteDateTime()
-	err := realtime.Publish(notification.UserID, realtime.NewNotificationMessage(realtime.NotificationPayload{
+	err := publishRealtimeMessage(notification.UserID, RealtimeMessageTypeNotification, "", realtime.NotificationPayload{
 		ID:         notification.ID,
 		Title:      notification.Title,
 		Summary:    notification.Summary,
 		SourceType: notification.SourceType,
 		SourceID:   notification.SourceID,
-	}, ""))
+		Status:     notificationPayloadStatus(notification.PayloadJSON),
+	})
 	if err != nil {
 		return "", err
 	}
 	return sentAt, nil
+}
+
+func notificationPayloadStatus(payloadJSON string) string {
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(payloadJSON)), &payload); err != nil {
+		return ""
+	}
+	status, _ := payload["status"].(string)
+	return strings.TrimSpace(status)
 }
 
 func notificationCoFromModel(notification models.Notification, labels map[string]string) NotificationCo {

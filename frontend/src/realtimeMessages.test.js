@@ -97,6 +97,22 @@ test('dispatches notification messages as toast by default', () => {
   });
 });
 
+test('maps notification status to toast level', () => {
+  assert.deepEqual(toastFromRealtimeMessage({
+    type: 'notification',
+    payload: {
+      id: 'notification-2',
+      title: 'Order export failed',
+      summary: 'Order export failed',
+      status: 'failed'
+    }
+  }), {
+    id: 'notification-2',
+    level: 'error',
+    message: 'Order export failed'
+  });
+});
+
 test('ignores malformed or unsupported realtime messages', () => {
   assert.equal(dispatchRealtimeMessage(null, {}), false);
   assert.equal(dispatchRealtimeMessage({ payload: {} }, {}), false);

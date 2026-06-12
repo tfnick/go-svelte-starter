@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
-	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
 )
@@ -185,11 +184,29 @@ func publishHeavyTaskFinished(ctx context.Context, task models.AsyncTask, status
 		return
 	}
 
-	_ = realtime.Publish(task.UserID, realtime.NewMessage("heavy_task", realtime.PresentationToast, map[string]interface{}{
-		"task_id": task.ID,
-		"status":  status,
-		"message": message,
-	}))
+	ucCtx := fwusecase.NewContext(ctx, fwusecase.SurfaceSystem)
+	_, _ = SendNotification(ucCtx, SendNotificationCmd{
+		StorePolicy:  StorePolicyStore,
+		MessageType:  RealtimeMessageTypeHeavyTask,
+		Presentation: RealtimePresentationToast,
+		SourceType:   "async_task",
+		SourceID:     task.ID,
+		UserID:       task.UserID,
+		Title:        heavyTaskNotificationTitle(status),
+		Summary:      message,
+		Payload: map[string]interface{}{
+			"task_id": task.ID,
+			"status":  status,
+			"message": message,
+		},
+	})
+}
+
+func heavyTaskNotificationTitle(status string) string {
+	if status == models.AsyncTaskStatusFailed {
+		return "Task failed"
+	}
+	return "Task completed"
 }
 
 func heavyTaskFailedMessage(task models.AsyncTask, err error) string {

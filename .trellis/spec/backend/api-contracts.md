@@ -336,7 +336,7 @@ return c.Redirect(http.StatusFound, "/login/oauth/callback?"+values.Encode())
 
 * `GET /api/user/points` 返回 `PointsResponse`，字段为 `user_id` 和 `balance`；legacy `GET /api/points/me` 迁移期保留。
 * `GET /api/user/realtime/ws?access_token=<jwt>` 是当前用户自服务 WebSocket 实时通道，不使用 HTTP JSON envelope。连接成功后以 text frame 推送 realtime envelope，例如 `{"type":"points","presentation":"refresh","payload":{"user_id":"...","client_id":"...","balance":10}}`。
-* `POST /api/user/notifications/test-export-toast` 是登录态验证入口，返回 `data.message`，并向当前用户发布 `async_export_task` + `toast` realtime envelope；legacy `/api/notifications/test-export-toast` 迁移期保留。
+* `POST /api/user/notifications/test-export-toast` 是登录态验证入口，返回 `data.message`，并通过 `SendNotification(StorePolicyStore)` 创建一条 `source_type=experiment` 的 realtime notification；legacy `/api/notifications/test-export-toast` 迁移期保留。
 
 Admin routes 统一放在 `/api/admin/...`；legacy 管理路径迁移期可以保留，但必须挂在 `RequireAdmin()` 后。当前包括 users、orders status、dictionary management、products write、scheduler、events、messages、parameters、notifications、settings upload、variables 和 `POST /api/admin/reload-shared-db`。
 
@@ -421,7 +421,7 @@ Task payload/result JSON:
 * Task clearing is a visibility action, not a lifecycle transition. It sets `cleared_at` only for current-user terminal tasks where `status IN ('completed','failed')`.
 * `queued` and `processing` tasks remain visible when the user clears the task center.
 * Presigned download URL TTL is one hour for MVP.
-* Terminal success/failure must refresh the TaskCenter and create a realtime notification with `source_type="async_task"` for the requesting user.
+* Terminal success/failure must call `SendNotification(StorePolicyStore)` with `source_type="async_task"` for the requesting user. Order export uses realtime message type `async_export_task` so TaskCenter refresh and Toast both continue to work from one notification boundary.
 
 Clear response payload:
 
@@ -832,7 +832,7 @@ return httpresponse.OK(c, ToDomainEventsResponse(events))
 
 修改 Notification Center、`notifications` 台账、业务通知创建 usecase、realtime notification envelope、或 admin `/api/notifications` 查询接口时，遵守本节。
 
-Notification Center 的定位是业务通知入口与台账，不替代外部渠道 port/provider adapter。业务场景需要发送用户通知时默认调用 `usecase.CreateNotification(...)`；也可以由领域事件 subscriber 调用该 usecase。纯技术实时刷新、渠道连通性测试、provider 防腐层内部逻辑，才直接调用对应 port 或 realtime primitive。
+Notification Center 的定位是业务 WebSocket 发送入口与可选台账，不替代外部渠道 port/provider adapter。业务场景需要向用户发送 realtime 消息时必须调用 `usecase.SendNotification(...)`，通过 `StorePolicy` 决定是否写入 `notifications`。`StorePolicyDefault` / `StorePolicyStore` 会创建台账；`StorePolicyTransient` 只实时投递，不写台账。只有 WebSocket route/subscription infrastructure、`api/framework/realtime` 本身、以及 notification usecase 内部可以直接调用 realtime primitive。
 
 ### 2. Signatures
 
@@ -857,6 +857,31 @@ type CreateNotificationCmd struct {
     PayloadJSON      string
 }
 
+type NotificationStorePolicy string
+
+const (
+    StorePolicyDefault   NotificationStorePolicy = ""
+    StorePolicyStore     NotificationStorePolicy = "store"
+    StorePolicyTransient NotificationStorePolicy = "transient"
+)
+
+type SendNotificationCmd struct {
+    StorePolicy     NotificationStorePolicy
+    MessageType     string
+    Presentation    string
+    Payload         interface{}
+    NotificationType string
+    SourceType       string
+    SourceID         string
+    UserID           string
+    RecipientEmail   string
+    RecipientPhone   string
+    Title            string
+    Summary          string
+    PayloadJSON      string
+}
+
+func SendNotification(ctx fwusecase.Context, cmd SendNotificationCmd) (NotificationCo, error)
 func CreateNotification(ctx fwusecase.Context, cmd CreateNotificationCmd) (NotificationCo, error)
 func ListNotifications(ctx fwusecase.Context, qry NotificationsQry) (NotificationsCo, error)
 ```
@@ -882,8 +907,11 @@ dictionary_values(value_code='realtime'|'sms'|'email'|'wechat_official_account')
 * Filter parameters are `type`, `email`, and `phone`; email/phone are substring filters over `recipient_email` and `recipient_phone`.
 * List DTO includes both `notification_type` and `notification_type_label`.
 * Non-realtime types are ledger-only in the MVP and must be stored as `skipped`; they do not call SMS, email, or WeChat provider ports yet.
-* Realtime notifications must create the ledger record first, publish realtime message type `notification`, then update status to `sent` or `failed`.
-* Realtime notification payload is a safe presentation snapshot only: `id`, `title`, `summary`, `source_type`, and `source_id`. Do not push raw `payload_json` or provider/channel secrets.
+* Business code must use `SendNotification`, not `api/framework/realtime.Publish`, for realtime delivery.
+* `StorePolicyDefault` and `StorePolicyStore` both create the ledger record first, publish a realtime message, then update status to `sent` or `failed`.
+* `StorePolicyTransient` publishes the realtime message through the same notification boundary and does not create a `notifications` row.
+* Stored notifications default to realtime message type `notification`. When a workflow needs an existing envelope such as `points`, `async_export_task`, or `heavy_task`, pass `MessageType` / `Presentation` through `SendNotification`; the business caller still must not import `api/framework/realtime`.
+* Realtime `notification` payload is a safe presentation snapshot only: `id`, `title`, `summary`, `source_type`, `source_id`, and optional `status`. Do not push raw `payload_json` or provider/channel secrets.
 * `payload_json` must be a JSON object and remains an internal ledger payload.
 
 Successful list response:
@@ -917,7 +945,7 @@ Successful list response:
 Realtime message:
 
 ```json
-{"type":"notification","presentation":"toast","payload":{"id":"notification-id","title":"Order paid","summary":"Your points have been awarded","source_type":"order","source_id":"order-id"}}
+{"type":"notification","presentation":"toast","payload":{"id":"notification-id","title":"Order paid","summary":"Your points have been awarded","source_type":"order","source_id":"order-id","status":"completed"}}
 ```
 
 ### 4. Validation & Error Matrix
@@ -928,6 +956,7 @@ Realtime message:
 | disabled dictionary value | `CodeValidation`, same as unknown type |
 | missing title | `CodeValidation`, safe message `notification title is required` |
 | realtime without `user_id` | `CodeValidation`, safe message `user ID is required for realtime notification` |
+| invalid `StorePolicy` | `CodeValidation`, safe message `notification store policy is invalid` |
 | invalid or non-object `payload_json` | `CodeValidation` |
 | realtime publish fails | ledger status becomes `failed`, `last_error` stores a safe message, caller receives `CodeInternal` |
 | invalid pagination query | `CodeValidation` -> internal `400` envelope |
@@ -935,17 +964,18 @@ Realtime message:
 
 ### 5. Good/Base/Bad Cases
 
-Good: Order payment usecase calls `CreateNotification` with `notification_type=realtime`, `source_type=order`, `source_id=...`, and a safe title/summary; user receives a toast and admin can inspect the ledger row.
+Good: Order export worker calls `SendNotification` with `StorePolicyStore`, `MessageType=async_export_task`, `source_type=async_task`, `source_id=...`, and safe payload; user receives a toast, TaskCenter refreshes, and admin can inspect the ledger row.
 
-Base: A future SMS notification creates a `skipped` ledger row until the SMS delivery chain is implemented behind Notification Center.
+Base: Points subscriber calls `SendNotification` with `StorePolicyTransient`, `MessageType=points`, and `Presentation=refresh`; user receives a points refresh and no notification ledger row is created.
 
-Bad: Business usecase calls SMS provider port directly and separately inserts a notification row; this splits status and audit behavior.
+Bad: Business usecase imports `api/framework/realtime` and calls `realtime.Publish` directly; this bypasses `StorePolicy`, ledger behavior, and the archguard notification boundary.
 
 ### 6. Tests Required
 
-* `api/usecase/notification_test.go` covers realtime create/publish/status, non-realtime skipped ledger, dictionary type validation, and list filters.
+* `api/usecase/notification_test.go` covers realtime create/publish/status, `SendNotification` default storage, transient no-ledger delivery, non-realtime skipped ledger, dictionary type validation, and list filters.
 * `api/routes/notification_test.go` covers admin list DTO envelope, pagination, filters, and invalid type mapping.
-* `api/framework/realtime/realtime_test.go` covers `notification` default presentation.
+* `api/framework/archguard/layer_boundary_test.go` covers that business realtime publishing stays behind the notification boundary.
+* `api/framework/realtime/realtime_test.go` covers realtime envelope defaults.
 * `frontend/src/api.test.js`, `frontend/src/router.test.js`, and `frontend/src/realtimeMessages.test.js` cover helper path, admin route, and realtime toast behavior.
 * Run `go test ./...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
 
@@ -961,11 +991,11 @@ _ = models.InsertNotification(ctx.Std(), row)
 #### Correct
 
 ```go
-notification, err := usecase.CreateNotification(ctx, usecase.CreateNotificationCmd{
-    NotificationType: usecase.NotificationTypeRealtime,
-    UserID: userID,
-    Title: "Order paid",
-    Summary: "Your points have been awarded",
+notification, err := usecase.SendNotification(ctx, usecase.SendNotificationCmd{
+    StorePolicy: usecase.StorePolicyStore,
+    UserID:      userID,
+    Title:       "Order paid",
+    Summary:     "Your points have been awarded",
 })
 ```
 
