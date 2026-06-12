@@ -21,8 +21,10 @@ const (
 	IntegrationScenarioOSS       = "oss"
 	IntegrationScenarioEmbedding = "embedding"
 
-	deepSeekOpenAICompatibleAdapterKey = "llm.deepseek.openai_compatible"
-	defaultDeepSeekModelCode           = "deepseek-chat"
+	deepSeekOpenAICompatibleAdapterKey          = "llm.deepseek.openai_compatible"
+	deepSeekEmbeddingOpenAICompatibleAdapterKey = "embedding.deepseek.openai_compatible"
+	defaultDeepSeekModelCode                    = "deepseek-chat"
+	defaultDeepSeekEmbeddingModelCode           = "deepseek-embedding"
 
 	IntegrationInvocationStatusStarted   = "started"
 	IntegrationInvocationStatusSucceeded = "succeeded"
@@ -246,7 +248,11 @@ func GetEnabledEmbeddingConfig(ctx context.Context, qry EmbeddingConfigQuery) (I
 
 	model, err := findEnabledModelOption(ctx, qry.Scenario, channel.ID, modelCode)
 	if err != nil {
-		return IntegrationEmbeddingConfig{}, err
+		fallback, ok := defaultEmbeddingModelOptionForChannel(qry.Scenario, channel, modelCode, err)
+		if !ok {
+			return IntegrationEmbeddingConfig{}, err
+		}
+		model = fallback
 	}
 
 	return IntegrationEmbeddingConfig{
@@ -865,6 +871,31 @@ func defaultLLMModelOptionForChannel(scenario string, channel IntegrationChannel
 		ProviderModelID:   defaultDeepSeekModelCode,
 		CapabilitiesJSON:  "{}",
 		DefaultParamsJSON: "{}",
+		CostPolicyJSON:    "{}",
+		Enabled:           1,
+	}, true
+}
+
+func defaultEmbeddingModelOptionForChannel(scenario string, channel IntegrationChannel, modelCode string, err error) (IntegrationModelOption, bool) {
+	if !errors.Is(err, modelerror.ErrNotFound) {
+		return IntegrationModelOption{}, false
+	}
+	if scenario != IntegrationScenarioEmbedding || channel.AdapterKey != deepSeekEmbeddingOpenAICompatibleAdapterKey {
+		return IntegrationModelOption{}, false
+	}
+
+	normalizedModelCode := strings.TrimSpace(modelCode)
+	if normalizedModelCode != "" && normalizedModelCode != defaultDeepSeekEmbeddingModelCode {
+		return IntegrationModelOption{}, false
+	}
+
+	return IntegrationModelOption{
+		Scenario:          IntegrationScenarioEmbedding,
+		ChannelID:         channel.ID,
+		ModelCode:         defaultDeepSeekEmbeddingModelCode,
+		ProviderModelID:   defaultDeepSeekEmbeddingModelCode,
+		CapabilitiesJSON:  "{}",
+		DefaultParamsJSON: `{"dimensions":64}`,
 		CostPolicyJSON:    "{}",
 		Enabled:           1,
 	}, true

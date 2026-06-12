@@ -497,7 +497,7 @@
   <div class="flex flex-wrap items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold leading-tight">Parameter</h1>
-      <p class="mt-1 text-sm text-base-content/60">Channel integration settings for Payment, LLM, SMS, Email, and OSS.</p>
+      <p class="mt-1 text-sm text-base-content/60">Channel integration settings for Payment, LLM, Embedding, SMS, Email, and OSS.</p>
     </div>
     <div class="flex gap-2">
       <button class="btn btn-outline btn-sm" type="button" onclick={refreshCurrent} disabled={loadingByScenario[activeScenario] || loadingSchemasByScenario[activeScenario]}>

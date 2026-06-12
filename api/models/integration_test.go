@@ -84,6 +84,55 @@ func TestGetEnabledLLMConfigFallsBackToDefaultDeepSeekModelForChannelOnlyConfig(
 	}
 }
 
+func TestGetEnabledEmbeddingConfigFallsBackToDefaultDeepSeekModelForChannelOnlyConfig(t *testing.T) {
+	setupModelsTestDB(t)
+
+	credential, err := models.CreateIntegrationCredential(t.Context(), models.CreateIntegrationCredentialCmd{
+		CredentialType: "api_key",
+		ValueText:      "models-embedding-api-key",
+		Enabled:        true,
+	})
+	if err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	channel, err := models.CreateIntegrationChannel(t.Context(), models.CreateIntegrationChannelCmd{
+		Scenario:     models.IntegrationScenarioEmbedding,
+		ChannelCode:  "models-embedding-channel-only",
+		ProviderCode: "deepseek",
+		AdapterKey:   "embedding.deepseek.openai_compatible",
+		Environment:  "test",
+		Enabled:      true,
+		Priority:     1,
+		CredentialID: credential.ID,
+		ConfigJSON:   `{"base_url":"https://api.deepseek.com"}`,
+		MetadataJSON: "{}",
+	})
+	if err != nil {
+		t.Fatalf("create embedding channel: %v", err)
+	}
+
+	config, err := models.GetEnabledEmbeddingConfig(t.Context(), models.EmbeddingConfigQuery{
+		Scenario:  models.IntegrationScenarioEmbedding,
+		Operation: "embedding_create",
+	})
+	if err != nil {
+		t.Fatalf("get enabled embedding config: %v", err)
+	}
+
+	if config.Channel.ID != channel.ID {
+		t.Fatalf("unexpected channel: %#v", config.Channel)
+	}
+	if config.Model.ModelCode != "deepseek-embedding" || config.Model.ProviderModelID != "deepseek-embedding" {
+		t.Fatalf("unexpected fallback embedding model option: %#v", config.Model)
+	}
+	if config.Model.DefaultParamsJSON != `{"dimensions":64}` {
+		t.Fatalf("unexpected fallback embedding params: %q", config.Model.DefaultParamsJSON)
+	}
+	if config.Credential.ValueText != "models-embedding-api-key" {
+		t.Fatalf("unexpected credential value: %q", config.Credential.ValueText)
+	}
+}
+
 func TestCreateIntegrationWebhookReceiptReturnsExistingOnDuplicateIdempotencyKey(t *testing.T) {
 	manager := setupModelsTestDB(t)
 	appDB, err := manager.GetDB("app")

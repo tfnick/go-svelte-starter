@@ -112,7 +112,7 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 	})
 	if err != nil {
 		setIndexError := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed,
-			fmt.Sprintf("embedding config missing: %v — configure an embedding provider in Settings > Integrations (scenario=embedding, operation=create)", err))
+			fmt.Sprintf("embedding config missing: %v — configure an embedding provider in Parameter > Embedding (scenario=embedding, operation=embedding_create)", err))
 		if setIndexError != nil {
 			return fmt.Errorf("set document status to failed: %w (original: %v)", setIndexError, err)
 		}
@@ -151,6 +151,7 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 	embedResult, err := adapter.Embed(ctx, providerCfg, embedding.EmbedRequest{
 		Operation: embeddingOperationCreate,
 		Texts:     chunkTexts,
+		Params:    providerCfg.ModelSettings,
 	})
 	if err != nil {
 		setIndexError := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed,

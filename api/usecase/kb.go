@@ -3,6 +3,7 @@ package usecase
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"strings"
 
 	"github.com/tfnick/go-svelte-starter/api/framework/data/modelerror"
@@ -128,7 +129,7 @@ func UpdateKBSource(ctx fwusecase.Context, cmd UpdateKBSourceCmd) (KBSourceCo, e
 
 	existing, err := models.GetKnowledgeSourceByID(ctx.Std(), id)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return KBSourceCo{}, fwusecase.E(fwusecase.CodeNotFound, "knowledge source not found", err)
 		}
 		return KBSourceCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load knowledge source", err)
@@ -158,7 +159,7 @@ func SetKBSourceEnabled(ctx fwusecase.Context, id string, enabled bool) (KBSourc
 	}
 	record, err := models.SetKnowledgeSourceEnabled(ctx.Std(), id, enabled)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return KBSourceCo{}, fwusecase.E(fwusecase.CodeNotFound, "knowledge source not found", err)
 		}
 		return KBSourceCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to update knowledge source", err)
@@ -235,7 +236,7 @@ func UpdateKBDocument(ctx fwusecase.Context, cmd UpdateKBDocumentCmd) (KBDocumen
 
 	doc, err := models.UpdateKBDocumentContent(ctx.Std(), id, title, content, contentHash)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return KBDocumentCo{}, fwusecase.E(fwusecase.CodeNotFound, "document not found", err)
 		}
 		return KBDocumentCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to update document", err)
@@ -254,7 +255,7 @@ func SetKBDocumentEnabled(ctx fwusecase.Context, id string, enabled bool) (KBDoc
 	}
 	doc, err := models.SetKBDocumentEnabled(ctx.Std(), id, enabled)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return KBDocumentCo{}, fwusecase.E(fwusecase.CodeNotFound, "document not found", err)
 		}
 		return KBDocumentCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to update document", err)
@@ -320,7 +321,7 @@ func IndexDocument(ctx fwusecase.Context, cmd IndexDocumentCmd) error {
 	// Verify document exists
 	_, err := models.GetKBDocumentByID(ctx.Std(), documentID)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return fwusecase.E(fwusecase.CodeNotFound, "document not found", err)
 		}
 		return fwusecase.E(fwusecase.CodeInternal, "failed to load document for indexing", err)

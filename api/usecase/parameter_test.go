@@ -209,6 +209,26 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 		t.Fatalf("payment API URL must be a free URL input, got %#v", baseURLField)
 	}
 
+	embeddingSchemas, err := usecase.ListParameterIntegrationSchemas(ctx, usecase.ListParameterIntegrationSchemasQry{
+		Scenario: models.IntegrationScenarioEmbedding,
+	})
+	if err != nil {
+		t.Fatalf("list Embedding schemas: %v", err)
+	}
+	if len(embeddingSchemas) != 1 {
+		t.Fatalf("expected one Embedding schema, got %#v", embeddingSchemas)
+	}
+	if embeddingSchemas[0].AdapterKey != "embedding.deepseek.openai_compatible" || embeddingSchemas[0].ProviderCode != "deepseek" {
+		t.Fatalf("unexpected Embedding schema: %#v", embeddingSchemas[0])
+	}
+	if embeddingSchemas[0].CredentialType != "api_key" || embeddingSchemas[0].CredentialFormat != usecase.ParameterIntegrationCredentialFormatPlain {
+		t.Fatalf("unexpected Embedding credential schema: %#v", embeddingSchemas[0])
+	}
+	embeddingBaseURLField, ok := schemaFieldByKey(embeddingSchemas[0].ConfigFields, "base_url")
+	if !ok || embeddingBaseURLField.Kind != usecase.ParameterIntegrationSchemaFieldURL || embeddingBaseURLField.DefaultValue != "https://api.deepseek.com" {
+		t.Fatalf("unexpected Embedding base_url field: %#v", embeddingBaseURLField)
+	}
+
 	smsSchemas, err := usecase.ListParameterIntegrationSchemas(ctx, usecase.ListParameterIntegrationSchemasQry{
 		Scenario: models.IntegrationScenarioSMS,
 	})
@@ -345,6 +365,25 @@ func TestParameterIntegrationChannelAcceptsPlainCredentialSchema(t *testing.T) {
 	}
 	if channel.CredentialType != "api_key" || channel.CredentialValue != "sk_deepseek" {
 		t.Fatalf("unexpected channel: %#v", channel)
+	}
+
+	embeddingChannel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioEmbedding,
+		ChannelCode:     "schema-deepseek-embedding",
+		ProviderCode:    "deepseek",
+		AdapterKey:      "embedding.deepseek.openai_compatible",
+		Environment:     "test",
+		Enabled:         true,
+		ConfigJSON:      `{"base_url":"https://api.deepseek.com"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "api_key",
+		CredentialValue: "sk_embedding",
+	})
+	if err != nil {
+		t.Fatalf("create Embedding channel: %v", err)
+	}
+	if embeddingChannel.Scenario != models.IntegrationScenarioEmbedding || embeddingChannel.CredentialValue != "sk_embedding" {
+		t.Fatalf("unexpected Embedding channel: %#v", embeddingChannel)
 	}
 }
 

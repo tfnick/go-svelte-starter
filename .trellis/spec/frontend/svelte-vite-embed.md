@@ -1119,8 +1119,8 @@ dictionaryTypes = await listDictionaryTypes();
 Frontend helpers:
 
 ```js
-listParameterIntegrationSchemas('payment')
-listParameterIntegrationChannels('payment')
+listParameterIntegrationSchemas('embedding')
+listParameterIntegrationChannels('embedding')
 createParameterIntegrationChannel(payload)
 updateParameterIntegrationChannel(id, payload)
 setParameterIntegrationChannelEnabled(id, enabled)
@@ -1135,8 +1135,8 @@ Route entry:
 Backend API paths:
 
 ```text
-GET   /api/admin/parameters/integration-schemas?scenario=payment|llm|sms|email|oss
-GET   /api/admin/parameters/integration-channels?scenario=payment|llm|sms|email|oss
+GET   /api/admin/parameters/integration-schemas?scenario=payment|llm|embedding|sms|email|oss
+GET   /api/admin/parameters/integration-channels?scenario=payment|llm|embedding|sms|email|oss
 POST  /api/admin/parameters/integration-channels
 PUT   /api/admin/parameters/integration-channels/:id
 PATCH /api/admin/parameters/integration-channels/:id/enabled
@@ -1144,13 +1144,15 @@ PATCH /api/admin/parameters/integration-channels/:id/enabled
 
 OSS providers such as Cloudflare R2 and Aliyun OSS are Parameter configuration scenarios only: the UI loads `scenario=oss`, captures provider `endpoint_url` / `bucket` / `region` config and `s3_access_key` credentials, and does not execute upload/download or SDK connection tests.
 
+Embedding providers are Parameter configuration scenarios only: the UI loads `scenario=embedding`, captures provider `base_url` config and `api_key` credential, and Knowledge Base indexing errors must point admins to `Parameter > Embedding`, not Settings.
+
 OSS primary-provider UI is scoped to the OSS tab only. The form renders a `Primary provider` toggle for OSS channels, submits `is_primary` only as a meaningful OSS field, and treats the backend response as the source of truth for the final primary state. Zero primary OSS channels is a valid state; the UI must not auto-promote another channel when the current primary is unchecked or disabled.
 
 ### 3. Contracts
 
 * `Parameters.svelte` 必须通过 `frontend/src/api.js` helper 调用内部 API，不直接 `fetch('/api/...')`。
 * 页面左侧是 create/edit 表单，右侧是 daisyUI `tabs tabs-lift` + radio input pattern 的 tab content。
-* Tab 固定为 `Payment`、`LLM`、`SMS`、`Email`、`OSS`，分别查询 `scenario=payment|llm|sms|email|oss` 的不分页列表。
+* Tab 固定为 `Payment`、`LLM`、`Embedding`、`SMS`、`Email`、`OSS`，分别查询 `scenario=payment|llm|embedding|sms|email|oss` 的不分页列表。
 * `Parameter` 菜单项是 admin-only route；普通登录用户不显示该菜单，后端仍通过 `RequireAdmin()` 做最终权限保护。
 * 进入场景时先调用 `listParameterIntegrationSchemas(scenario)`，再按 `adapter_key` 匹配当前 schema。
 * 如果当前 `adapter_key` 有 schema，页面根据 `config_fields` 渲染结构化 config 表单，并同步写回 `form.config_json`；Advanced JSON 仍保留，用于额外非敏感字段。
@@ -1158,7 +1160,7 @@ OSS primary-provider UI is scoped to the OSS tab only. The form renders a `Prima
 * `credential_format=plain` 时，结构化 credential 输入保存为原始 `credential_value` 字符串；`credential_format=json_object` 时，保存为 JSON object 字符串。
 * schema field 的 `dictionary_type` 可以通过 `getDictionaries(types)` 动态加载 options；如果字典没有值，使用 schema 内置 `options` 兜底。
 * config 和 credential 的 schema field 如果返回 `help_text`，页面应在字段名旁渲染 `?` 类型 tooltip，鼠标移入或键盘聚焦时展示说明；例如 Aliyun SMTP password 必须提示使用邮箱客户端授权密码，而不是账号登录密码。
-* 固定的 `Webhook` 开关虽然不是 adapter schema field，也必须在 label 旁渲染与 schema `help_text` 一致的 `?` tooltip；提示内容展示通用 provider callback URL 格式 `https://<public-domain>/api/integrations/<scenario>/<channel_code>/webhooks/<provider_code>`，并用当前 `form.scenario`、`form.channel_code`、`form.provider_code` 代入，空值保留占位符。当前已实现的 Payment/Creem 后端 route 是 `/api/integrations/payment/<channel_code>/webhooks/creem`；SMS/Email/LLM 页面只展示统一格式提示，不代表已有真实 webhook route。
+* 固定的 `Webhook` 开关虽然不是 adapter schema field，也必须在 label 旁渲染与 schema `help_text` 一致的 `?` tooltip；提示内容展示通用 provider callback URL 格式 `https://<public-domain>/api/integrations/<scenario>/<channel_code>/webhooks/<provider_code>`，并用当前 `form.scenario`、`form.channel_code`、`form.provider_code` 代入，空值保留占位符。当前已实现的 Payment/Creem 后端 route 是 `/api/integrations/payment/<channel_code>/webhooks/creem`；SMS/Email/LLM/Embedding 页面只展示统一格式提示，不代表已有真实 webhook route。
 * `environment` 使用 `integration_environment` 字典，缺失时 fallback 为 `test` 和 `production`；provider API URL 不走 dictionary，也不使用 schema `options`，应渲染为普通 URL 输入框，因为 dictionary/option value 是规范化 code。
 * `credential_type` 使用 `integration_credential_type` 字典下拉，当前默认值为 `payment_bundle`、`api_key`、`smtp_password` 和 `s3_access_key`；缺失时前端 fallback 到同一组值，后端保存仍按启用字典值校验。
 * 创建和编辑时使用 `credential_value`；编辑表单从 admin DTO 回填当前值。schema 中 `kind=secret` 的字段必须默认使用 password 输入遮罩，并提供显示/隐藏按钮。
@@ -1193,6 +1195,8 @@ Base: In the `OSS` tab, uncheck the current primary provider and save; zero prim
 Bad: Enforce primary-provider uniqueness only by hiding or disabling other OSS row controls. The backend response must remain the page source of truth.
 
 Good: 在 `Payment` tab 新增 `creem-prod`，通过 schema 字段填写 `base_url/product_id/success_url`，通过 credential 字段填写 secret bundle。
+
+Good: 在 `Embedding` tab 新增 `deepseek-embedding-prod`，通过 schema 字段填写 `base_url`，通过 credential 字段填写 `api_key`，Knowledge Base index/reindex 会从 `scenario=embedding` 加载该 channel。
 
 Base: 在 `LLM` tab 编辑 `deepseek-prod` 的 `priority` 和 `metadata_json`，credential 字段保持当前回填值，后端保存同一个 `credential_value`。
 

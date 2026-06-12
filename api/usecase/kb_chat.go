@@ -3,6 +3,7 @@ package usecase
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -20,8 +21,8 @@ import (
 
 const (
 	// RAG constants
-	defaultTopK        = 5
-	defaultMinScore    = 0.5
+	defaultTopK         = 5
+	defaultMinScore     = 0.5
 	defaultMaxCitations = 5
 
 	// Fallback message when no relevant context is found
@@ -89,7 +90,7 @@ func GenerateSupportAnswer(ctx fwusecase.Context, cmd SupportChatMessageCmd) (Su
 		Operation: embeddingOperationCreate,
 	})
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal, "embedding channel is not configured", err)
 		}
 		return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load embedding configuration", err)
@@ -161,7 +162,7 @@ func GenerateSupportAnswer(ctx fwusecase.Context, cmd SupportChatMessageCmd) (Su
 		Operation: llm.OperationTextSummary,
 	})
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal, "LLM channel is not configured", err)
 		}
 		return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load LLM configuration", err)
@@ -230,10 +231,10 @@ func GenerateSupportAnswer(ctx fwusecase.Context, cmd SupportChatMessageCmd) (Su
 		})
 
 		citationModels = append(citationModels, models.KnowledgeSearchResult{
-			ChunkID:    chunk.ChunkID,
-			SourceID:   chunk.SourceID,
-			Content:    excerpt,
-			Distance:   chunk.Score,
+			ChunkID:  chunk.ChunkID,
+			SourceID: chunk.SourceID,
+			Content:  excerpt,
+			Distance: chunk.Score,
 		})
 	}
 
@@ -315,7 +316,7 @@ func GetSupportConversationForChat(ctx fwusecase.Context, conversationID string)
 	}
 	conv, err := models.GetSupportConversation(ctx.Std(), id)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return ConversationCo{}, fwusecase.E(fwusecase.CodeNotFound, "conversation not found", err)
 		}
 		return ConversationCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load conversation", err)
@@ -365,7 +366,7 @@ func ListSupportMessages(ctx fwusecase.Context, cmd ListMessagesCmd) ([]MessageC
 	// Verify the conversation exists
 	_, err := models.GetSupportConversation(ctx.Std(), conversationID)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return nil, fwusecase.E(fwusecase.CodeNotFound, "conversation not found", err)
 		}
 		return nil, fwusecase.E(fwusecase.CodeInternal, "failed to load conversation", err)
@@ -543,7 +544,7 @@ func CreateLead(ctx fwusecase.Context, cmd CreateLeadCmd) (models.SupportLead, e
 	// Verify conversation exists
 	conv, err := models.GetSupportConversation(ctx.Std(), conversationID)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return models.SupportLead{}, fwusecase.E(fwusecase.CodeNotFound, "conversation not found", err)
 		}
 		return models.SupportLead{}, fwusecase.E(fwusecase.CodeInternal, "failed to load conversation", err)
@@ -699,7 +700,7 @@ func GetSupportConversationDetail(ctx fwusecase.Context, conversationID string) 
 
 	conv, err := models.GetSupportConversation(ctx.Std(), conversationID)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return ConversationDetailCo{}, fwusecase.E(fwusecase.CodeNotFound, "conversation not found", err)
 		}
 		return ConversationDetailCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load conversation", err)
@@ -812,7 +813,7 @@ func GetSupportLeadDetail(ctx fwusecase.Context, leadID string) (LeadDetailCo, e
 
 	lead, err := models.GetSupportLead(ctx.Std(), leadID)
 	if err != nil {
-		if err == modelerror.ErrNotFound {
+		if errors.Is(err, modelerror.ErrNotFound) {
 			return LeadDetailCo{}, fwusecase.E(fwusecase.CodeNotFound, "lead not found", err)
 		}
 		return LeadDetailCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load lead", err)
