@@ -33,6 +33,7 @@ type SetKBDocumentEnabledRequest struct {
 type KBSourceResponse struct {
 	ID             string `json:"id"`
 	Title          string `json:"title"`
+	Description    string `json:"description"`
 	SourceType     string `json:"source_type"`
 	Category       string `json:"category"`
 	Tags           string `json:"tags"`
@@ -64,13 +65,13 @@ type KBDocumentResponse struct {
 }
 
 type KBSourceMutationResponse struct {
-	Message string            `json:"message"`
-	Source  KBSourceResponse  `json:"source"`
+	Message string           `json:"message"`
+	Source  KBSourceResponse `json:"source"`
 }
 
 type KBDocumentMutationResponse struct {
-	Message  string              `json:"message"`
-	Document KBDocumentResponse  `json:"document"`
+	Message  string             `json:"message"`
+	Document KBDocumentResponse `json:"document"`
 }
 
 // --- Converter helpers ---
@@ -79,6 +80,7 @@ func toKBSourceResponse(source usecase.KBSourceCo) KBSourceResponse {
 	return KBSourceResponse{
 		ID:             source.ID,
 		Title:          source.Title,
+		Description:    source.Description,
 		SourceType:     source.SourceType,
 		Category:       source.Category,
 		Tags:           source.Tags,

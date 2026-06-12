@@ -3,11 +3,17 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/embedding"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/kb"
+)
+
+var (
+	errKBDocumentHasNoContent = errors.New("document has no content")
+	errKBDocumentHasNoChunks  = errors.New("document produced no chunks")
 )
 
 // SQLiteVecRetriever implements kb.Retriever and kb.Indexer using the app SQLite database
@@ -74,13 +80,8 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 	}
 
 	// Set status to processing
-	if err := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusProcessing, ""); err != nil {
+	if err := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusProcessing, ""); err != nil {
 		return fmt.Errorf("set document status to processing: %w", err)
-	}
-
-	// Delete old chunks and embeddings
-	if err := models.DeleteKBChunksByDocumentID(ctx, documentID); err != nil {
-		return fmt.Errorf("delete old chunks: %w", err)
 	}
 
 	// Determine content to index
@@ -89,20 +90,20 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 		content = doc.ExtractedText
 	}
 	if content == "" {
-		if err := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed, "document has no content"); err != nil {
+		if err := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusFailed, "document has no content"); err != nil {
 			return fmt.Errorf("set document status to failed: %w", err)
 		}
-		return fmt.Errorf("document %s has no content", documentID)
+		return fmt.Errorf("document %s has no content: %w", documentID, errKBDocumentHasNoContent)
 	}
 
 	// Chunk the content
 	chunker := &SimpleChunker{MaxTokens: 500}
 	chunks := chunker.Chunk(content)
 	if len(chunks) == 0 {
-		if err := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed, "no chunks produced from document"); err != nil {
+		if err := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusFailed, "no chunks produced from document"); err != nil {
 			return fmt.Errorf("set document status to failed: %w", err)
 		}
-		return fmt.Errorf("document %s produced no chunks", documentID)
+		return fmt.Errorf("document %s produced no chunks: %w", documentID, errKBDocumentHasNoChunks)
 	}
 
 	// Load embedding config
@@ -111,8 +112,8 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 		Operation: embeddingOperationCreate,
 	})
 	if err != nil {
-		setIndexError := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed,
-			fmt.Sprintf("embedding config missing: %v — configure an embedding provider in Parameter > Embedding (scenario=embedding, operation=embedding_create)", err))
+		setIndexError := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusFailed,
+			fmt.Sprintf("embedding config missing: %v - configure an embedding provider in Parameter > Embedding (scenario=embedding, operation=embedding_create)", err))
 		if setIndexError != nil {
 			return fmt.Errorf("set document status to failed: %w (original: %v)", setIndexError, err)
 		}
@@ -122,7 +123,7 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 	// Get embedding adapter
 	adapter, ok := registeredEmbeddingAdapter(embedCfg.Channel.AdapterKey)
 	if !ok {
-		setIndexError := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed,
+		setIndexError := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusFailed,
 			fmt.Sprintf("embedding adapter not registered: %s", embedCfg.Channel.AdapterKey))
 		if setIndexError != nil {
 			return fmt.Errorf("set document status to failed: %w", setIndexError)
@@ -133,7 +134,7 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 	// Build embedding provider config
 	providerCfg, err := embeddingProviderConfig(embedCfg)
 	if err != nil {
-		setIndexError := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed,
+		setIndexError := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusFailed,
 			fmt.Sprintf("embedding provider config invalid: %v", err))
 		if setIndexError != nil {
 			return fmt.Errorf("set document status to failed: %w (original: %v)", setIndexError, err)
@@ -154,7 +155,7 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 		Params:    providerCfg.ModelSettings,
 	})
 	if err != nil {
-		setIndexError := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed,
+		setIndexError := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusFailed,
 			fmt.Sprintf("embedding generation failed: %v", err))
 		if setIndexError != nil {
 			return fmt.Errorf("set document status to failed: %w (original: %v)", setIndexError, err)
@@ -163,7 +164,7 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 	}
 
 	if len(embedResult.Vectors) != len(chunks) {
-		setIndexError := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed,
+		setIndexError := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusFailed,
 			fmt.Sprintf("embedding result count mismatch: got %d vectors for %d chunks", len(embedResult.Vectors), len(chunks)))
 		if setIndexError != nil {
 			return fmt.Errorf("set document status to failed: %w (original mismatch)", setIndexError)
@@ -202,7 +203,7 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 
 	// Store chunks and embeddings in the database
 	if err := models.ReplaceKnowledgeDocumentChunks(ctx, documentID, modelInserts); err != nil {
-		setIndexError := models.SetKBDocumentStatus(ctx, documentID, models.KBIndexStatusFailed,
+		setIndexError := models.UpdateKnowledgeIndexStatus(ctx, doc.SourceID, documentID, models.KBIndexStatusFailed,
 			fmt.Sprintf("store chunks failed: %v", err))
 		if setIndexError != nil {
 			return fmt.Errorf("set document status to failed: %w (original: %v)", setIndexError, err)

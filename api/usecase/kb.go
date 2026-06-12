@@ -16,6 +16,7 @@ import (
 type KBSourceCo struct {
 	ID             string
 	Title          string
+	Description    string
 	SourceType     string
 	Category       string
 	Tags           string
@@ -195,27 +196,27 @@ func CreateKBDocument(ctx fwusecase.Context, cmd CreateKBDocumentCmd) (KBDocumen
 	}
 
 	content := strings.TrimSpace(cmd.Content)
+	if content == "" {
+		return KBDocumentCo{}, fwusecase.E(fwusecase.CodeValidation, "document content is required", nil)
+	}
 	contentHash := computeContentHash(content)
 
-	record, err := models.CreateKnowledgeSource(ctx.Std(), models.SaveKnowledgeSourceCmd{
+	doc, err := models.CreateKBDocument(ctx.Std(), models.SaveKBDocumentCmd{
+		SourceID:    sourceID,
 		Title:       title,
-		SourceType:  models.KBSourceTypeManual,
-		Enabled:     true,
 		Content:     content,
 		ContentHash: contentHash,
+		Enabled:     true,
 	})
 	if err != nil {
+		if errors.Is(err, modelerror.ErrNotFound) {
+			return KBDocumentCo{}, fwusecase.E(fwusecase.CodeNotFound, "knowledge source not found", err)
+		}
 		return KBDocumentCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to create document", err)
 	}
 
-	// Fetch just the document part
-	doc, err := models.GetKBDocumentByID(ctx.Std(), record.DocumentID)
-	if err != nil {
-		return KBDocumentCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load document", err)
-	}
-
 	// Enqueue indexing asynchronously
-	enqueueIndexDocument(ctx, record.DocumentID)
+	enqueueIndexDocument(ctx, doc.ID)
 
 	return kbDocumentCoFromModel(doc), nil
 }
@@ -232,6 +233,9 @@ func UpdateKBDocument(ctx fwusecase.Context, cmd UpdateKBDocumentCmd) (KBDocumen
 	}
 
 	content := strings.TrimSpace(cmd.Content)
+	if content == "" {
+		return KBDocumentCo{}, fwusecase.E(fwusecase.CodeValidation, "document content is required", nil)
+	}
 	contentHash := computeContentHash(content)
 
 	doc, err := models.UpdateKBDocumentContent(ctx.Std(), id, title, content, contentHash)
@@ -269,6 +273,7 @@ func kbSourceCoFromModel(record models.KnowledgeSourceRecord) KBSourceCo {
 	return KBSourceCo{
 		ID:             record.ID,
 		Title:          record.Title,
+		Description:    record.Content,
 		SourceType:     record.SourceType,
 		Category:       record.Category,
 		Tags:           record.Tags,
@@ -329,6 +334,12 @@ func IndexDocument(ctx fwusecase.Context, cmd IndexDocumentCmd) error {
 
 	// Perform indexing
 	if err := indexDocumentInternal(ctx.Std(), documentID); err != nil {
+		if errors.Is(err, errKBDocumentHasNoContent) {
+			return fwusecase.E(fwusecase.CodeValidation, "document content is required before indexing", err)
+		}
+		if errors.Is(err, errKBDocumentHasNoChunks) {
+			return fwusecase.E(fwusecase.CodeValidation, "document content produced no indexable chunks", err)
+		}
 		return fwusecase.E(fwusecase.CodeInternal, "failed to index document", err)
 	}
 

@@ -1513,6 +1513,126 @@ http.NewRequestWithContext(ctx, http.MethodPost, cancelURL, body)
 
 ---
 
+## Scenario: Knowledge Base Admin API
+
+### 1. Scope / Trigger
+
+Modify Knowledge Base admin source/document management, indexing/reindexing, `kb_sources`, `kb_documents`, `kb_chunks`, `/api/admin/kb/*` routes, or frontend KB admin helpers according to this section. KB indexing is cross-layer: Svelte admin UI -> route DTO -> usecase command -> model storage -> embedding integration.
+
+### 2. Signatures
+
+Backend API:
+
+```text
+GET   /api/admin/kb/sources
+POST  /api/admin/kb/sources
+PUT   /api/admin/kb/sources/:id
+PATCH /api/admin/kb/sources/:id/enabled
+GET   /api/admin/kb/sources/:source_id/documents
+POST  /api/admin/kb/sources/:source_id/documents
+PUT   /api/admin/kb/sources/:source_id/documents/:id
+PATCH /api/admin/kb/sources/:source_id/documents/:id/enabled
+POST  /api/admin/kb/documents/:id/reindex
+```
+
+Usecase:
+
+```go
+type CreateKBSourceCmd struct { Title, Description, SourceType string }
+type UpdateKBSourceCmd struct { ID, Title, Description string }
+type CreateKBDocumentCmd struct { SourceID, Title, Content string }
+type UpdateKBDocumentCmd struct { ID, Title, Content string }
+type IndexDocumentCmd struct { DocumentID string }
+```
+
+DB:
+
+```sql
+kb_sources(id, title, source_type, enabled, index_status, content_hash, last_index_error, ...)
+kb_documents(id, source_id, title, content, extracted_text, content_hash, enabled, index_status, last_index_error, ...)
+kb_chunks(id, source_id, document_id, chunk_index, content, embedding_model_code, embedding_dimensions, ...)
+```
+
+### 3. Contracts
+
+* `KBSourceResponse` must include `description`; the frontend edit form round-trips this field back to `UpdateKBSourceCmd.Description`.
+* A source has one primary document created with the source. `ListKnowledgeSources` and `GetKnowledgeSourceByID` select that primary document deterministically; extra child documents must not duplicate source rows in the source list.
+* `POST /api/admin/kb/sources/:source_id/documents` must create a `kb_documents` row under the requested `source_id`. It must not create another `kb_sources` row.
+* `CreateKBDocument` and `UpdateKBDocument` require non-empty trimmed `content`.
+* Reindex chooses `doc.content`, falling back to `doc.extracted_text`.
+* Reindex failure updates both source and document `index_status`/`last_index_error` through `UpdateKnowledgeIndexStatus`.
+* Index replacement should preserve old chunks until the new content is indexable and embeddings are ready to store; `ReplaceKnowledgeDocumentChunks` owns the final delete-and-insert step.
+* Embedding config for indexing is resolved from `scenario=embedding` and `operation=embedding_create`; admin guidance must point to `Parameter > Embedding`.
+
+Successful source response includes:
+
+```json
+{
+  "id": "source-id",
+  "title": "FAQ",
+  "description": "FAQ source description",
+  "source_type": "manual",
+  "index_status": "indexed",
+  "last_index_error": ""
+}
+```
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| empty source title | `CodeValidation`, safe message `source title is required` |
+| invalid source type | `CodeValidation`, safe message `invalid source type` |
+| missing source on document create/list | `CodeNotFound` or validation-safe source error, no orphan document |
+| empty document title | `CodeValidation`, safe message `document title is required` |
+| empty document content on create/update | `CodeValidation`, safe message `document content is required` |
+| reindex empty document/extracted text | `CodeValidation`, safe message `document content is required before indexing`; status becomes `failed` |
+| reindex produces no chunks | `CodeValidation`, safe message `document content produced no indexable chunks`; status becomes `failed` |
+| missing embedding channel/config | `CodeInternal`, status `failed`, `last_index_error` mentions `Parameter > Embedding` |
+| embedding generation/store failure | `CodeInternal`, status `failed`, old chunks are preserved until replacement can succeed |
+
+### 5. Good/Base/Bad Cases
+
+Good: Admin edits a source; `GET /api/admin/kb/sources` returns `description`, the form submits the same description, and the source's primary document content is not accidentally cleared.
+
+Good: Admin adds a document under an existing source; the new row has the requested `source_id`, and `GET /api/admin/kb/sources` still returns one source row.
+
+Base: A historical document has empty `content` and empty `extracted_text`; reindex returns a validation envelope instead of a 500, and the row records `last_index_error="document has no content"`.
+
+Bad: `CreateKBDocument` calls `CreateKnowledgeSource`; that creates a new source and breaks the UI's source/document hierarchy.
+
+Bad: Reindex deletes old chunks before validating content and embedding configuration; a failed retry should not destroy a previously usable index.
+
+### 6. Tests Required
+
+* `api/usecase/kb_embedding_test.go` covers empty content validation, source/document status mirroring, old chunk preservation on invalid reindex, embedding guidance, and child document creation under requested source.
+* `api/routes/kb_test.go` covers `KBSourceResponse.description` for frontend edit round-trips.
+* `go test ./...`
+* If frontend KB page or helpers change, also run `cd frontend && npm test` and `cd frontend && npm run build`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```go
+record, err := models.CreateKnowledgeSource(ctx.Std(), models.SaveKnowledgeSourceCmd{
+    Title: title,
+    Content: content,
+})
+```
+
+#### Correct
+
+```go
+doc, err := models.CreateKBDocument(ctx.Std(), models.SaveKBDocumentCmd{
+    SourceID: sourceID,
+    Title: title,
+    Content: content,
+})
+```
+
+---
+
 ## Scenario: Variable Management API
 
 ### 1. Scope / Trigger

@@ -134,6 +134,182 @@ func TestIndexDocumentMissingEmbeddingConfigMentionsParameterMenu(t *testing.T) 
 	}
 }
 
+func TestIndexDocumentWithoutContentReturnsValidation(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	source, err := models.CreateKnowledgeSource(t.Context(), models.SaveKnowledgeSourceCmd{
+		ID:         "kb-empty-content-source",
+		Title:      "Empty Content Source",
+		SourceType: models.KBSourceTypeManual,
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("create knowledge source: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	err = usecase.IndexDocument(ctx, usecase.IndexDocumentCmd{DocumentID: source.DocumentID})
+	if err == nil {
+		t.Fatalf("expected empty content validation error")
+	}
+	if fwusecase.CodeOf(err) != fwusecase.CodeValidation {
+		t.Fatalf("expected validation code, got %q: %v", fwusecase.CodeOf(err), err)
+	}
+	if !strings.Contains(err.Error(), "document content is required before indexing") {
+		t.Fatalf("unexpected safe error message: %v", err)
+	}
+
+	doc, err := models.GetKBDocumentByID(t.Context(), source.DocumentID)
+	if err != nil {
+		t.Fatalf("load failed document: %v", err)
+	}
+	if doc.IndexStatus != models.KBIndexStatusFailed || doc.LastIndexError != "document has no content" {
+		t.Fatalf("expected failed status with content error, got %#v", doc)
+	}
+
+	sources, err := usecase.ListKBSources(ctx)
+	if err != nil {
+		t.Fatalf("list sources: %v", err)
+	}
+	if len(sources) != 1 || sources[0].IndexStatus != models.KBIndexStatusFailed || sources[0].LastIndexError != "document has no content" {
+		t.Fatalf("expected source status to mirror document failure, got %#v", sources)
+	}
+}
+
+func TestIndexDocumentWithoutContentDoesNotDeleteExistingChunks(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	source, err := models.CreateKnowledgeSource(t.Context(), models.SaveKnowledgeSourceCmd{
+		ID:          "kb-empty-content-keeps-chunks-source",
+		Title:       "Empty Content Keeps Chunks Source",
+		SourceType:  models.KBSourceTypeManual,
+		Enabled:     true,
+		ContentHash: "old-hash",
+	})
+	if err != nil {
+		t.Fatalf("create knowledge source: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		INSERT INTO kb_chunks (
+		  id, source_id, document_id, chunk_index, content, content_hash, token_count, char_count,
+		  embedding_model_code, embedding_provider_model_id, embedding_dimensions, embedding_status,
+		  enabled, created_at, updated_at
+		) VALUES (
+		  'old-chunk', ?, ?, 0, 'old indexed content', 'old-chunk-hash', 3, 19,
+		  'old-model', 'old-provider-model', 64, 'embedded', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+		)`, source.ID, source.DocumentID); err != nil {
+		t.Fatalf("insert old chunk: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	err = usecase.IndexDocument(ctx, usecase.IndexDocumentCmd{DocumentID: source.DocumentID})
+	if fwusecase.CodeOf(err) != fwusecase.CodeValidation {
+		t.Fatalf("expected validation code, got %q: %v", fwusecase.CodeOf(err), err)
+	}
+
+	var chunkCount int
+	if err := appDB.Get(&chunkCount, `SELECT COUNT(1) FROM kb_chunks WHERE document_id = ?`, source.DocumentID); err != nil {
+		t.Fatalf("count chunks: %v", err)
+	}
+	if chunkCount != 1 {
+		t.Fatalf("expected empty-content reindex to preserve existing chunks, got %d", chunkCount)
+	}
+}
+
+func TestCreateKBDocumentUsesRequestedSource(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	source, err := models.CreateKnowledgeSource(t.Context(), models.SaveKnowledgeSourceCmd{
+		ID:         "kb-document-parent",
+		Title:      "Parent Source",
+		SourceType: models.KBSourceTypeManual,
+		Enabled:    true,
+		Content:    "Parent source description",
+	})
+	if err != nil {
+		t.Fatalf("create knowledge source: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	doc, err := usecase.CreateKBDocument(ctx, usecase.CreateKBDocumentCmd{
+		SourceID: source.ID,
+		Title:    "Child Document",
+		Content:  "Child document content",
+	})
+	if err != nil {
+		t.Fatalf("create document: %v", err)
+	}
+	if doc.SourceID != source.ID {
+		t.Fatalf("expected document source %q, got %#v", source.ID, doc)
+	}
+
+	sources, err := usecase.ListKBSources(ctx)
+	if err != nil {
+		t.Fatalf("list sources: %v", err)
+	}
+	if len(sources) != 1 {
+		t.Fatalf("expected one source after creating child document, got %d: %#v", len(sources), sources)
+	}
+	if sources[0].Description != "Parent source description" {
+		t.Fatalf("expected source description preserved, got %#v", sources[0])
+	}
+
+	docs, err := usecase.ListKBDocuments(ctx, source.ID)
+	if err != nil {
+		t.Fatalf("list documents: %v", err)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("expected parent document plus child document, got %d: %#v", len(docs), docs)
+	}
+	foundChild := false
+	for _, candidate := range docs {
+		if candidate.ID == doc.ID && candidate.SourceID == source.ID && candidate.Content == "Child document content" {
+			foundChild = true
+		}
+	}
+	if !foundChild {
+		t.Fatalf("created document not found under requested source: %#v", docs)
+	}
+}
+
+func TestUpdateKBSourcePreservesDescriptionForFrontendRoundTrip(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+
+	source, err := usecase.CreateKBSource(ctx, usecase.CreateKBSourceCmd{
+		Title:       "Original Source",
+		Description: "Original description",
+		SourceType:  models.KBSourceTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("create source: %v", err)
+	}
+	if source.Description != "Original description" {
+		t.Fatalf("expected created description, got %#v", source)
+	}
+
+	updated, err := usecase.UpdateKBSource(ctx, usecase.UpdateKBSourceCmd{
+		ID:          source.ID,
+		Title:       "Updated Source",
+		Description: source.Description,
+	})
+	if err != nil {
+		t.Fatalf("update source: %v", err)
+	}
+	if updated.Description != "Original description" {
+		t.Fatalf("expected description to round-trip, got %#v", updated)
+	}
+
+	docs, err := usecase.ListKBDocuments(ctx, source.ID)
+	if err != nil {
+		t.Fatalf("list documents: %v", err)
+	}
+	if len(docs) != 1 || docs[0].Content != "Original description" {
+		t.Fatalf("source update should preserve primary document content, got %#v", docs)
+	}
+}
+
 func seedEmbeddingChannelOnlyConfig(t *testing.T, appDB *sqlx.DB, channelCode string, apiKey string) {
 	t.Helper()
 

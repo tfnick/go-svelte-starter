@@ -40,30 +40,30 @@ const (
 )
 
 type KnowledgeSourceRecord struct {
-	ID                   string `db:"id"`
-	Title                string `db:"title"`
-	SourceType           string `db:"source_type"`
-	Category             string `db:"category"`
-	Tags                 string `db:"tags"`
-	SourceURL            string `db:"source_url"`
-	Enabled              bool   `db:"enabled"`
-	IndexStatus          string `db:"index_status"`
-	Version              int    `db:"version"`
-	ContentHash          string `db:"content_hash"`
-	LastIndexedAt        string `db:"last_indexed_at"`
-	LastIndexError       string `db:"last_index_error"`
-	CreatedAt            string `db:"created_at"`
-	UpdatedAt            string `db:"updated_at"`
-	DocumentID           string `db:"document_id"`
-	DocumentTitle        string `db:"document_title"`
-	Content              string `db:"content"`
-	ExtractedText        string `db:"extracted_text"`
-	DocumentContentHash  string `db:"document_content_hash"`
-	DocumentVersion      int    `db:"document_version"`
-	FileName             string `db:"file_name"`
-	FileMimeType         string `db:"file_mime_type"`
-	FileSize             int64  `db:"file_size"`
-	ChunkCount           int    `db:"chunk_count"`
+	ID                  string `db:"id"`
+	Title               string `db:"title"`
+	SourceType          string `db:"source_type"`
+	Category            string `db:"category"`
+	Tags                string `db:"tags"`
+	SourceURL           string `db:"source_url"`
+	Enabled             bool   `db:"enabled"`
+	IndexStatus         string `db:"index_status"`
+	Version             int    `db:"version"`
+	ContentHash         string `db:"content_hash"`
+	LastIndexedAt       string `db:"last_indexed_at"`
+	LastIndexError      string `db:"last_index_error"`
+	CreatedAt           string `db:"created_at"`
+	UpdatedAt           string `db:"updated_at"`
+	DocumentID          string `db:"document_id"`
+	DocumentTitle       string `db:"document_title"`
+	Content             string `db:"content"`
+	ExtractedText       string `db:"extracted_text"`
+	DocumentContentHash string `db:"document_content_hash"`
+	DocumentVersion     int    `db:"document_version"`
+	FileName            string `db:"file_name"`
+	FileMimeType        string `db:"file_mime_type"`
+	FileSize            int64  `db:"file_size"`
+	ChunkCount          int    `db:"chunk_count"`
 }
 
 type SaveKnowledgeSourceCmd struct {
@@ -83,31 +83,40 @@ type SaveKnowledgeSourceCmd struct {
 	FileText      string
 }
 
+type SaveKBDocumentCmd struct {
+	SourceID      string
+	Title         string
+	Content       string
+	ExtractedText string
+	ContentHash   string
+	Enabled       bool
+}
+
 type KnowledgeChunkInsert struct {
-	ID                      string
-	SourceID                string
-	DocumentID              string
-	ChunkIndex              int
-	Content                 string
-	ContentHash             string
-	TokenCount              int
-	CharCount               int
-	EmbeddingModelCode      string
+	ID                       string
+	SourceID                 string
+	DocumentID               string
+	ChunkIndex               int
+	Content                  string
+	ContentHash              string
+	TokenCount               int
+	CharCount                int
+	EmbeddingModelCode       string
 	EmbeddingProviderModelID string
-	EmbeddingDimensions     int
-	EmbeddingJSON           string
+	EmbeddingDimensions      int
+	EmbeddingJSON            string
 }
 
 type KnowledgeSearchResult struct {
-	ChunkID                 string  `db:"chunk_id"`
-	SourceID                string  `db:"source_id"`
-	DocumentID              string  `db:"document_id"`
-	Title                   string  `db:"title"`
-	SourceType              string  `db:"source_type"`
-	SourceURL               string  `db:"source_url"`
-	Content                 string  `db:"content"`
-	Distance                float64 `db:"distance"`
-	EmbeddingModelCode      string  `db:"embedding_model_code"`
+	ChunkID                  string  `db:"chunk_id"`
+	SourceID                 string  `db:"source_id"`
+	DocumentID               string  `db:"document_id"`
+	Title                    string  `db:"title"`
+	SourceType               string  `db:"source_type"`
+	SourceURL                string  `db:"source_url"`
+	Content                  string  `db:"content"`
+	Distance                 float64 `db:"distance"`
+	EmbeddingModelCode       string  `db:"embedding_model_code"`
 	EmbeddingProviderModelID string  `db:"embedding_provider_model_id"`
 }
 
@@ -187,7 +196,13 @@ func ListKnowledgeSources(ctx context.Context) ([]KnowledgeSourceRecord, error) 
 	  COALESCE(f.file_size, 0) AS file_size,
 	  COALESCE((SELECT COUNT(1) FROM kb_chunks c WHERE c.source_id = s.id), 0) AS chunk_count
 	FROM kb_sources s
-	LEFT JOIN kb_documents d ON d.source_id = s.id
+	LEFT JOIN kb_documents d ON d.id = (
+	  SELECT kd.id
+	  FROM kb_documents kd
+	  WHERE kd.source_id = s.id
+	  ORDER BY kd.created_at ASC, kd.id ASC
+	  LIMIT 1
+	)
 	LEFT JOIN kb_source_files f ON f.document_id = d.id
 	ORDER BY s.updated_at DESC, s.created_at DESC`)
 	return records, err
@@ -215,7 +230,13 @@ func GetKnowledgeSourceByID(ctx context.Context, id string) (KnowledgeSourceReco
 	  COALESCE(f.file_size, 0) AS file_size,
 	  COALESCE((SELECT COUNT(1) FROM kb_chunks c WHERE c.source_id = s.id), 0) AS chunk_count
 	FROM kb_sources s
-	LEFT JOIN kb_documents d ON d.source_id = s.id
+	LEFT JOIN kb_documents d ON d.id = (
+	  SELECT kd.id
+	  FROM kb_documents kd
+	  WHERE kd.source_id = s.id
+	  ORDER BY kd.created_at ASC, kd.id ASC
+	  LIMIT 1
+	)
 	LEFT JOIN kb_source_files f ON f.document_id = d.id
 	WHERE s.id = ?`, strings.TrimSpace(id))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -725,37 +746,37 @@ func UpdateSupportConversationIntent(ctx context.Context, conversationID, state,
 // --- KB Document CRUD (standalone, not joined with sources) ---
 
 type KBDocument struct {
-	ID              string `db:"id"`
-	SourceID        string `db:"source_id"`
-	Title           string `db:"title"`
-	Content         string `db:"content"`
-	ExtractedText   string `db:"extracted_text"`
-	ContentHash     string `db:"content_hash"`
-	Version         int    `db:"version"`
-	Enabled         int    `db:"enabled"`
-	IndexStatus     string `db:"index_status"`
-	LastIndexedAt   string `db:"last_indexed_at"`
-	LastIndexError  string `db:"last_index_error"`
-	CreatedAt       string `db:"created_at"`
-	UpdatedAt       string `db:"updated_at"`
+	ID             string `db:"id"`
+	SourceID       string `db:"source_id"`
+	Title          string `db:"title"`
+	Content        string `db:"content"`
+	ExtractedText  string `db:"extracted_text"`
+	ContentHash    string `db:"content_hash"`
+	Version        int    `db:"version"`
+	Enabled        int    `db:"enabled"`
+	IndexStatus    string `db:"index_status"`
+	LastIndexedAt  string `db:"last_indexed_at"`
+	LastIndexError string `db:"last_index_error"`
+	CreatedAt      string `db:"created_at"`
+	UpdatedAt      string `db:"updated_at"`
 }
 
 type KBChunk struct {
-	ID                     string `db:"id"`
-	SourceID               string `db:"source_id"`
-	DocumentID             string `db:"document_id"`
-	ChunkIndex             int    `db:"chunk_index"`
-	Content                string `db:"content"`
-	ContentHash            string `db:"content_hash"`
-	TokenCount             int    `db:"token_count"`
-	CharCount              int    `db:"char_count"`
-	EmbeddingModelCode     string `db:"embedding_model_code"`
+	ID                       string `db:"id"`
+	SourceID                 string `db:"source_id"`
+	DocumentID               string `db:"document_id"`
+	ChunkIndex               int    `db:"chunk_index"`
+	Content                  string `db:"content"`
+	ContentHash              string `db:"content_hash"`
+	TokenCount               int    `db:"token_count"`
+	CharCount                int    `db:"char_count"`
+	EmbeddingModelCode       string `db:"embedding_model_code"`
 	EmbeddingProviderModelID string `db:"embedding_provider_model_id"`
-	EmbeddingDimensions    int    `db:"embedding_dimensions"`
-	EmbeddingStatus        string `db:"embedding_status"`
-	Enabled                int    `db:"enabled"`
-	CreatedAt              string `db:"created_at"`
-	UpdatedAt              string `db:"updated_at"`
+	EmbeddingDimensions      int    `db:"embedding_dimensions"`
+	EmbeddingStatus          string `db:"embedding_status"`
+	Enabled                  int    `db:"enabled"`
+	CreatedAt                string `db:"created_at"`
+	UpdatedAt                string `db:"updated_at"`
 }
 
 func ListKBDocumentsBySourceID(ctx context.Context, sourceID string) ([]KBDocument, error) {
@@ -790,6 +811,42 @@ func GetKBDocumentByID(ctx context.Context, id string) (KBDocument, error) {
 		return KBDocument{}, modelerror.ErrNotFound
 	}
 	return doc, err
+}
+
+func CreateKBDocument(ctx context.Context, cmd SaveKBDocumentCmd) (KBDocument, error) {
+	now := timefmt.NowSQLiteDateTime()
+	sourceID := strings.TrimSpace(cmd.SourceID)
+	if sourceID == "" {
+		return KBDocument{}, modelerror.ErrNotFound
+	}
+
+	if _, err := GetKnowledgeSourceByID(ctx, sourceID); err != nil {
+		return KBDocument{}, err
+	}
+
+	documentID := uuid.Must(uuid.NewV7()).String()
+	contentHash := strings.TrimSpace(cmd.ContentHash)
+	exec, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return KBDocument{}, fmt.Errorf("database unavailable: %w", err)
+	}
+	if _, err := exec.Exec(`
+		UPDATE kb_sources
+		SET index_status = ?, last_index_error = '', updated_at = ?
+		WHERE id = ?`,
+		KBIndexStatusPending, now, sourceID); err != nil {
+		return KBDocument{}, fmt.Errorf("update kb source status: %w", err)
+	}
+	if _, err := exec.Exec(`
+		INSERT INTO kb_documents (
+		  id, source_id, title, content, extracted_text, content_hash, version, enabled, index_status,
+		  last_index_error, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, '', ?, ?)`,
+		documentID, sourceID, strings.TrimSpace(cmd.Title), cmd.Content, cmd.ExtractedText, contentHash,
+		boolToInt(cmd.Enabled), KBIndexStatusPending, now, now); err != nil {
+		return KBDocument{}, fmt.Errorf("insert kb document: %w", err)
+	}
+	return GetKBDocumentByID(ctx, documentID)
 }
 
 func SetKBDocumentEnabled(ctx context.Context, id string, enabled bool) (KBDocument, error) {
