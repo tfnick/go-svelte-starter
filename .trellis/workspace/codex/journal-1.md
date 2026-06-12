@@ -582,3 +582,36 @@ Added task center clear action for terminal tasks with backend visibility marker
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Consolidate realtime notification boundary
+
+**Date**: 2026-06-12
+**Task**: Consolidate realtime notification boundary
+**Branch**: `feature-task`
+
+### Summary
+
+Added SendNotification StorePolicy boundary, routed business WebSocket messages through notification usecase, updated tests and specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `03b1a16` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
