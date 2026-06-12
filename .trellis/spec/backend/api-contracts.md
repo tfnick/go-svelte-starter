@@ -1565,7 +1565,9 @@ integration_operation_configs(scenario='embedding', operation='embedding_create'
 * Index replacement should preserve old chunks until the new content is indexable and embeddings are ready to store; `ReplaceKnowledgeDocumentChunks` owns the final delete-and-insert step.
 * Embedding config for indexing is resolved from `scenario=embedding` and `operation=embedding_create`; admin guidance must point to `Parameter > Embedding`.
 * Fresh installs must seed `embedding_create` to the local 64-dimensional provider: channel `local-hash-64`, adapter `embedding.local_hash_64`, provider `local`, credential type `none`, model `local-hash-64`, default params `{"dimensions":64}`. This avoids KB indexing depending on an external embedding API by default.
-* External embedding providers may still be configured under `Parameter > Embedding`; they must only be selected when the provider exposes a compatible embeddings endpoint. Provider request failures must not delete existing chunks.
+* External embedding providers may still be configured under `Parameter > Embedding`; they must only be selected when the provider returns vectors compatible with the fixed `kb_chunk_embedding_vec` schema (`float[64]`). Provider request failures must not delete existing chunks.
+* DeepSeek embedding channels use config JSON `{"base_url":"https://api.deepseek.com","api_style":"deepseek_embedding","endpoint_path":"/v1/embedding"}` by default. The request contract is `POST {base_url}{endpoint_path}` with `Authorization: Bearer <api_key>`, `Content-Type: application/json`, and body `{"text":"chunk text"}`. The primary response contract is `{"embedding":[...]}`.
+* The same adapter can run OpenAI-compatible embeddings only when config JSON explicitly sets `{"api_style":"openai_compatible"}`. That path sends body `{"model":"...","input":["..."],"dimensions":64}` to the configured endpoint path, defaulting to `embeddings`.
 
 Successful source response includes:
 
@@ -1593,6 +1595,8 @@ Successful source response includes:
 | reindex produces no chunks | `CodeValidation`, safe message `document content produced no indexable chunks`; status becomes `failed` |
 | missing embedding channel/config | `CodeInternal`, status `failed`, `last_index_error` mentions `Parameter > Embedding` |
 | default local embedding config present | reindex succeeds without `base_url` or credential value; stored chunk dimensions are `64` |
+| DeepSeek remote embedding selected | adapter calls `/v1/embedding` with `text`; it must not call `/embeddings` with `input/model` unless `api_style=openai_compatible` |
+| invalid embedding `api_style` | provider validation error, status `failed`, old chunks are preserved |
 | embedding generation/store failure | `CodeInternal`, status `failed`, old chunks are preserved until replacement can succeed |
 
 ### 5. Good/Base/Bad Cases
@@ -1605,17 +1609,20 @@ Base: A historical document has empty `content` and empty `extracted_text`; rein
 
 Base: A new install has never configured an external embedding API; KB reindex still works through the seeded local provider and records `embedding_model_code="local-hash-64"`.
 
+Base: Admin selects a DeepSeek remote embedding channel created from the Parameter schema defaults; the adapter posts each chunk as `{"text":"..."}` to `https://api.deepseek.com/v1/embedding` and parses the top-level `embedding` array.
+
 Bad: `CreateKBDocument` calls `CreateKnowledgeSource`; that creates a new source and breaks the UI's source/document hierarchy.
 
 Bad: Reindex deletes old chunks before validating content and embedding configuration; a failed retry should not destroy a previously usable index.
 
-Bad: The default Embedding schema points to an external DeepSeek/OpenAI-compatible embeddings endpoint that may not exist or may be unreachable; this causes `embedding generation failed: embedding provider request failed` on reindex.
+Bad: A DeepSeek remote embedding channel posts `{"model":"...","input":[...]}` to `/embeddings` while the configured provider expects `/v1/embedding` and `{"text":"..."}`; this causes `embedding generation failed: embedding provider request failed` on reindex.
 
 ### 6. Tests Required
 
 * `api/usecase/kb_embedding_test.go` covers default local hash embedding, empty content validation, source/document status mirroring, old chunk preservation on invalid reindex, embedding guidance, and child document creation under requested source.
+* `api/providers/embedding/deepseek/deepseek_test.go` covers DeepSeek `/v1/embedding` request/response mapping, multi-chunk request fan-out, explicit OpenAI-compatible request/response mapping, and provider error classification.
 * `api/models/integration_test.go` covers seeded default local embedding config and provider-specific fallback model mapping.
-* `api/usecase/parameter_test.go` covers local embedding schema and no-credential channel creation.
+* `api/usecase/parameter_test.go` covers local embedding schema, DeepSeek embedding `api_style`/`endpoint_path` defaults, and no-credential channel creation.
 * `api/routes/kb_test.go` covers `KBSourceResponse.description` for frontend edit round-trips.
 * `go test ./...`
 * If frontend KB page or helpers change, also run `cd frontend && npm test` and `cd frontend && npm run build`.
@@ -1639,6 +1646,20 @@ doc, err := models.CreateKBDocument(ctx.Std(), models.SaveKBDocumentCmd{
     Title: title,
     Content: content,
 })
+```
+
+#### Wrong
+
+```json
+POST https://api.deepseek.com/embeddings
+{"model":"deepseek-embedding","input":["chunk text"],"dimensions":64}
+```
+
+#### Correct
+
+```json
+POST https://api.deepseek.com/v1/embedding
+{"text":"chunk text"}
 ```
 
 ---

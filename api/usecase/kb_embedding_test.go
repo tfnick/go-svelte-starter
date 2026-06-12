@@ -25,6 +25,9 @@ func (a fakeEmbeddingAdapter) Embed(_ context.Context, cfg embedding.ProviderCon
 	if cfg.ModelCode != "deepseek-embedding" || cfg.ProviderModelID != "deepseek-embedding" {
 		a.t.Fatalf("unexpected embedding model mapping: %#v", cfg)
 	}
+	if cfg.ProviderSettings["api_style"] != "deepseek_embedding" || cfg.ProviderSettings["endpoint_path"] != "/v1/embedding" {
+		a.t.Fatalf("expected channel embedding endpoint settings, got %#v", cfg.ProviderSettings)
+	}
 	dimensions, ok := req.Params["dimensions"].(float64)
 	if !ok || dimensions != 64 {
 		a.t.Fatalf("expected dimensions=64 from model defaults, got %#v", req.Params)
@@ -408,7 +411,7 @@ func seedEmbeddingChannelOnlyConfig(t *testing.T, appDB *sqlx.DB, channelCode st
 	if _, err := appDB.Exec(appDB.Rebind(`
 		INSERT INTO integration_channels (
 			id, scenario, channel_code, provider_code, adapter_key, environment, enabled, priority, credential_id, config_json
-		) VALUES (?, 'embedding', ?, 'deepseek', 'embedding.deepseek.openai_compatible', 'test', 1, 1, ?, '{"base_url":"https://api.deepseek.com"}')
+		) VALUES (?, 'embedding', ?, 'deepseek', 'embedding.deepseek.openai_compatible', 'test', 1, 1, ?, '{"base_url":"https://api.deepseek.com","api_style":"deepseek_embedding","endpoint_path":"/v1/embedding"}')
 	`), channelID, channelCode, credentialID); err != nil {
 		t.Fatalf("insert embedding channel: %v", err)
 	}

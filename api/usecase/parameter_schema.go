@@ -160,8 +160,8 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 	{
 		Scenario:         models.IntegrationScenarioEmbedding,
 		AdapterKey:       "embedding.deepseek.openai_compatible",
-		Label:            "DeepSeek OpenAI Compatible Embedding",
-		Description:      "OpenAI-compatible embedding channel. Use only when the provider exposes a compatible embeddings endpoint.",
+		Label:            "DeepSeek Embedding",
+		Description:      "DeepSeek embedding channel using /v1/embedding by default. Switch API style only for OpenAI-compatible embeddings endpoints.",
 		ProviderCode:     "deepseek",
 		CredentialType:   "api_key",
 		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
@@ -173,6 +173,25 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 				Kind:         ParameterIntegrationSchemaFieldURL,
 				Required:     true,
 				DefaultValue: "https://api.deepseek.com",
+			},
+			{
+				Key:          "api_style",
+				Label:        "API Style",
+				Kind:         ParameterIntegrationSchemaFieldText,
+				Required:     false,
+				DefaultValue: "deepseek_embedding",
+				Options: []ParameterIntegrationSchemaOptionCo{
+					{Value: "deepseek_embedding", Label: "DeepSeek /v1/embedding"},
+					{Value: "openai_compatible", Label: "OpenAI /embeddings"},
+				},
+			},
+			{
+				Key:          "endpoint_path",
+				Label:        "Endpoint Path",
+				Kind:         ParameterIntegrationSchemaFieldText,
+				Required:     false,
+				DefaultValue: "/v1/embedding",
+				HelpText:     "Use /v1/embedding for DeepSeek embedding API, or /embeddings for OpenAI-compatible endpoints.",
 			},
 		},
 		CredentialFields: []ParameterIntegrationSchemaFieldCo{

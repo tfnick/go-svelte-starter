@@ -12,7 +12,9 @@ import (
 const embeddingOperationCreate = embedding.OperationCreate
 
 type embeddingChannelConfig struct {
-	BaseURL string `json:"base_url"`
+	BaseURL      string `json:"base_url"`
+	APIStyle     string `json:"api_style"`
+	EndpointPath string `json:"endpoint_path"`
 }
 
 // embeddingProviderConfig converts an IntegrationEmbeddingConfig into an embedding.ProviderConfig,
@@ -47,6 +49,12 @@ func embeddingProviderConfig(config models.IntegrationEmbeddingConfig) (embeddin
 		if err := json.Unmarshal([]byte(config.Channel.MetadataJSON), &meta); err == nil {
 			providerSettings = meta
 		}
+	}
+	if apiStyle := strings.TrimSpace(channelConfig.APIStyle); apiStyle != "" {
+		providerSettings["api_style"] = apiStyle
+	}
+	if endpointPath := strings.TrimSpace(channelConfig.EndpointPath); endpointPath != "" {
+		providerSettings["endpoint_path"] = endpointPath
 	}
 
 	return embedding.ProviderConfig{

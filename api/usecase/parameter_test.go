@@ -234,6 +234,14 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 	if !ok || embeddingBaseURLField.Kind != usecase.ParameterIntegrationSchemaFieldURL || embeddingBaseURLField.DefaultValue != "https://api.deepseek.com" {
 		t.Fatalf("unexpected Embedding base_url field: %#v", embeddingBaseURLField)
 	}
+	embeddingAPIStyleField, ok := schemaFieldByKey(embeddingSchemas[1].ConfigFields, "api_style")
+	if !ok || embeddingAPIStyleField.DefaultValue != "deepseek_embedding" || len(embeddingAPIStyleField.Options) != 2 {
+		t.Fatalf("unexpected Embedding api_style field: %#v", embeddingAPIStyleField)
+	}
+	embeddingEndpointPathField, ok := schemaFieldByKey(embeddingSchemas[1].ConfigFields, "endpoint_path")
+	if !ok || embeddingEndpointPathField.DefaultValue != "/v1/embedding" {
+		t.Fatalf("unexpected Embedding endpoint_path field: %#v", embeddingEndpointPathField)
+	}
 
 	smsSchemas, err := usecase.ListParameterIntegrationSchemas(ctx, usecase.ListParameterIntegrationSchemasQry{
 		Scenario: models.IntegrationScenarioSMS,
