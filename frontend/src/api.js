@@ -284,6 +284,31 @@ export function listAdminOrders(filters = {}) {
   return request(`/api/admin/orders${query ? `?${query}` : ''}`);
 }
 
+export function exportMyOrders(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.status) {
+    params.set('status', String(filters.status));
+  }
+  const query = params.toString();
+  return request(`/api/user/orders/export${query ? `?${query}` : ''}`, {
+    method: 'POST'
+  });
+}
+
+export function exportAdminOrders(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.userId) {
+    params.set('user_id', String(filters.userId));
+  }
+  if (filters.status) {
+    params.set('status', String(filters.status));
+  }
+  const query = params.toString();
+  return request(`/api/admin/orders/export${query ? `?${query}` : ''}`, {
+    method: 'POST'
+  });
+}
+
 export function createOrder(payload) {
   return request('/api/user/orders', {
     method: 'POST',
@@ -509,6 +534,10 @@ export function listMyTasks(pagination = {}) {
   }
   const query = params.toString();
   return request(`/api/user/tasks${query ? `?${query}` : ''}`);
+}
+
+export function getTaskDownload(taskId) {
+  return request(`/api/user/tasks/${encodeURIComponent(taskId)}/download`);
 }
 
 export function getWorkerLimit() {

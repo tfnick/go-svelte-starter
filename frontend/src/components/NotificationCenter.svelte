@@ -24,7 +24,7 @@
 
 <div class={docked ? '' : 'fixed bottom-4 left-4 z-50'}>
   {#if open}
-    <div class={docked ? 'absolute bottom-12 left-0 z-50 flex max-h-96 w-[min(20rem,calc(100vw-2rem))] min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl' : 'card flex max-h-96 w-80 min-w-0 flex-col border border-base-200 bg-base-100 shadow-xl'}>
+    <div class={docked ? 'absolute inset-x-0 bottom-12 z-50 flex max-h-80 max-w-full min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl' : 'card flex max-h-96 w-80 min-w-0 flex-col border border-base-200 bg-base-100 shadow-xl'}>
       <div class="card-body gap-2 overflow-y-auto p-3">
         <div class="flex items-center justify-between">
           <h3 class="card-title text-sm">Notifications</h3>
@@ -36,8 +36,8 @@
           <div class="py-4 text-center text-sm text-base-content/50">No notifications</div>
         {:else}
           {#each notifications as notification (notification.id)}
-            <div class="alert {levelClass(notification.level)} p-2 text-xs">
-              <span>{notification.message}</span>
+            <div class="alert {levelClass(notification.level)} min-w-0 p-2 text-xs">
+              <span class="min-w-0 break-words">{notification.message}</span>
             </div>
           {/each}
         {/if}

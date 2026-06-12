@@ -62,6 +62,11 @@ type PayOrderResponse struct {
 	Order   OrderResponse `json:"order"`
 }
 
+type EnqueueOrderExportResponse struct {
+	TaskID  string `json:"task_id"`
+	Message string `json:"message"`
+}
+
 type OrderDetailResponse struct {
 	Order OrderResponse       `json:"order"`
 	Items []OrderItemResponse `json:"items"`
@@ -273,6 +278,39 @@ func ListAdminOrders(c echo.Context) error {
 	}
 
 	return httpresponse.OK(c, ToUserOrdersResponse(orders))
+}
+
+// EnqueueMyOrdersExport queues an Excel export for the current user's own orders.
+func EnqueueMyOrdersExport(c echo.Context) error {
+	ctx := fwcontext.InternalUsecaseContext(c)
+	result, err := usecase.EnqueueMyOrdersExcelExport(ctx, usecase.EnqueueMyOrdersExcelExportQry{
+		Status: c.QueryParam("status"),
+	})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.Created(c, EnqueueOrderExportResponse{
+		TaskID:  result.TaskID,
+		Message: "order export task enqueued",
+	})
+}
+
+// EnqueueAdminOrdersExport queues an Excel export for the admin order view.
+func EnqueueAdminOrdersExport(c echo.Context) error {
+	ctx := fwcontext.InternalUsecaseContext(c)
+	result, err := usecase.EnqueueAdminOrdersExcelExport(ctx, usecase.EnqueueAdminOrdersExcelExportQry{
+		UserID: c.QueryParam("user_id"),
+		Status: c.QueryParam("status"),
+	})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.Created(c, EnqueueOrderExportResponse{
+		TaskID:  result.TaskID,
+		Message: "order export task enqueued",
+	})
 }
 
 // RequireLegacyUserOrdersAccess keeps the old user-id path safe during migration.

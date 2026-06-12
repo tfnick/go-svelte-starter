@@ -37,6 +37,12 @@ type TasksResponse struct {
 	Pagination paginationResult `json:"pagination"`
 }
 
+type TaskDownloadResponse struct {
+	URL       string `json:"url"`
+	ExpiresAt string `json:"expires_at"`
+	Filename  string `json:"filename"`
+}
+
 type paginationResult struct {
 	Page        int  `json:"page"`
 	PageSize    int  `json:"page_size"`
@@ -124,4 +130,25 @@ func ListMyTasks(c echo.Context) error {
 	}
 
 	return httpresponse.OK(c, ToTasksResponse(tasks))
+}
+
+func GetMyTaskDownload(c echo.Context) error {
+	currentUser := middleware.GetCurrentUser(c)
+	if currentUser == nil {
+		return httpresponse.Unauthorized(c, "not logged in")
+	}
+
+	ctx := fwcontext.InternalUsecaseContext(c)
+	result, err := usecase.GetMyTaskDownload(ctx, usecase.TaskDownloadQry{
+		TaskID: c.Param("id"),
+	})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.OK(c, TaskDownloadResponse{
+		URL:       result.URL,
+		ExpiresAt: result.ExpiresAt,
+		Filename:  result.Filename,
+	})
 }

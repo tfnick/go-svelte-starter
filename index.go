@@ -189,6 +189,7 @@ func main() {
 			protected.POST("/user/orders", user.CreateMyOrder)
 			protected.POST("/orders/:id/pay", user.PayOrder)
 			protected.POST("/orders/:id/payment-checkout", user.CreateOrderPaymentCheckout)
+			protected.POST("/user/orders/export", user.EnqueueMyOrdersExport)
 			protected.GET("/user/orders", user.ListMyOrders)
 			protected.GET("/orders/user/:user_id", user.GetUserOrders, user.RequireLegacyUserOrdersAccess)
 			protected.GET("/orders/:id", user.GetOrderDetail)
@@ -207,6 +208,7 @@ func main() {
 			admin.POST("/admin/reload-shared-db", user.ReloadSharedDB)
 
 			admin.GET("/admin/orders", user.ListAdminOrders)
+			admin.POST("/admin/orders/export", user.EnqueueAdminOrdersExport)
 			admin.PATCH("/admin/orders/:id/status", user.UpdateOrderStatus)
 			admin.PATCH("/orders/:id/status", user.UpdateOrderStatus)
 
@@ -294,6 +296,7 @@ func main() {
 
 			protected.POST("/user/tasks", user.EnqueueTask)
 			protected.GET("/user/tasks", user.ListMyTasks)
+			protected.GET("/user/tasks/:id/download", user.GetMyTaskDownload)
 		}
 
 	}

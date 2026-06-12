@@ -11,6 +11,8 @@ import {
   createParameterIntegrationChannel,
   createScheduledTask,
   exchangeOAuthLoginResult,
+  exportAdminOrders,
+  exportMyOrders,
   getAccessToken,
   getCurrentUser,
   getDictionaries,
@@ -18,6 +20,7 @@ import {
   getMyPoints,
   getProducts,
   getSiteSettings,
+  getTaskDownload,
   getUser,
   getUserOrders,
   listAdminOrders,
@@ -323,7 +326,9 @@ test('dictionary and order api helpers use relative api paths', async () => {
 
   await getDictionaries(['product_category', 'product_category', 'region']);
   await getMyOrders({ page: 2, pageSize: 10, status: 'pending' });
+  await exportMyOrders({ status: 'paid' });
   await listAdminOrders({ userId: '019ea0c1-0001-7000-8000-000000000001', status: 'paid', page: 1, pageSize: 20 });
+  await exportAdminOrders({ userId: '019ea0c1-0001-7000-8000-000000000001', status: 'pending' });
   await getUserOrders('019ea0c1-0001-7000-8000-000000000001', { page: 2, pageSize: 10 });
   await createOrder({
     product_id: 'product-1'
@@ -338,6 +343,7 @@ test('dictionary and order api helpers use relative api paths', async () => {
     prompt: 'Summarize briefly',
     dimensions: ['summary']
   });
+  await getTaskDownload('task 1');
   await listNotifications({
     page: 2,
     pageSize: 10,
@@ -349,23 +355,28 @@ test('dictionary and order api helpers use relative api paths', async () => {
   assert.equal(calls[0].path, '/api/public/dictionaries?types=product_category,region');
   assert.equal(calls[0].options.headers.get('authorization'), 'Bearer jwt-api');
   assert.equal(calls[1].path, '/api/user/orders?page=2&page_size=10&status=pending');
-  assert.equal(calls[2].path, '/api/admin/orders?user_id=019ea0c1-0001-7000-8000-000000000001&status=paid&page=1&page_size=20');
-  assert.equal(calls[3].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
-  assert.equal(calls[4].path, '/api/user/orders');
+  assert.equal(calls[2].path, '/api/user/orders/export?status=paid');
+  assert.equal(calls[2].options.method, 'POST');
+  assert.equal(calls[3].path, '/api/admin/orders?user_id=019ea0c1-0001-7000-8000-000000000001&status=paid&page=1&page_size=20');
+  assert.equal(calls[4].path, '/api/admin/orders/export?user_id=019ea0c1-0001-7000-8000-000000000001&status=pending');
   assert.equal(calls[4].options.method, 'POST');
-  assert.equal(calls[4].options.body, '{"product_id":"product-1"}');
-  assert.equal(calls[5].path, '/api/orders/o001/payment-checkout');
-  assert.equal(calls[5].options.method, 'POST');
-  assert.equal(calls[6].path, '/api/orders/o001/pay');
+  assert.equal(calls[5].path, '/api/orders/user/019ea0c1-0001-7000-8000-000000000001?page=2&page_size=10');
+  assert.equal(calls[6].path, '/api/user/orders');
   assert.equal(calls[6].options.method, 'POST');
-  assert.equal(calls[7].path, '/api/user/points');
-  assert.equal(calls[8].path, '/api/products');
-  assert.equal(calls[9].path, '/api/user/notifications/test-export-toast');
-  assert.equal(calls[9].options.method, 'POST');
-  assert.equal(calls[10].path, '/api/llm/summaries');
-  assert.equal(calls[10].options.method, 'POST');
-  assert.equal(calls[10].options.body, '{"text":"Source text","prompt":"Summarize briefly","dimensions":["summary"]}');
-  assert.equal(calls[11].path, '/api/admin/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
+  assert.equal(calls[6].options.body, '{"product_id":"product-1"}');
+  assert.equal(calls[7].path, '/api/orders/o001/payment-checkout');
+  assert.equal(calls[7].options.method, 'POST');
+  assert.equal(calls[8].path, '/api/orders/o001/pay');
+  assert.equal(calls[8].options.method, 'POST');
+  assert.equal(calls[9].path, '/api/user/points');
+  assert.equal(calls[10].path, '/api/products');
+  assert.equal(calls[11].path, '/api/user/notifications/test-export-toast');
+  assert.equal(calls[11].options.method, 'POST');
+  assert.equal(calls[12].path, '/api/llm/summaries');
+  assert.equal(calls[12].options.method, 'POST');
+  assert.equal(calls[12].options.body, '{"text":"Source text","prompt":"Summarize briefly","dimensions":["summary"]}');
+  assert.equal(calls[13].path, '/api/user/tasks/task%201/download');
+  assert.equal(calls[14].path, '/api/admin/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
 });
 
 test('current user helper uses user persona path', async () => {
