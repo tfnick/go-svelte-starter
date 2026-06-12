@@ -4,7 +4,7 @@
   import { clearMyTasks, getTaskDownload, listMyTasks } from '../api.js';
   import { canClearTask, canDownloadTask, taskFilename, taskTitle } from '../helpers/tasks.js';
 
-  let { refreshTrigger = 0, docked = false } = $props();
+  let { refreshTrigger = 0, docked = false, floatingPanel = false } = $props();
   let open = $state(false);
   let tasks = $state([]);
   let loading = $state(false);
@@ -77,6 +77,16 @@
     return tasks.some(canClearTask);
   }
 
+  function panelClass() {
+    if (docked && floatingPanel) {
+      return 'absolute inset-x-0 bottom-12 z-50 flex max-h-80 max-w-full min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl lg:fixed lg:inset-x-auto lg:bottom-4 lg:left-24 lg:w-96 lg:max-w-[calc(100vw-7rem)]';
+    }
+    if (docked) {
+      return 'absolute inset-x-0 bottom-12 z-50 flex max-h-80 max-w-full min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl';
+    }
+    return 'card flex max-h-96 w-96 min-w-0 flex-col border border-base-200 bg-base-100 shadow-xl';
+  }
+
   $effect(() => {
     if (refreshTrigger > 0 && open) {
       loadTasks();
@@ -86,7 +96,7 @@
 
 <div class={docked ? '' : 'fixed bottom-16 left-4 z-50'}>
   {#if open}
-    <div class={docked ? 'absolute inset-x-0 bottom-12 z-50 flex max-h-80 max-w-full min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl' : 'card flex max-h-96 w-96 min-w-0 flex-col border border-base-200 bg-base-100 shadow-xl'}>
+    <div class={panelClass()}>
       <div class="card-body gap-2 overflow-y-auto p-3">
         <div class="flex items-center justify-between">
           <h3 class="card-title text-sm">Tasks</h3>

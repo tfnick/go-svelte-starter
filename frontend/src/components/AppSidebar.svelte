@@ -12,6 +12,8 @@
     LogOut,
     Menu,
     Package,
+    PanelLeftClose,
+    PanelLeftOpen,
     Settings,
     SlidersHorizontal,
     Users,
@@ -49,8 +51,10 @@
     users: Users,
     variables: Boxes
   };
+  const sidebarToggleLabel = 'Toggle Sidebar';
 
   let drawerOpen = $state(false);
+  let collapsed = $state(false);
   let busy = $state(false);
   let error = $state('');
   let logoURL = $state('/logo.png');
@@ -78,6 +82,29 @@
 
   function iconFor(route) {
     return routeIcons[route.icon] || Home;
+  }
+
+  function sidebarWidthClass() {
+    return collapsed ? 'lg:w-20' : 'lg:w-72';
+  }
+
+  function sidebarPaddingClass() {
+    return collapsed ? 'p-3 lg:p-2' : 'p-3';
+  }
+
+  function sidebarHeaderClass() {
+    return collapsed ? 'justify-between px-5 lg:h-24 lg:flex-col lg:justify-center lg:gap-2 lg:px-2' : 'justify-between gap-2 px-3';
+  }
+
+  function menuItemClass(routePath) {
+    const base = 'btn h-11 min-h-11 w-full rounded-box border-0';
+    const alignment = collapsed ? 'justify-start gap-3 lg:justify-center lg:gap-0 lg:px-0' : 'justify-start gap-3';
+    const tone = activePath() === routePath ? 'btn-primary' : 'btn-ghost';
+    return `${base} ${alignment} ${tone}`;
+  }
+
+  function menuLabelClass() {
+    return collapsed ? 'truncate lg:hidden' : 'truncate';
   }
 
   function userInitial() {
@@ -140,12 +167,12 @@
 
   <div class="drawer-side z-30">
     <label for="app-sidebar-drawer" aria-label="Close menu" class="drawer-overlay"></label>
-    <aside class="flex min-h-full w-72 flex-col border-r border-base-200 bg-base-100">
-      <div class="flex h-20 items-center border-b border-base-200 px-5">
-        <button class="btn btn-ghost h-auto min-h-0 px-0" type="button" onclick={() => go(appHomePath)}>
+    <aside class={`flex min-h-full w-72 ${sidebarWidthClass()} flex-col border-r border-base-200 bg-base-100 transition-[width] duration-200`}>
+      <div class={`flex h-20 items-center border-b border-base-200 ${sidebarHeaderClass()}`}>
+        <button class={`btn btn-ghost h-auto min-h-0 px-0 ${collapsed ? 'lg:btn-square lg:btn-sm' : ''}`} type="button" aria-label="Home" title="Home" onclick={() => go(appHomePath)}>
           <img
             alt="Svelte Go Starter"
-            class="h-[25px] w-[120px] object-contain"
+            class={collapsed ? 'h-[25px] w-[120px] object-contain lg:h-8 lg:w-8' : 'h-[25px] w-[120px] object-contain'}
             height="25"
             src={logoURL}
             width="120"
@@ -156,45 +183,64 @@
             }}
           />
         </button>
+        <button
+          class={`btn btn-ghost hidden shrink-0 lg:inline-flex ${collapsed ? 'btn-square btn-sm' : 'btn-sm gap-2 px-2'}`}
+          type="button"
+          aria-label={sidebarToggleLabel}
+          aria-pressed={collapsed}
+          title={sidebarToggleLabel}
+          onclick={() => {
+            collapsed = !collapsed;
+          }}
+        >
+          {#if collapsed}
+            <PanelLeftOpen size={18} />
+          {:else}
+            <PanelLeftClose size={16} />
+            <span class="text-xs font-medium">{sidebarToggleLabel}</span>
+          {/if}
+        </button>
       </div>
 
-      <nav class="min-h-0 flex-1 overflow-y-auto p-3">
+      <nav class={`min-h-0 flex-1 overflow-y-auto ${sidebarPaddingClass()}`}>
         <div class="flex flex-col gap-1">
           {#each routes() as route}
             {@const Icon = iconFor(route)}
             <button
-              class="btn h-11 min-h-11 w-full justify-start gap-3 rounded-box border-0 {activePath() === route.path ? 'btn-primary' : 'btn-ghost'}"
+              class={menuItemClass(route.path)}
               type="button"
+              aria-label={route.label}
               aria-current={activePath() === route.path ? 'page' : undefined}
+              title={collapsed ? route.label : undefined}
               onclick={() => go(route.path)}
             >
               <Icon size={18} />
-              <span class="truncate">{route.label}</span>
+              <span class={menuLabelClass()}>{route.label}</span>
             </button>
           {/each}
         </div>
       </nav>
 
-      <div class="border-t border-base-200 p-3">
-        <div class="relative rounded-box bg-base-200/60 p-3">
-          <div class="flex min-w-0 items-center gap-3">
-            <div class="avatar placeholder">
-              <div class="w-10 rounded-full bg-primary text-primary-content">
+      <div class={`border-t border-base-200 ${sidebarPaddingClass()}`}>
+        <div class={`relative rounded-box bg-base-200/60 ${collapsed ? 'p-3 lg:p-2' : 'p-3'}`}>
+          <div class={`flex min-w-0 items-center ${collapsed ? 'gap-3 lg:justify-center lg:gap-0' : 'gap-3'}`}>
+            <div class="avatar placeholder" title={collapsed ? profileLabel() : undefined}>
+              <div class={`${collapsed ? 'w-10 lg:w-9' : 'w-10'} rounded-full bg-primary text-primary-content`}>
                 <span class="text-sm font-semibold">{userInitial()}</span>
               </div>
             </div>
-            <div class="min-w-0 flex-1">
+            <div class={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
               <div class="truncate text-sm font-semibold">{profileLabel()}</div>
               <div class="truncate text-xs text-base-content/55">{auth.user?.id || 'Current user'}</div>
             </div>
             {#if auth.user?.is_admin}
-              <span class="badge badge-primary badge-sm">Admin</span>
+              <span class={`badge badge-primary badge-sm ${collapsed ? 'lg:hidden' : ''}`}>Admin</span>
             {/if}
           </div>
 
-          <div class="mt-3 grid grid-cols-3 gap-2">
-            <NotificationCenter {notifications} onCleared={onNotificationsCleared} docked />
-            <TaskCenter refreshTrigger={taskRefreshTrigger} docked />
+          <div class={collapsed ? 'mt-3 grid grid-cols-3 gap-2 lg:flex lg:flex-col lg:items-center' : 'mt-3 grid grid-cols-3 gap-2'}>
+            <NotificationCenter {notifications} onCleared={onNotificationsCleared} floatingPanel={collapsed} docked />
+            <TaskCenter refreshTrigger={taskRefreshTrigger} floatingPanel={collapsed} docked />
             <button class="btn btn-square btn-ghost" type="button" aria-label="Sign out" onclick={handleLogout} disabled={busy}>
               {#if busy}
                 <span class="loading loading-spinner loading-xs"></span>
