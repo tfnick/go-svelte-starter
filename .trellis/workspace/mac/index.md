@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
-- **Last Active**: 2026-06-12
+- **Total Sessions**: 29
+- **Last Active**: 2026-06-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~939 | Active |
+| `journal-1.md` | ~972 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-06-13 | Fix DeepSeek KB embedding endpoint | `4c7df5b` | `master` |
 | 28 | 2026-06-12 | Fix KB embedding and reindex failures | `add7877`, `ee7a5c7` | `master` |
 | 27 | 2026-06-12 | LLM KB Support Feasibility PRD | `e896aa8`, `a6f6b05` | `master` |
 | 26 | 2026-06-11 | Optimize marketing conversion pages | `b5ac98d` | `master` |

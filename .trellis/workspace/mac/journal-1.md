@@ -937,3 +937,36 @@ Fixed Knowledge Base embedding channel-only config, corrected KB document/source
 ### Next Steps
 
 - None - task complete
+
+
+## Session 29: Fix DeepSeek KB embedding endpoint
+
+**Date**: 2026-06-13
+**Task**: Fix DeepSeek KB embedding endpoint
+**Branch**: `master`
+
+### Summary
+
+Fixed remote DeepSeek KB embedding requests to use /v1/embedding with text payload, passed embedding endpoint config from Parameter, added regression tests, and updated backend API contracts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4c7df5b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
