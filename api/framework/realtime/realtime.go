@@ -14,6 +14,7 @@ const (
 	MessageTypePoints          MessageType = "points"
 	MessageTypeAsyncExportTask MessageType = "async_export_task"
 	MessageTypeNotification    MessageType = "notification"
+	MessageTypeHeavyTask       MessageType = "heavy_task"
 )
 
 type Presentation string
@@ -47,6 +48,7 @@ type NotificationPayload struct {
 	Summary    string `json:"summary,omitempty"`
 	SourceType string `json:"source_type,omitempty"`
 	SourceID   string `json:"source_id,omitempty"`
+	Status     string `json:"status,omitempty"`
 }
 
 type Subscription struct {
@@ -112,7 +114,7 @@ func NewNotificationMessage(payload NotificationPayload, presentation Presentati
 
 func DefaultPresentation(messageType MessageType) Presentation {
 	switch messageType {
-	case MessageTypeAsyncExportTask, MessageTypeNotification:
+	case MessageTypeAsyncExportTask, MessageTypeNotification, MessageTypeHeavyTask:
 		return PresentationToast
 	case MessageTypePoints:
 		return PresentationRefresh

@@ -28,6 +28,7 @@ type TaskResponse struct {
 	ResultJSON   string `json:"result_json"`
 	ErrorMessage string `json:"error_message"`
 	RetryCount   int    `json:"retry_count"`
+	ClearedAt    string `json:"cleared_at"`
 	CreatedAt    string `json:"created_at"`
 	UpdatedAt    string `json:"updated_at"`
 }
@@ -35,6 +36,16 @@ type TaskResponse struct {
 type TasksResponse struct {
 	Items      []TaskResponse   `json:"items"`
 	Pagination paginationResult `json:"pagination"`
+}
+
+type TaskDownloadResponse struct {
+	URL       string `json:"url"`
+	ExpiresAt string `json:"expires_at"`
+	Filename  string `json:"filename"`
+}
+
+type ClearTasksResponse struct {
+	ClearedCount int `json:"cleared_count"`
 }
 
 type paginationResult struct {
@@ -56,6 +67,7 @@ func ToTaskResponse(task usecase.TaskCo) TaskResponse {
 		ResultJSON:   task.ResultJSON,
 		ErrorMessage: task.ErrorMessage,
 		RetryCount:   task.RetryCount,
+		ClearedAt:    task.ClearedAt,
 		CreatedAt:    task.CreatedAt,
 		UpdatedAt:    task.UpdatedAt,
 	}
@@ -124,4 +136,42 @@ func ListMyTasks(c echo.Context) error {
 	}
 
 	return httpresponse.OK(c, ToTasksResponse(tasks))
+}
+
+func ClearMyTasks(c echo.Context) error {
+	currentUser := middleware.GetCurrentUser(c)
+	if currentUser == nil {
+		return httpresponse.Unauthorized(c, "not logged in")
+	}
+
+	ctx := fwcontext.InternalUsecaseContext(c)
+	result, err := usecase.ClearMyTasks(ctx)
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.OK(c, ClearTasksResponse{
+		ClearedCount: result.ClearedCount,
+	})
+}
+
+func GetMyTaskDownload(c echo.Context) error {
+	currentUser := middleware.GetCurrentUser(c)
+	if currentUser == nil {
+		return httpresponse.Unauthorized(c, "not logged in")
+	}
+
+	ctx := fwcontext.InternalUsecaseContext(c)
+	result, err := usecase.GetMyTaskDownload(ctx, usecase.TaskDownloadQry{
+		TaskID: c.Param("id"),
+	})
+	if err != nil {
+		return httpresponse.InternalUsecaseError(c, err)
+	}
+
+	return httpresponse.OK(c, TaskDownloadResponse{
+		URL:       result.URL,
+		ExpiresAt: result.ExpiresAt,
+		Filename:  result.Filename,
+	})
 }

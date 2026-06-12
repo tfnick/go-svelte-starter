@@ -201,6 +201,46 @@ func TestDomainEventsStayQueueBacked(t *testing.T) {
 	}
 }
 
+func TestBusinessRealtimePublishingStaysBehindNotificationBoundary(t *testing.T) {
+	root := repoRoot(t)
+	files := collectGoFiles(t, filepath.Join(root, "api"))
+	var violations []string
+
+	fset := token.NewFileSet()
+	for _, filePath := range files {
+		if strings.HasSuffix(filePath, "_test.go") {
+			continue
+		}
+
+		rel := mustRel(t, root, filePath)
+		if isAllowedRealtimeImport(rel) {
+			continue
+		}
+
+		parsed, err := parser.ParseFile(fset, filePath, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parse %s: %v", filePath, err)
+		}
+		for _, imported := range parsed.Imports {
+			path := strings.Trim(imported.Path.Value, `"`)
+			if path == modulePath+"/api/framework/realtime" {
+				violations = append(violations, fmt.Sprintf("%s imports framework realtime directly; route through notification usecase/helper", rel))
+			}
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("business realtime publishing boundary violated:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func isAllowedRealtimeImport(rel string) bool {
+	return strings.HasPrefix(rel, "api/framework/realtime/") ||
+		rel == "api/framework/realtime/realtime.go" ||
+		rel == "api/usecase/notification.go" ||
+		rel == "api/routes/points.go"
+}
+
 func TestDurableEventTablesStayProjectOwned(t *testing.T) {
 	root := repoRoot(t)
 	migrations := collectFilesByExt(t, filepath.Join(root, "api", "db", "migrations", "app"), ".sql")

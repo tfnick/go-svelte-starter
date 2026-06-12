@@ -186,7 +186,7 @@ func registerUsecaseEventHandlers(t *testing.T) {
 			UserID:  points.UserID,
 			Balance: points.Balance,
 		}, awarded, err
-	}); err != nil {
+	}, sendRealtimeNotificationForUsecaseTest); err != nil {
 		t.Fatalf("register event handlers: %v", err)
 	}
 	if err := usecaseevents.RegisterMembershipEventHandlers(func(ctx fwusecase.Context, cmd usecaseevents.ApplyOrderMembershipCmd) (usecaseevents.MembershipResult, bool, error) {

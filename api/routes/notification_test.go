@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/tfnick/sqlx"
 	"github.com/tfnick/go-svelte-starter/api/db"
+	fwcontext "github.com/tfnick/go-svelte-starter/api/framework/http/context"
+	"github.com/tfnick/go-svelte-starter/api/models"
 	"github.com/tfnick/go-svelte-starter/api/routes"
+	"github.com/tfnick/sqlx"
 )
 
 func TestListNotificationsReturnsPaginatedFilteredEnvelope(t *testing.T) {
@@ -75,6 +77,63 @@ func TestListNotificationsRejectsInvalidType(t *testing.T) {
 	}
 }
 
+func TestClearMyNotificationsReturnsClearedCountEnvelope(t *testing.T) {
+	setupRouteTestDBs(t)
+	appDB, err := db.DefaultManager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	seedRouteNotificationForUser(t, appDB, "route-clear-notification-1", "u1")
+	seedRouteNotificationForUser(t, appDB, "route-clear-notification-2", "u1")
+	seedRouteNotificationForUser(t, appDB, "route-clear-notification-other", "u2")
+
+	router := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/user/notifications/clear", nil)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+	fwcontext.SetCurrentUser(c, &models.User{ID: "u1", Name: "Ada"})
+
+	if err := routes.ClearMyNotifications(c); err != nil {
+		t.Fatalf("clear my notifications: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+
+	var envelope struct {
+		Success bool                              `json:"success"`
+		Data    routes.ClearNotificationsResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !envelope.Success || envelope.Data.ClearedCount != 2 {
+		t.Fatalf("unexpected clear response: %s", rec.Body.String())
+	}
+
+	var otherVisible int
+	if err := appDB.Get(&otherVisible, `SELECT COUNT(*) FROM notifications WHERE user_id = 'u2' AND cleared_at = ''`); err != nil {
+		t.Fatalf("count other notifications: %v", err)
+	}
+	if otherVisible != 1 {
+		t.Fatalf("expected other user's notification to remain visible, got %d", otherVisible)
+	}
+}
+
+func TestClearMyNotificationsRequiresCurrentUser(t *testing.T) {
+	router := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/user/notifications/clear", nil)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+
+	if err := routes.ClearMyNotifications(c); err != nil {
+		t.Fatalf("clear my notifications: %v", err)
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusUnauthorized, rec.Code, rec.Body.String())
+	}
+}
+
 func seedRouteNotifications(t *testing.T, appDB *sqlx.DB) {
 	t.Helper()
 
@@ -114,5 +173,20 @@ func seedRouteNotifications(t *testing.T, appDB *sqlx.DB) {
 		if err != nil {
 			t.Fatalf("insert route notification %s: %v", row.id, err)
 		}
+	}
+}
+
+func seedRouteNotificationForUser(t *testing.T, appDB *sqlx.DB, id string, userID string) {
+	t.Helper()
+
+	query := appDB.Rebind(`
+		INSERT INTO notifications (
+			id, notification_type, source_type, source_id, user_id, recipient_email,
+			recipient_phone, title, summary, payload_json, status, last_error,
+			created_at, updated_at
+		) VALUES (?, 'realtime', '', '', ?, '', '', 'Route user notification', '', '{}', 'sent', '', '2026-01-01 00:00:00', '2026-01-01 00:00:00')
+	`)
+	if _, err := appDB.Exec(query, id, userID); err != nil {
+		t.Fatalf("insert route notification %s: %v", id, err)
 	}
 }

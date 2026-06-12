@@ -1,8 +1,12 @@
 <script>
-  import { Bell, X } from 'lucide-svelte';
+  import { ArchiveX, Bell, X } from 'lucide-svelte';
 
-  let { notifications = [], docked = false } = $props();
+  import { clearMyNotifications } from '../api.js';
+
+  let { notifications = [], docked = false, floatingPanel = false, onCleared } = $props();
   let open = $state(false);
+  let clearing = $state(false);
+  let notificationError = $state('');
 
   function count() {
     return notifications.length;
@@ -10,6 +14,21 @@
 
   function toggle() {
     open = !open;
+  }
+
+  async function clearNotifications() {
+    if (clearing || notifications.length === 0) return;
+
+    clearing = true;
+    notificationError = '';
+    try {
+      await clearMyNotifications();
+      onCleared?.();
+    } catch (err) {
+      notificationError = err.message || 'Failed to clear notifications';
+    } finally {
+      clearing = false;
+    }
   }
 
   function levelClass(level) {
@@ -20,24 +39,46 @@
       default: return 'alert-info';
     }
   }
+
+  function panelClass() {
+    if (docked && floatingPanel) {
+      return 'absolute inset-x-0 bottom-12 z-50 flex max-h-80 max-w-full min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl lg:fixed lg:inset-x-auto lg:bottom-4 lg:left-24 lg:w-80 lg:max-w-[calc(100vw-7rem)]';
+    }
+    if (docked) {
+      return 'absolute inset-x-0 bottom-12 z-50 flex max-h-80 max-w-full min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl';
+    }
+    return 'card flex max-h-96 w-80 min-w-0 flex-col border border-base-200 bg-base-100 shadow-xl';
+  }
 </script>
 
 <div class={docked ? '' : 'fixed bottom-4 left-4 z-50'}>
   {#if open}
-    <div class={docked ? 'absolute bottom-12 left-0 z-50 flex max-h-96 w-[min(20rem,calc(100vw-2rem))] min-w-0 flex-col rounded-box border border-base-200 bg-base-100 shadow-xl' : 'card flex max-h-96 w-80 min-w-0 flex-col border border-base-200 bg-base-100 shadow-xl'}>
+    <div class={panelClass()}>
       <div class="card-body gap-2 overflow-y-auto p-3">
         <div class="flex items-center justify-between">
           <h3 class="card-title text-sm">Notifications</h3>
-          <button class="btn btn-square btn-ghost btn-xs" type="button" aria-label="Close notifications" onclick={toggle}>
-            <X size={14} />
-          </button>
+          <div class="flex items-center gap-1">
+            <button class="btn btn-square btn-ghost btn-xs" type="button" aria-label="Clear notifications" onclick={clearNotifications} disabled={clearing || notifications.length === 0}>
+              {#if clearing}
+                <span class="loading loading-spinner loading-xs"></span>
+              {:else}
+                <ArchiveX size={14} />
+              {/if}
+            </button>
+            <button class="btn btn-square btn-ghost btn-xs" type="button" aria-label="Close notifications" onclick={toggle}>
+              <X size={14} />
+            </button>
+          </div>
         </div>
+        {#if notificationError}
+          <div class="alert alert-error py-2 text-xs">{notificationError}</div>
+        {/if}
         {#if notifications.length === 0}
           <div class="py-4 text-center text-sm text-base-content/50">No notifications</div>
         {:else}
           {#each notifications as notification (notification.id)}
-            <div class="alert {levelClass(notification.level)} p-2 text-xs">
-              <span>{notification.message}</span>
+            <div class="alert {levelClass(notification.level)} min-w-0 p-2 text-xs">
+              <span class="min-w-0 break-words">{notification.message}</span>
             </div>
           {/each}
         {/if}

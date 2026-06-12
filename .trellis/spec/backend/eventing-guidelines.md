@@ -274,7 +274,7 @@ func RegisterEventHandlers(award AwardOrderPaidPointsFunc) error
 * 支付成功后 points balance 不要求立即变化。
 * `points.award_on_order_paid` handler uses `RegisterTransactional` so `AwardOrderPaidPoints` runs inside the subscriber app transaction.
 * `point_transactions` 使用 `UNIQUE(order_id, type)` 保证同一订单的 `order_paid` 幂等。
-* realtime points message 只在 subscriber 的积分事务 commit 后通过 `RegisterAfterCommit` 推送；推送失败不影响已提交业务数据。
+* realtime points message 只在 subscriber 的积分事务 commit 后通过 `RegisterAfterCommit` 调用 notification 封装发送；该消息使用 `StorePolicyTransient`，不写 `notifications` 台账。推送失败不影响已提交业务数据。
 
 ### 4. Validation & Error Matrix
 
@@ -283,7 +283,7 @@ func RegisterEventHandlers(award AwardOrderPaidPointsFunc) error
 | event queue write fails inside `PayOrder` tx | order status rolls back to `pending`; no event rows remain |
 | point account insert fails in subscriber | order remains `paid`; delivery becomes `failed`; queue retries |
 | duplicate `order_id/type` point transaction | no extra points are awarded |
-| realtime publish fails after subscriber commit | ignore realtime error; committed points remain valid |
+| transient notification publish fails after subscriber commit | ignore realtime error; committed points remain valid |
 
 ### 5. Good/Base/Bad Cases
 

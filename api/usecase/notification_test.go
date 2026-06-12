@@ -54,6 +54,9 @@ func TestCreateNotificationRealtimeCreatesLedgerAndPublishesSafeRealtimePayload(
 		if message.Payload["id"] != notification.ID || message.Payload["title"] != "Order paid" {
 			t.Fatalf("unexpected notification payload: %#v", message.Payload)
 		}
+		if _, exists := message.Payload["status"]; exists {
+			t.Fatalf("expected empty status for payload without status, got %#v", message.Payload)
+		}
 		if _, exists := message.Payload["payload_json"]; exists {
 			t.Fatalf("expected realtime payload to omit raw payload_json: %#v", message.Payload)
 		}
@@ -70,6 +73,50 @@ func TestCreateNotificationRealtimeCreatesLedgerAndPublishesSafeRealtimePayload(
 	}
 	if persisted.Status != models.NotificationStatusSent || persisted.PayloadJSON != `{"order_id":"order-1","secret":"do-not-push"}` {
 		t.Fatalf("unexpected persisted notification: %#v", persisted)
+	}
+}
+
+func TestSendNotificationDefaultPolicyStoresAndPublishesNotification(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	sub := realtime.SubscribeClient("notify-user-2", "notify-client-2")
+	defer sub.Close()
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	notification, err := usecase.SendNotification(ctx, usecase.SendNotificationCmd{
+		UserID:     "notify-user-2",
+		SourceType: "async_task",
+		SourceID:   "task-1",
+		Title:      "Task failed",
+		Summary:    "Export failed",
+		Payload: map[string]string{
+			"task_id": "task-1",
+			"status":  "failed",
+		},
+	})
+	if err != nil {
+		t.Fatalf("send stored notification: %v", err)
+	}
+	if notification.ID == "" || notification.Status != models.NotificationStatusSent {
+		t.Fatalf("expected stored notification, got %#v", notification)
+	}
+
+	select {
+	case raw := <-sub.Messages:
+		var message struct {
+			Type    string `json:"type"`
+			Payload struct {
+				ID     string `json:"id"`
+				Status string `json:"status"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(raw, &message); err != nil {
+			t.Fatalf("decode realtime message: %v", err)
+		}
+		if message.Type != "notification" || message.Payload.ID != notification.ID || message.Payload.Status != "failed" {
+			t.Fatalf("unexpected realtime notification: %#v", message)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("expected realtime notification")
 	}
 }
 
@@ -146,6 +193,60 @@ func TestListNotificationsRejectsUnknownType(t *testing.T) {
 	}
 }
 
+func TestClearMyNotificationsSoftClearsCurrentUserOnly(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	appDB, err := db.DefaultManager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+
+	insertUserNotification(t, appDB, "clear-notification-1", "u1")
+	insertUserNotification(t, appDB, "clear-notification-2", "u1")
+	insertUserNotification(t, appDB, "clear-notification-other", "u2")
+
+	result, err := usecase.ClearMyNotifications(authenticatedUsecaseContext(t.Context(), "u1", false))
+	if err != nil {
+		t.Fatalf("clear my notifications: %v", err)
+	}
+	if result.ClearedCount != 2 {
+		t.Fatalf("expected two notifications cleared, got %#v", result)
+	}
+
+	var visibleForU1 int
+	if err := appDB.Get(&visibleForU1, `SELECT COUNT(*) FROM notifications WHERE user_id = 'u1' AND cleared_at = ''`); err != nil {
+		t.Fatalf("count visible u1 notifications: %v", err)
+	}
+	if visibleForU1 != 0 {
+		t.Fatalf("expected u1 notifications hidden, got %d visible", visibleForU1)
+	}
+
+	var visibleForU2 int
+	if err := appDB.Get(&visibleForU2, `SELECT COUNT(*) FROM notifications WHERE user_id = 'u2' AND cleared_at = ''`); err != nil {
+		t.Fatalf("count visible u2 notifications: %v", err)
+	}
+	if visibleForU2 != 1 {
+		t.Fatalf("expected other user notification to remain visible, got %d", visibleForU2)
+	}
+
+	var totalRows int
+	if err := appDB.Get(&totalRows, `SELECT COUNT(*) FROM notifications`); err != nil {
+		t.Fatalf("count notifications: %v", err)
+	}
+	if totalRows != 3 {
+		t.Fatalf("expected soft clear to preserve rows, got %d", totalRows)
+	}
+}
+
+func TestClearMyNotificationsRequiresUser(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+
+	_, err := usecase.ClearMyNotifications(ctx)
+	if fwusecase.CodeOf(err) != fwusecase.CodeUnauthorized {
+		t.Fatalf("expected unauthorized error, got %q: %v", fwusecase.CodeOf(err), err)
+	}
+}
+
 func insertTestNotification(t *testing.T, appDB *sqlx.DB, id string, notificationType string, status string, email string, phone string, createdAt string) {
 	t.Helper()
 
@@ -158,5 +259,20 @@ func insertTestNotification(t *testing.T, appDB *sqlx.DB, id string, notificatio
 	`)
 	if _, err := appDB.Exec(query, id, notificationType, email, phone, status, createdAt, createdAt); err != nil {
 		t.Fatalf("insert test notification %s: %v", id, err)
+	}
+}
+
+func insertUserNotification(t *testing.T, appDB *sqlx.DB, id string, userID string) {
+	t.Helper()
+
+	query := appDB.Rebind(`
+		INSERT INTO notifications (
+			id, notification_type, source_type, source_id, user_id, recipient_email,
+			recipient_phone, title, summary, payload_json, status, last_error,
+			created_at, updated_at
+		) VALUES (?, 'realtime', '', '', ?, '', '', 'User notification', '', '{}', 'sent', '', '2026-01-01 00:00:00', '2026-01-01 00:00:00')
+	`)
+	if _, err := appDB.Exec(query, id, userID); err != nil {
+		t.Fatalf("insert user notification %s: %v", id, err)
 	}
 }

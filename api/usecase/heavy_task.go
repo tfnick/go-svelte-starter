@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
-	"github.com/tfnick/go-svelte-starter/api/framework/realtime"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
 )
@@ -28,6 +28,11 @@ type HeavyTaskMessage struct {
 	UserID   string `json:"user_id"`
 }
 
+type heavyTaskExecutionResult struct {
+	ResultJSON string
+	Message    string
+}
+
 type ListMyTasksQry struct {
 	Page     int
 	PageSize int
@@ -42,6 +47,7 @@ type TaskCo struct {
 	ResultJSON   string `json:"result_json"`
 	ErrorMessage string `json:"error_message"`
 	RetryCount   int    `json:"retry_count"`
+	ClearedAt    string `json:"cleared_at"`
 	CreatedAt    string `json:"created_at"`
 	UpdatedAt    string `json:"updated_at"`
 }
@@ -51,12 +57,19 @@ type TasksCo struct {
 	Pagination fwusecase.PageResult `json:"pagination"`
 }
 
+type ClearMyTasksCo struct {
+	ClearedCount int `json:"cleared_count"`
+}
+
 func EnqueueHeavyTask(ctx fwusecase.Context, cmd EnqueueHeavyTaskCmd) (EnqueueHeavyTaskResult, error) {
 	if cmd.UserID == "" {
 		return EnqueueHeavyTaskResult{}, fwusecase.E(fwusecase.CodeValidation, "user ID is required", nil)
 	}
 	if cmd.TaskType == "" {
 		return EnqueueHeavyTaskResult{}, fwusecase.E(fwusecase.CodeValidation, "task type is required", nil)
+	}
+	if DefaultQueueManager == nil {
+		return EnqueueHeavyTaskResult{}, fwusecase.E(fwusecase.CodeInternal, "queue manager is not configured", nil)
 	}
 
 	payload := cmd.PayloadJSON
@@ -120,44 +133,90 @@ func HandleHeavyTaskMessage(ctx context.Context, message []byte) error {
 
 	if task.RetryCount >= models.MaxAsyncTaskRetries {
 		_ = models.UpdateAsyncTaskStatus(ctx, task.ID, models.AsyncTaskStatusFailed, "{}", "max retries exceeded")
+		publishHeavyTaskFinished(ctx, *task, models.AsyncTaskStatusFailed, "max retries exceeded")
 		return nil
 	}
 
 	_ = models.UpdateAsyncTaskStatus(ctx, task.ID, models.AsyncTaskStatusProcessing, "{}", "")
 
-	err = executeHeavyTask(ctx, msg)
+	result, err := executeHeavyTask(ctx, msg, *task)
 
 	if err != nil {
 		_ = models.IncrementAsyncTaskRetryCount(ctx, task.ID, err.Error())
 
 		if task.RetryCount+1 >= models.MaxAsyncTaskRetries {
 			_ = models.UpdateAsyncTaskStatus(ctx, task.ID, models.AsyncTaskStatusFailed, "{}", err.Error())
-			publishTaskRealtime(task.UserID, task.ID, models.AsyncTaskStatusFailed, err.Error())
+			publishHeavyTaskFinished(ctx, *task, models.AsyncTaskStatusFailed, heavyTaskFailedMessage(*task, err))
 			return nil
 		}
 		return err
 	}
 
-	_ = models.UpdateAsyncTaskStatus(ctx, task.ID, models.AsyncTaskStatusCompleted, "{}", "")
-	publishTaskRealtime(task.UserID, task.ID, models.AsyncTaskStatusCompleted, "Task completed")
+	if strings.TrimSpace(result.ResultJSON) == "" {
+		result.ResultJSON = "{}"
+	}
+	if strings.TrimSpace(result.Message) == "" {
+		result.Message = "Task completed"
+	}
+	_ = models.UpdateAsyncTaskStatus(ctx, task.ID, models.AsyncTaskStatusCompleted, result.ResultJSON, "")
+	publishHeavyTaskFinished(ctx, *task, models.AsyncTaskStatusCompleted, result.Message)
 	return nil
 }
 
-func executeHeavyTask(ctx context.Context, msg HeavyTaskMessage) error {
+func executeHeavyTask(ctx context.Context, msg HeavyTaskMessage, task models.AsyncTask) (heavyTaskExecutionResult, error) {
 	switch msg.TaskType {
 	case "test_export":
-		return nil
+		return heavyTaskExecutionResult{ResultJSON: "{}", Message: "Task completed"}, nil
+	case HeavyTaskTypeOrdersExcelExport:
+		result, err := executeOrdersExcelExportTask(ctx, task)
+		return heavyTaskExecutionResult{
+			ResultJSON: result.ResultJSON,
+			Message:    result.Message,
+		}, err
 	default:
-		return fmt.Errorf("unknown task type: %s", msg.TaskType)
+		return heavyTaskExecutionResult{}, fmt.Errorf("unknown task type: %s", msg.TaskType)
 	}
 }
 
-func publishTaskRealtime(userID string, taskID string, status string, message string) {
-	_ = realtime.Publish(userID, realtime.NewMessage("heavy_task", realtime.PresentationToast, map[string]interface{}{
-		"task_id": taskID,
-		"status":  status,
-		"message": message,
-	}))
+func publishHeavyTaskFinished(ctx context.Context, task models.AsyncTask, status string, message string) {
+	if isOrderExportTaskType(task.TaskType) {
+		publishOrderExportTaskFinished(ctx, task, status, message)
+		return
+	}
+
+	ucCtx := fwusecase.NewContext(ctx, fwusecase.SurfaceSystem)
+	_, _ = SendNotification(ucCtx, SendNotificationCmd{
+		StorePolicy:  StorePolicyStore,
+		MessageType:  RealtimeMessageTypeHeavyTask,
+		Presentation: RealtimePresentationToast,
+		SourceType:   "async_task",
+		SourceID:     task.ID,
+		UserID:       task.UserID,
+		Title:        heavyTaskNotificationTitle(status),
+		Summary:      message,
+		Payload: map[string]interface{}{
+			"task_id": task.ID,
+			"status":  status,
+			"message": message,
+		},
+	})
+}
+
+func heavyTaskNotificationTitle(status string) string {
+	if status == models.AsyncTaskStatusFailed {
+		return "Task failed"
+	}
+	return "Task completed"
+}
+
+func heavyTaskFailedMessage(task models.AsyncTask, err error) string {
+	if isOrderExportTaskType(task.TaskType) {
+		return "Order export failed"
+	}
+	if err != nil {
+		return err.Error()
+	}
+	return "Task failed"
 }
 
 func ListMyTasks(ctx fwusecase.Context, qry ListMyTasksQry) (TasksCo, error) {
@@ -198,6 +257,7 @@ func ListMyTasks(ctx fwusecase.Context, qry ListMyTasksQry) (TasksCo, error) {
 			ResultJSON:   t.ResultJSON,
 			ErrorMessage: t.ErrorMessage,
 			RetryCount:   t.RetryCount,
+			ClearedAt:    t.ClearedAt,
 			CreatedAt:    t.CreatedAt,
 			UpdatedAt:    t.UpdatedAt,
 		})
@@ -207,4 +267,17 @@ func ListMyTasks(ctx fwusecase.Context, qry ListMyTasksQry) (TasksCo, error) {
 		Items:      items,
 		Pagination: fwusecase.NewPageResult(pageQry, total),
 	}, nil
+}
+
+func ClearMyTasks(ctx fwusecase.Context) (ClearMyTasksCo, error) {
+	userID := ctx.Actor.UserID
+	if userID == "" {
+		return ClearMyTasksCo{}, fwusecase.E(fwusecase.CodeUnauthorized, "not logged in", nil)
+	}
+
+	count, err := models.ClearTerminalAsyncTasksByUser(ctx.Std(), userID)
+	if err != nil {
+		return ClearMyTasksCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to clear tasks", err)
+	}
+	return ClearMyTasksCo{ClearedCount: count}, nil
 }

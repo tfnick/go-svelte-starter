@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend quality check commands for Svelte shell changes."}
+{"file": ".trellis/spec/frontend/svelte-vite-embed.md", "reason": "UI, daisyUI, API helper, and responsive layout conventions to verify against."}
+{"command": "cd frontend && npm test", "result": "pass", "notes": "48 frontend tests passed."}
+{"command": "cd frontend && npm run build", "result": "pass", "notes": "Vite production build passed."}
+{"command": "go test ./...", "result": "pass", "notes": "Backend regression suite passed."}
+{"command": "git diff --check", "result": "pass", "notes": "No whitespace errors; Git reported existing CRLF normalization warnings only."}
+{"command": "browser smoke test", "result": "pass", "notes": "Temporary Vite + mock API. Desktop 1280px sidebar collapsed from 288px to 80px, menu labels hid, panels floated at x=96 with widths 320/384px. Mobile 390px drawer stayed 288px with labels/profile visible and collapse button hidden."}
+{"command": "browser regression check", "result": "pass", "notes": "Fixed discoverability issue: expanded sidebar now shows visible Toggle Sidebar text and uses a stable aria-label. Browser check at 1280px found one Toggle Sidebar button; expanded width 288px with visible text, collapsed width 80px, same button expanded back to 288px."}
+{"command": "browser refinement check", "result": "pass", "notes": "Refined toggle to icon-only visual treatment while keeping aria-label/title as Toggle Sidebar. Browser check at 1280px found empty visible text, 40px icon button, and about 21px gap from sidebar right edge in both expanded and collapsed states."}

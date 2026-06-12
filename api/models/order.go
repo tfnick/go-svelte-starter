@@ -159,10 +159,13 @@ func CountOrdersByUserID(ctx context.Context, userID string) (int, error) {
 }
 
 type OrderQuery struct {
-	UserID string `db:"user_id"`
-	Status string `db:"status"`
-	Limit  int    `db:"limit"`
-	Offset int    `db:"offset"`
+	UserID          string `db:"user_id"`
+	Status          string `db:"status"`
+	HasCursor       int    `db:"has_cursor"`
+	BeforeCreatedAt string `db:"before_created_at"`
+	BeforeID        string `db:"before_id"`
+	Limit           int    `db:"limit"`
+	Offset          int    `db:"offset"`
 }
 
 func CountOrders(ctx context.Context, query OrderQuery) (int, error) {
@@ -200,6 +203,7 @@ func ListOrders(ctx context.Context, query OrderQuery) ([]Order, error) {
 		WHERE 1=1
 			#[ AND user_id = :user_id ]
 			#[ AND status = :status ]
+			AND (:has_cursor = 0 OR (created_at < :before_created_at OR (created_at = :before_created_at AND id < :before_id)))
 		ORDER BY created_at DESC, id DESC
 		LIMIT :limit OFFSET :offset
 	`, query)
@@ -207,6 +211,41 @@ func ListOrders(ctx context.Context, query OrderQuery) ([]Order, error) {
 		return nil, fmt.Errorf("list orders failed: %w", err)
 	}
 	return orders, nil
+}
+
+func IterateOrders(ctx context.Context, query OrderQuery, batchSize int, handle func([]Order) error) error {
+	if handle == nil {
+		return fmt.Errorf("order iterator handler is required")
+	}
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+
+	next := query
+	next.Limit = batchSize
+	next.Offset = 0
+
+	for {
+		orders, err := ListOrders(ctx, next)
+		if err != nil {
+			return err
+		}
+		if len(orders) == 0 {
+			return nil
+		}
+
+		if err := handle(orders); err != nil {
+			return err
+		}
+
+		if len(orders) < batchSize {
+			return nil
+		}
+		last := orders[len(orders)-1]
+		next.HasCursor = 1
+		next.BeforeCreatedAt = last.CreatedAt
+		next.BeforeID = last.ID
+	}
 }
 
 func GetOrderItems(ctx context.Context, orderID string) ([]OrderItem, error) {

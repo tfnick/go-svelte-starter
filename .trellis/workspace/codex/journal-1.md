@@ -516,3 +516,136 @@ Optimized the logged-in app shell into a left sidebar and right work area, remov
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: Async order Excel export
+
+**Date**: 2026-06-12
+**Task**: Async order Excel export
+**Branch**: `feature-task`
+
+### Summary
+
+Implemented asynchronous order Excel export with streaming query/write, 100000 row limit, task center download, realtime notifications, and docked task/notification layout fix.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `19307a0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 17: Task center clear action
+
+**Date**: 2026-06-12
+**Task**: Task center clear action
+**Branch**: `feature-task`
+
+### Summary
+
+Added task center clear action for terminal tasks with backend visibility marker, API endpoint, frontend control, tests, and Trellis specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0808696` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 18: Consolidate realtime notification boundary
+
+**Date**: 2026-06-12
+**Task**: Consolidate realtime notification boundary
+**Branch**: `feature-task`
+
+### Summary
+
+Added SendNotification StorePolicy boundary, routed business WebSocket messages through notification usecase, updated tests and specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `03b1a16` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 19: Sidebar Collapse Toggle
+
+**Date**: 2026-06-12
+**Task**: Sidebar Collapse Toggle
+**Branch**: `feature-task`
+
+### Summary
+
+Implemented desktop sidebar collapse and expand, refined the toggle to icon-only right-aligned placement, kept mobile drawer unchanged, and verified frontend/backend quality gates plus browser smoke checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fa74e48` | (see git log) |
+| `41ffe5b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

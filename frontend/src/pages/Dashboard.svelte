@@ -1,9 +1,11 @@
 <script>
   import { onDestroy } from 'svelte';
+  import { Download } from 'lucide-svelte';
 
   import {
     createOrder,
     createOrderPaymentCheckout,
+    exportMyOrders,
     getMyOrders,
     getMyPoints,
     getProducts,
@@ -33,6 +35,7 @@
   let orderPagination = $state({ ...emptyOrderPagination });
   let points = $state(null);
   let loadingOrders = $state(false);
+  let exportingOrders = $state(false);
   let creatingOrder = $state(false);
   let payingOrderId = $state('');
   let error = $state('');
@@ -227,6 +230,24 @@
     pointsRealtimeClient.connect();
   }
 
+  async function exportOrders() {
+    if (!auth.logged_in || exportingOrders) return;
+
+    exportingOrders = true;
+    error = '';
+    message = '';
+    try {
+      const result = await exportMyOrders();
+      message = result?.task_id
+        ? `Order export task ${result.task_id} has been queued`
+        : 'Order export task has been queued';
+    } catch (err) {
+      error = err.message || 'Failed to queue order export';
+    } finally {
+      exportingOrders = false;
+    }
+  }
+
   function closePointsStream(nextStatus = 'Disconnected') {
     pointsRealtimeClient.disconnect(nextStatus);
   }
@@ -380,12 +401,22 @@
           <h2 class="card-title text-xl">Orders</h2>
           <p class="text-sm text-base-content/60">Webhook-confirmed payments receive 10 points</p>
         </div>
-        <button class="btn btn-outline btn-sm" type="button" onclick={loadOrderManagement} disabled={!auth.logged_in || loadingOrders}>
-          {#if loadingOrders}
-            <span class="loading loading-spinner loading-xs"></span>
-          {/if}
-          Refresh
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button class="btn btn-outline btn-sm" type="button" onclick={exportOrders} disabled={!auth.logged_in || exportingOrders}>
+            {#if exportingOrders}
+              <span class="loading loading-spinner loading-xs"></span>
+            {:else}
+              <Download size={16} />
+            {/if}
+            Export
+          </button>
+          <button class="btn btn-outline btn-sm" type="button" onclick={loadOrderManagement} disabled={!auth.logged_in || loadingOrders}>
+            {#if loadingOrders}
+              <span class="loading loading-spinner loading-xs"></span>
+            {/if}
+            Refresh
+          </button>
+        </div>
       </div>
 
       <Notice type="success" message={message} />

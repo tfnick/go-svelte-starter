@@ -52,7 +52,7 @@ export function dispatchRealtimeMessage(value, handlers = {}) {
 
 export function toastFromRealtimeMessage(message) {
   const payload = isObject(message.payload) ? message.payload : {};
-  const status = typeof payload.status === 'string' ? payload.status : 'info';
+  const status = normalizedToastStatus(message.type, payload.status);
   return {
     id: payload.task_id || payload.id || `${message.type}-${status}`,
     level: toastLevel(status),
@@ -78,6 +78,16 @@ function fallbackToastMessage(type, status) {
     return status === 'completed' ? 'Export completed' : 'Export task updated';
   }
   return 'Realtime notification';
+}
+
+function normalizedToastStatus(type, status) {
+  if (typeof status === 'string' && status.trim() !== '') {
+    return status;
+  }
+  if (type === realtimeMessageTypes.notification) {
+    return 'info';
+  }
+  return 'info';
 }
 
 function toastLevel(status) {

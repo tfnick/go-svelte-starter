@@ -131,7 +131,7 @@ func main() {
 			UserID:  points.UserID,
 			Balance: points.Balance,
 		}, awarded, err
-	}); err != nil {
+	}, sendPointsRealtimeNotification); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register event handlers")
 	}
 	if err := usecaseevents.RegisterMembershipEventHandlers(func(ctx fwusecase.Context, cmd usecaseevents.ApplyOrderMembershipCmd) (usecaseevents.MembershipResult, bool, error) {
@@ -193,6 +193,7 @@ func main() {
 			protected.POST("/user/orders", user.CreateMyOrder)
 			protected.POST("/orders/:id/pay", user.PayOrder)
 			protected.POST("/orders/:id/payment-checkout", user.CreateOrderPaymentCheckout)
+			protected.POST("/user/orders/export", user.EnqueueMyOrdersExport)
 			protected.GET("/user/orders", user.ListMyOrders)
 			protected.GET("/orders/user/:user_id", user.GetUserOrders, user.RequireLegacyUserOrdersAccess)
 			protected.GET("/orders/:id", user.GetOrderDetail)
@@ -203,6 +204,7 @@ func main() {
 
 			protected.POST("/notifications/test-export-toast", user.TriggerExportToast)
 			protected.POST("/user/notifications/test-export-toast", user.TriggerExportToast)
+			protected.POST("/user/notifications/clear", user.ClearMyNotifications)
 
 			protected.GET("/products", user.ListProducts)
 
@@ -211,6 +213,7 @@ func main() {
 			admin.POST("/admin/reload-shared-db", user.ReloadSharedDB)
 
 			admin.GET("/admin/orders", user.ListAdminOrders)
+			admin.POST("/admin/orders/export", user.EnqueueAdminOrdersExport)
 			admin.PATCH("/admin/orders/:id/status", user.UpdateOrderStatus)
 			admin.PATCH("/orders/:id/status", user.UpdateOrderStatus)
 
@@ -328,6 +331,8 @@ func main() {
 
 			protected.POST("/user/tasks", user.EnqueueTask)
 			protected.GET("/user/tasks", user.ListMyTasks)
+			protected.POST("/user/tasks/clear", user.ClearMyTasks)
+			protected.GET("/user/tasks/:id/download", user.GetMyTaskDownload)
 		}
 
 	}
@@ -378,6 +383,18 @@ func main() {
 		}
 		stopApp()
 	}
+}
+
+func sendPointsRealtimeNotification(ctx fwusecase.Context, cmd usecaseevents.SendRealtimeNotificationCmd) error {
+	ucCtx := fwusecase.NewContext(ctx.Std(), fwusecase.SurfaceSystem)
+	_, err := appusecase.SendNotification(ucCtx, appusecase.SendNotificationCmd{
+		StorePolicy:  appusecase.StorePolicyTransient,
+		MessageType:  cmd.MessageType,
+		Presentation: cmd.Presentation,
+		UserID:       cmd.UserID,
+		Payload:      cmd.Payload,
+	})
+	return err
 }
 
 func startQueueRunners(ctx context.Context, queueManager *queue.Manager, logger zerolog.Logger) error {

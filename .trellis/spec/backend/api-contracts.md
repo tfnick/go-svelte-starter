@@ -336,9 +336,183 @@ return c.Redirect(http.StatusFound, "/login/oauth/callback?"+values.Encode())
 
 * `GET /api/user/points` 返回 `PointsResponse`，字段为 `user_id` 和 `balance`；legacy `GET /api/points/me` 迁移期保留。
 * `GET /api/user/realtime/ws?access_token=<jwt>` 是当前用户自服务 WebSocket 实时通道，不使用 HTTP JSON envelope。连接成功后以 text frame 推送 realtime envelope，例如 `{"type":"points","presentation":"refresh","payload":{"user_id":"...","client_id":"...","balance":10}}`。
-* `POST /api/user/notifications/test-export-toast` 是登录态验证入口，返回 `data.message`，并向当前用户发布 `async_export_task` + `toast` realtime envelope；legacy `/api/notifications/test-export-toast` 迁移期保留。
+* `POST /api/user/notifications/test-export-toast` 是登录态验证入口，返回 `data.message`，并通过 `SendNotification(StorePolicyStore)` 创建一条 `source_type=experiment` 的 realtime notification；legacy `/api/notifications/test-export-toast` 迁移期保留。
 
 Admin routes 统一放在 `/api/admin/...`；legacy 管理路径迁移期可以保留，但必须挂在 `RequireAdmin()` 后。当前包括 users、orders status、dictionary management、products write、scheduler、events、messages、parameters、notifications、settings upload、variables 和 `POST /api/admin/reload-shared-db`。
+
+---
+
+## Scenario: Async Order Excel Export API
+
+### 1. Scope / Trigger
+
+Modify order export, async task listing/clearing/result download, OSS-backed export files, `POST /api/user/orders/export`, `POST /api/admin/orders/export`, `GET /api/user/tasks`, `POST /api/user/tasks/clear`, `GET /api/user/tasks/:id/download`, or the frontend order export/task center helpers according to this section.
+
+### 2. Signatures
+
+Backend API:
+
+```text
+POST /api/user/orders/export?status=paid
+POST /api/admin/orders/export?user_id=<id>&status=paid
+GET  /api/user/tasks/:id/download
+GET  /api/user/tasks?page=1&page_size=20
+POST /api/user/tasks/clear
+```
+
+Usecase:
+
+```go
+type EnqueueMyOrdersExcelExportQry struct {
+    Status string
+}
+
+type EnqueueAdminOrdersExcelExportQry struct {
+    UserID string
+    Status string
+}
+
+type OrderExportTaskCo struct {
+    TaskID string
+}
+
+type TaskDownloadQry struct {
+    TaskID string
+}
+
+type TaskDownloadCo struct {
+    URL       string
+    ExpiresAt string
+    Filename  string
+}
+
+type ClearMyTasksCo struct {
+    ClearedCount int
+}
+```
+
+DB:
+
+```sql
+async_tasks.cleared_at TEXT NOT NULL DEFAULT ''
+```
+
+Task payload/result JSON:
+
+```json
+{"scope":"user","requester_user_id":"u1","user_id":"u1","status":"paid","created_at":"2026-06-12T00:00:00Z"}
+```
+
+```json
+{"object_key":"exports/orders/2026/06/task.xlsx","filename":"orders-20260612-120000.xlsx","content_type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","size":12345,"row_count":10,"channel_code":"primary-r2","provider_code":"cloudflare_r2","adapter_key":"oss.cloudflare_r2.s3_compatible"}
+```
+
+### 3. Contracts
+
+* Current-user export owner filter must come from `ctx.Actor.UserID`; clients cannot pass `user_id` to `/api/user/orders/export`.
+* Admin export requires `ctx.Actor.IsAdmin == true`; optional `user_id` and `status` filters must match `GET /api/admin/orders` semantics.
+* Count matching orders before enqueue. If count is greater than `100000`, return validation error and do not insert `async_tasks`.
+* Export worker must re-derive the scoped `OrderQuery` from task payload. User-scope payload must force `UserID = requester_user_id` even if payload contains another `user_id`.
+* Worker must use bounded batches from DB and Excel streaming writer. Do not build a full in-memory slice of all matching orders.
+* XLSX bytes are written to a temporary file, then uploaded through the configured primary OSS provider. DB task result stores object metadata, not file bytes.
+* Download route must verify `async_tasks.user_id == ctx.Actor.UserID`, task status is `completed`, and task type is `orders_excel_export` before returning a presigned GET URL.
+* `GET /api/user/tasks` returns only current-user tasks where `cleared_at = ''`.
+* `POST /api/user/tasks/clear` must derive `user_id` from `ctx.Actor.UserID`; it must not accept or trust a user id from the client.
+* Task clearing is a visibility action, not a lifecycle transition. It sets `cleared_at` only for current-user terminal tasks where `status IN ('completed','failed')`.
+* `queued` and `processing` tasks remain visible when the user clears the task center.
+* Presigned download URL TTL is one hour for MVP.
+* Terminal success/failure must call `SendNotification(StorePolicyStore)` with `source_type="async_task"` for the requesting user. Order export uses realtime message type `async_export_task` so TaskCenter refresh and Toast both continue to work from one notification boundary.
+
+Clear response payload:
+
+```json
+{"cleared_count":2}
+```
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| unauthenticated `/api/user/orders/export` | `CodeUnauthorized`, safe message `not logged in` |
+| non-admin `/api/admin/orders/export` | `CodeForbidden`, safe message `admin access is required` |
+| invalid `status` | `CodeValidation`, safe message `invalid order status` |
+| primary OSS provider missing before enqueue | validation/internal safe error; no queued export task |
+| matching count > `100000` | `CodeValidation`, safe message `order export cannot exceed 100000 rows`; no queued export task |
+| queue manager missing | `CodeInternal`, safe message `queue manager is not configured` |
+| worker storage/upload failure | task retries; after max retries task becomes `failed` and notification is emitted |
+| download task not found | `CodeNotFound`, safe message `task not found` |
+| download by non-owner | `CodeForbidden`, safe message `cannot download another user's task result` |
+| download before completion | `CodeConflict`, safe message `task is not completed` |
+| completed task has no export result/object key | `CodeInternal`, safe message `task result is missing export object` |
+| unauthenticated `/api/user/tasks/clear` | `CodeUnauthorized`, safe message `not logged in` |
+| clear with only `queued` / `processing` tasks | success response with `cleared_count:0`; tasks remain visible |
+
+### 5. Good/Base/Bad Cases
+
+Good: User clicks Export on `/app/orders`; frontend calls `exportMyOrders()`; backend enqueues `orders_excel_export`; worker streams batches into XLSX, uploads to OSS, marks the task completed with result JSON, creates a notification, and TaskCenter shows a download button that calls `GET /api/user/tasks/:id/download`.
+
+Good: User clicks the TaskCenter clear icon after one completed export and one failed export; frontend calls `clearMyTasks()`, backend marks only those terminal current-user tasks with `cleared_at`, and the refreshed TaskCenter hides them.
+
+Base: Admin calls `/api/admin/orders/export?user_id=u1&status=paid`; task owner is the admin actor, but exported data is filtered to user `u1` because the admin scope explicitly allows cross-user query.
+
+Base: TaskCenter contains only `queued` and `processing` tasks; the clear action should not hide them and may return `cleared_count:0`.
+
+Bad: Worker trusts `payload.user_id` for user-scope tasks. User-scope exports must always force `payload.requester_user_id` as the owner filter.
+
+Bad: Route returns `object_key` directly as a public URL or lets the client presign arbitrary keys. Download must go through an owner-scoped task endpoint.
+
+Bad: Implement task clearing as `status = 'cleared'` or physical `DELETE FROM async_tasks`; this corrupts the execution lifecycle or removes audit/debug history.
+
+### 6. Tests Required
+
+* Usecase tests cover current-user scope, admin scope, non-admin rejection, invalid status, row-count limit before enqueue, worker completion, result JSON, notification row creation, owner-only download, and current-user task clearing.
+* Model tests or usecase integration tests cover bounded iteration with keyset order `created_at DESC, id DESC`.
+* Model/usecase tests for task clearing must assert only `completed` / `failed` rows for the current user receive `cleared_at`, while `queued` / `processing` and other users' tasks remain visible.
+* Frontend API tests cover `exportMyOrders()`, `exportAdminOrders()`, `clearMyTasks()`, and `getTaskDownload()` paths/methods.
+* Run `go test ./...`, `cd frontend && npm test`, `cd frontend && npm run build`, and `git diff --check`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```go
+orders, _ := models.ListOrders(ctx, models.OrderQuery{Limit: total})
+_ = xlsx.WriteAll(orders)
+```
+
+#### Correct
+
+```go
+err := models.IterateOrders(ctx, query, 1000, func(batch []models.Order) error {
+    return streamRows(batch)
+})
+```
+
+#### Wrong
+
+```go
+return httpresponse.OK(c, map[string]string{"url": publicBaseURL + objectKey})
+```
+
+#### Correct
+
+```go
+download, err := usecase.GetMyTaskDownload(ctx, usecase.TaskDownloadQry{TaskID: c.Param("id")})
+return httpresponse.OK(c, TaskDownloadResponse{URL: download.URL, ExpiresAt: download.ExpiresAt, Filename: download.Filename})
+```
+
+#### Wrong
+
+```go
+_, _ = db.ExecContext(ctx, "UPDATE async_tasks SET status = 'cleared' WHERE user_id = ?", userID)
+```
+
+#### Correct
+
+```go
+cleared, err := usecase.ClearMyTasks(ctx)
+return httpresponse.OK(c, ClearTasksResponse{ClearedCount: cleared.ClearedCount})
+```
 
 ---
 
@@ -656,16 +830,18 @@ return httpresponse.OK(c, ToDomainEventsResponse(events))
 
 ### 1. Scope / Trigger
 
-修改 Notification Center、`notifications` 台账、业务通知创建 usecase、realtime notification envelope、或 admin `/api/notifications` 查询接口时，遵守本节。
+修改 Notification Center、`notifications` 台账、业务通知创建 usecase、realtime notification envelope、当前用户通知清除接口、或 admin notification 查询接口时，遵守本节。
 
-Notification Center 的定位是业务通知入口与台账，不替代外部渠道 port/provider adapter。业务场景需要发送用户通知时默认调用 `usecase.CreateNotification(...)`；也可以由领域事件 subscriber 调用该 usecase。纯技术实时刷新、渠道连通性测试、provider 防腐层内部逻辑，才直接调用对应 port 或 realtime primitive。
+Notification Center 的定位是业务 WebSocket 发送入口与可选台账，不替代外部渠道 port/provider adapter。业务场景需要向用户发送 realtime 消息时必须调用 `usecase.SendNotification(...)`，通过 `StorePolicy` 决定是否写入 `notifications`。`StorePolicyDefault` / `StorePolicyStore` 会创建台账；`StorePolicyTransient` 只实时投递，不写台账。只有 WebSocket route/subscription infrastructure、`api/framework/realtime` 本身、以及 notification usecase 内部可以直接调用 realtime primitive。
 
 ### 2. Signatures
 
-Admin query API:
+Backend API:
 
 ```text
-GET /api/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138
+GET  /api/admin/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138
+GET  /api/notifications?page=1&page_size=10&type=realtime&email=ada@example.com&phone=138 # legacy admin path
+POST /api/user/notifications/clear
 ```
 
 Usecase:
@@ -683,8 +859,38 @@ type CreateNotificationCmd struct {
     PayloadJSON      string
 }
 
+type NotificationStorePolicy string
+
+const (
+    StorePolicyDefault   NotificationStorePolicy = ""
+    StorePolicyStore     NotificationStorePolicy = "store"
+    StorePolicyTransient NotificationStorePolicy = "transient"
+)
+
+type SendNotificationCmd struct {
+    StorePolicy     NotificationStorePolicy
+    MessageType     string
+    Presentation    string
+    Payload         interface{}
+    NotificationType string
+    SourceType       string
+    SourceID         string
+    UserID           string
+    RecipientEmail   string
+    RecipientPhone   string
+    Title            string
+    Summary          string
+    PayloadJSON      string
+}
+
+type ClearMyNotificationsCo struct {
+    ClearedCount int
+}
+
+func SendNotification(ctx fwusecase.Context, cmd SendNotificationCmd) (NotificationCo, error)
 func CreateNotification(ctx fwusecase.Context, cmd CreateNotificationCmd) (NotificationCo, error)
 func ListNotifications(ctx fwusecase.Context, qry NotificationsQry) (NotificationsCo, error)
+func ClearMyNotifications(ctx fwusecase.Context) (ClearMyNotificationsCo, error)
 ```
 
 DB:
@@ -693,7 +899,7 @@ DB:
 notifications(
   id, notification_type, source_type, source_id, user_id,
   recipient_email, recipient_phone, title, summary, payload_json,
-  status, last_error, sent_at, created_at, updated_at
+  status, last_error, sent_at, cleared_at, created_at, updated_at
 )
 dictionary_types(type_key='notification_type')
 dictionary_values(value_code='realtime'|'sms'|'email'|'wechat_official_account')
@@ -704,13 +910,20 @@ dictionary_values(value_code='realtime'|'sms'|'email'|'wechat_official_account')
 * Notification type is dictionary-managed through `notification_type`; usecases validate against enabled dictionary values.
 * Notification status is code-owned, not dictionary-managed. Allowed values are `pending`, `sent`, `failed`, and `skipped`; DB must enforce them with `CHECK`.
 * There is no admin HTTP create API for MVP. Creation is usecase-only so business usecases and event subscribers share the same entry.
-* `GET /api/notifications` is admin-only and uses the standard pagination contract.
+* `GET /api/admin/notifications` is admin-only and uses the standard pagination contract. Legacy `GET /api/notifications` is also admin-only during migration.
 * Filter parameters are `type`, `email`, and `phone`; email/phone are substring filters over `recipient_email` and `recipient_phone`.
-* List DTO includes both `notification_type` and `notification_type_label`.
+* List DTO includes both `notification_type` and `notification_type_label`, and includes `cleared_at` for audit/debug visibility.
 * Non-realtime types are ledger-only in the MVP and must be stored as `skipped`; they do not call SMS, email, or WeChat provider ports yet.
-* Realtime notifications must create the ledger record first, publish realtime message type `notification`, then update status to `sent` or `failed`.
-* Realtime notification payload is a safe presentation snapshot only: `id`, `title`, `summary`, `source_type`, and `source_id`. Do not push raw `payload_json` or provider/channel secrets.
+* Business code must use `SendNotification`, not `api/framework/realtime.Publish`, for realtime delivery.
+* `StorePolicyDefault` and `StorePolicyStore` both create the ledger record first, publish a realtime message, then update status to `sent` or `failed`.
+* `StorePolicyTransient` publishes the realtime message through the same notification boundary and does not create a `notifications` row.
+* Stored notifications default to realtime message type `notification`. When a workflow needs an existing envelope such as `points`, `async_export_task`, or `heavy_task`, pass `MessageType` / `Presentation` through `SendNotification`; the business caller still must not import `api/framework/realtime`.
+* Realtime `notification` payload is a safe presentation snapshot only: `id`, `title`, `summary`, `source_type`, `source_id`, and optional `status`. Do not push raw `payload_json` or provider/channel secrets.
 * `payload_json` must be a JSON object and remains an internal ledger payload.
+* `POST /api/user/notifications/clear` derives scope from `ctx.Actor.UserID`; it must not accept or trust a user id from the client.
+* Notification clearing is a user-side visibility action, not a ledger deletion. It sets `notifications.cleared_at` for the current user's rows where `cleared_at = ''`.
+* Admin notification lists remain audit-visible after user-side clearing. Future current-user notification history APIs must filter `cleared_at = ''` by default.
+* New realtime notifications created after clearing remain visible to the user.
 
 Successful list response:
 
@@ -732,6 +945,7 @@ Successful list response:
       "status": "sent",
       "last_error": "",
       "sent_at": "2026-06-07 10:00:00",
+      "cleared_at": "",
       "created_at": "2026-06-07 10:00:00",
       "updated_at": "2026-06-07 10:00:00"
     }
@@ -740,10 +954,16 @@ Successful list response:
 }
 ```
 
+Successful current-user clear response:
+
+```json
+{"cleared_count":2}
+```
+
 Realtime message:
 
 ```json
-{"type":"notification","presentation":"toast","payload":{"id":"notification-id","title":"Order paid","summary":"Your points have been awarded","source_type":"order","source_id":"order-id"}}
+{"type":"notification","presentation":"toast","payload":{"id":"notification-id","title":"Order paid","summary":"Your points have been awarded","source_type":"order","source_id":"order-id","status":"completed"}}
 ```
 
 ### 4. Validation & Error Matrix
@@ -754,25 +974,35 @@ Realtime message:
 | disabled dictionary value | `CodeValidation`, same as unknown type |
 | missing title | `CodeValidation`, safe message `notification title is required` |
 | realtime without `user_id` | `CodeValidation`, safe message `user ID is required for realtime notification` |
+| invalid `StorePolicy` | `CodeValidation`, safe message `notification store policy is invalid` |
 | invalid or non-object `payload_json` | `CodeValidation` |
 | realtime publish fails | ledger status becomes `failed`, `last_error` stores a safe message, caller receives `CodeInternal` |
 | invalid pagination query | `CodeValidation` -> internal `400` envelope |
 | non-admin list request | middleware returns `403` before handler |
+| unauthenticated `/api/user/notifications/clear` | `CodeUnauthorized`, safe message `not logged in` |
+| clear when the current user has no visible notifications | success response with `cleared_count:0` |
+| notification clear database failure | `CodeInternal`, safe message `failed to clear notifications` |
 
 ### 5. Good/Base/Bad Cases
 
-Good: Order payment usecase calls `CreateNotification` with `notification_type=realtime`, `source_type=order`, `source_id=...`, and a safe title/summary; user receives a toast and admin can inspect the ledger row.
+Good: Order export worker calls `SendNotification` with `StorePolicyStore`, `MessageType=async_export_task`, `source_type=async_task`, `source_id=...`, and safe payload; user receives a toast, TaskCenter refreshes, and admin can inspect the ledger row.
 
-Base: A future SMS notification creates a `skipped` ledger row until the SMS delivery chain is implemented behind Notification Center.
+Base: Points subscriber calls `SendNotification` with `StorePolicyTransient`, `MessageType=points`, and `Presentation=refresh`; user receives a points refresh and no notification ledger row is created.
 
-Bad: Business usecase calls SMS provider port directly and separately inserts a notification row; this splits status and audit behavior.
+Base: User clicks the NotificationCenter clear icon; backend marks only that user's existing notification rows with `cleared_at`, frontend clears the in-memory list, and admin can still inspect the rows.
+
+Bad: Business usecase imports `api/framework/realtime` and calls `realtime.Publish` directly; this bypasses `StorePolicy`, ledger behavior, and the archguard notification boundary.
+
+Bad: Implement notification clearing as `DELETE FROM notifications WHERE user_id = ?`; this removes the audit/debug ledger that admin notification management depends on.
 
 ### 6. Tests Required
 
-* `api/usecase/notification_test.go` covers realtime create/publish/status, non-realtime skipped ledger, dictionary type validation, and list filters.
-* `api/routes/notification_test.go` covers admin list DTO envelope, pagination, filters, and invalid type mapping.
-* `api/framework/realtime/realtime_test.go` covers `notification` default presentation.
-* `frontend/src/api.test.js`, `frontend/src/router.test.js`, and `frontend/src/realtimeMessages.test.js` cover helper path, admin route, and realtime toast behavior.
+* `api/models/notification_test.go` covers current-user soft clearing, row preservation, other-user isolation, and repeated clear count.
+* `api/usecase/notification_test.go` covers realtime create/publish/status, `SendNotification` default storage, transient no-ledger delivery, non-realtime skipped ledger, dictionary type validation, list filters, current-user clear scope, and unauthenticated clear rejection.
+* `api/routes/notification_test.go` covers admin list DTO envelope, pagination, filters, invalid type mapping, current-user clear envelope, and unauthorized clear mapping.
+* `api/framework/archguard/layer_boundary_test.go` covers that business realtime publishing stays behind the notification boundary.
+* `api/framework/realtime/realtime_test.go` covers realtime envelope defaults.
+* `frontend/src/api.test.js`, `frontend/src/router.test.js`, and `frontend/src/realtimeMessages.test.js` cover helper paths, admin route, current-user clear path, and realtime toast behavior.
 * Run `go test ./...`, `cd frontend && npm test`, and `cd frontend && npm run build`.
 
 ### 7. Wrong vs Correct
@@ -787,12 +1017,25 @@ _ = models.InsertNotification(ctx.Std(), row)
 #### Correct
 
 ```go
-notification, err := usecase.CreateNotification(ctx, usecase.CreateNotificationCmd{
-    NotificationType: usecase.NotificationTypeRealtime,
-    UserID: userID,
-    Title: "Order paid",
-    Summary: "Your points have been awarded",
+notification, err := usecase.SendNotification(ctx, usecase.SendNotificationCmd{
+    StorePolicy: usecase.StorePolicyStore,
+    UserID:      userID,
+    Title:       "Order paid",
+    Summary:     "Your points have been awarded",
 })
+```
+
+#### Wrong
+
+```go
+_, _ = db.ExecContext(ctx, "DELETE FROM notifications WHERE user_id = ?", userID)
+```
+
+#### Correct
+
+```go
+cleared, err := usecase.ClearMyNotifications(ctx)
+return httpresponse.OK(c, ClearNotificationsResponse{ClearedCount: cleared.ClearedCount})
 ```
 
 ---

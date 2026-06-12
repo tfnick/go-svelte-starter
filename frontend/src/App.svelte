@@ -24,7 +24,7 @@
   import Variables from './pages/Variables.svelte';
   import { getAuthStatus, getSiteSettings, realtimeWebSocketURL } from './api.js';
   import { appHomePath, canAccessAppRoute, isAuthRoute, normalizePath, routeTitle } from './router.js';
-  import { normalizeRealtimeMessage, toastFromRealtimeMessage } from './helpers/realtimeMessages.js';
+  import { normalizeRealtimeMessage, realtimeMessageTypes, toastFromRealtimeMessage } from './helpers/realtimeMessages.js';
   import { createRealtimeWebSocketClient } from './helpers/realtimeWebSocket.js';
   import { onMount } from 'svelte';
 
@@ -54,7 +54,7 @@
         const toast = toastFromRealtimeMessage(message);
         addNotification(toast);
       }
-      if (message.type === 'heavy_task') {
+      if (message.type === realtimeMessageTypes.heavyTask || message.type === realtimeMessageTypes.asyncExportTask) {
         taskRefreshTrigger++;
       }
     },
@@ -65,6 +65,10 @@
 
   function addNotification(msg) {
     notifications = [{ ...msg, id: msg.id || Date.now() }, ...notifications].slice(0, 50);
+  }
+
+  function clearNotifications() {
+    notifications = [];
   }
 
   async function refreshAuth() {
@@ -163,6 +167,7 @@
       {siteSettings}
       {notifications}
       {taskRefreshTrigger}
+      onNotificationsCleared={clearNotifications}
       onAuthChanged={handleAuthChanged}
     >
       {#snippet children()}
