@@ -516,3 +516,36 @@ Optimized the logged-in app shell into a left sidebar and right work area, remov
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: Async order Excel export
+
+**Date**: 2026-06-12
+**Task**: Async order Excel export
+**Branch**: `feature-task`
+
+### Summary
+
+Implemented asynchronous order Excel export with streaming query/write, 100000 row limit, task center download, realtime notifications, and docked task/notification layout fix.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `19307a0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
