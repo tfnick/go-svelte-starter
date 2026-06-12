@@ -549,3 +549,36 @@ Implemented asynchronous order Excel export with streaming query/write, 100000 r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Task center clear action
+
+**Date**: 2026-06-12
+**Task**: Task center clear action
+**Branch**: `feature-task`
+
+### Summary
+
+Added task center clear action for terminal tasks with backend visibility marker, API endpoint, frontend control, tests, and Trellis specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0808696` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
