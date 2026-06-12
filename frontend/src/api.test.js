@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
 import {
+  clearMyTasks,
   createDictionaryType,
   createDictionaryValue,
   createProduct,
@@ -343,6 +344,7 @@ test('dictionary and order api helpers use relative api paths', async () => {
     prompt: 'Summarize briefly',
     dimensions: ['summary']
   });
+  await clearMyTasks();
   await getTaskDownload('task 1');
   await listNotifications({
     page: 2,
@@ -375,8 +377,10 @@ test('dictionary and order api helpers use relative api paths', async () => {
   assert.equal(calls[12].path, '/api/llm/summaries');
   assert.equal(calls[12].options.method, 'POST');
   assert.equal(calls[12].options.body, '{"text":"Source text","prompt":"Summarize briefly","dimensions":["summary"]}');
-  assert.equal(calls[13].path, '/api/user/tasks/task%201/download');
-  assert.equal(calls[14].path, '/api/admin/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
+  assert.equal(calls[13].path, '/api/user/tasks/clear');
+  assert.equal(calls[13].options.method, 'POST');
+  assert.equal(calls[14].path, '/api/user/tasks/task%201/download');
+  assert.equal(calls[15].path, '/api/admin/notifications?page=2&page_size=10&type=sms&email=ada%40example.com&phone=13800000000');
 });
 
 test('current user helper uses user persona path', async () => {

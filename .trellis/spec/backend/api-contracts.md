@@ -346,7 +346,7 @@ Admin routes 统一放在 `/api/admin/...`；legacy 管理路径迁移期可以�
 
 ### 1. Scope / Trigger
 
-Modify order export, async task result download, OSS-backed export files, `POST /api/user/orders/export`, `POST /api/admin/orders/export`, `GET /api/user/tasks/:id/download`, or the frontend order export/task download helpers according to this section.
+Modify order export, async task listing/clearing/result download, OSS-backed export files, `POST /api/user/orders/export`, `POST /api/admin/orders/export`, `GET /api/user/tasks`, `POST /api/user/tasks/clear`, `GET /api/user/tasks/:id/download`, or the frontend order export/task center helpers according to this section.
 
 ### 2. Signatures
 
@@ -357,6 +357,7 @@ POST /api/user/orders/export?status=paid
 POST /api/admin/orders/export?user_id=<id>&status=paid
 GET  /api/user/tasks/:id/download
 GET  /api/user/tasks?page=1&page_size=20
+POST /api/user/tasks/clear
 ```
 
 Usecase:
@@ -384,6 +385,16 @@ type TaskDownloadCo struct {
     ExpiresAt string
     Filename  string
 }
+
+type ClearMyTasksCo struct {
+    ClearedCount int
+}
+```
+
+DB:
+
+```sql
+async_tasks.cleared_at TEXT NOT NULL DEFAULT ''
 ```
 
 Task payload/result JSON:
@@ -405,8 +416,18 @@ Task payload/result JSON:
 * Worker must use bounded batches from DB and Excel streaming writer. Do not build a full in-memory slice of all matching orders.
 * XLSX bytes are written to a temporary file, then uploaded through the configured primary OSS provider. DB task result stores object metadata, not file bytes.
 * Download route must verify `async_tasks.user_id == ctx.Actor.UserID`, task status is `completed`, and task type is `orders_excel_export` before returning a presigned GET URL.
+* `GET /api/user/tasks` returns only current-user tasks where `cleared_at = ''`.
+* `POST /api/user/tasks/clear` must derive `user_id` from `ctx.Actor.UserID`; it must not accept or trust a user id from the client.
+* Task clearing is a visibility action, not a lifecycle transition. It sets `cleared_at` only for current-user terminal tasks where `status IN ('completed','failed')`.
+* `queued` and `processing` tasks remain visible when the user clears the task center.
 * Presigned download URL TTL is one hour for MVP.
 * Terminal success/failure must refresh the TaskCenter and create a realtime notification with `source_type="async_task"` for the requesting user.
+
+Clear response payload:
+
+```json
+{"cleared_count":2}
+```
 
 ### 4. Validation & Error Matrix
 
@@ -423,22 +444,31 @@ Task payload/result JSON:
 | download by non-owner | `CodeForbidden`, safe message `cannot download another user's task result` |
 | download before completion | `CodeConflict`, safe message `task is not completed` |
 | completed task has no export result/object key | `CodeInternal`, safe message `task result is missing export object` |
+| unauthenticated `/api/user/tasks/clear` | `CodeUnauthorized`, safe message `not logged in` |
+| clear with only `queued` / `processing` tasks | success response with `cleared_count:0`; tasks remain visible |
 
 ### 5. Good/Base/Bad Cases
 
 Good: User clicks Export on `/app/orders`; frontend calls `exportMyOrders()`; backend enqueues `orders_excel_export`; worker streams batches into XLSX, uploads to OSS, marks the task completed with result JSON, creates a notification, and TaskCenter shows a download button that calls `GET /api/user/tasks/:id/download`.
 
+Good: User clicks the TaskCenter clear icon after one completed export and one failed export; frontend calls `clearMyTasks()`, backend marks only those terminal current-user tasks with `cleared_at`, and the refreshed TaskCenter hides them.
+
 Base: Admin calls `/api/admin/orders/export?user_id=u1&status=paid`; task owner is the admin actor, but exported data is filtered to user `u1` because the admin scope explicitly allows cross-user query.
+
+Base: TaskCenter contains only `queued` and `processing` tasks; the clear action should not hide them and may return `cleared_count:0`.
 
 Bad: Worker trusts `payload.user_id` for user-scope tasks. User-scope exports must always force `payload.requester_user_id` as the owner filter.
 
 Bad: Route returns `object_key` directly as a public URL or lets the client presign arbitrary keys. Download must go through an owner-scoped task endpoint.
 
+Bad: Implement task clearing as `status = 'cleared'` or physical `DELETE FROM async_tasks`; this corrupts the execution lifecycle or removes audit/debug history.
+
 ### 6. Tests Required
 
-* Usecase tests cover current-user scope, admin scope, non-admin rejection, invalid status, row-count limit before enqueue, worker completion, result JSON, notification row creation, and owner-only download.
+* Usecase tests cover current-user scope, admin scope, non-admin rejection, invalid status, row-count limit before enqueue, worker completion, result JSON, notification row creation, owner-only download, and current-user task clearing.
 * Model tests or usecase integration tests cover bounded iteration with keyset order `created_at DESC, id DESC`.
-* Frontend API tests cover `exportMyOrders()`, `exportAdminOrders()`, and `getTaskDownload()` paths/methods.
+* Model/usecase tests for task clearing must assert only `completed` / `failed` rows for the current user receive `cleared_at`, while `queued` / `processing` and other users' tasks remain visible.
+* Frontend API tests cover `exportMyOrders()`, `exportAdminOrders()`, `clearMyTasks()`, and `getTaskDownload()` paths/methods.
 * Run `go test ./...`, `cd frontend && npm test`, `cd frontend && npm run build`, and `git diff --check`.
 
 ### 7. Wrong vs Correct
@@ -469,6 +499,19 @@ return httpresponse.OK(c, map[string]string{"url": publicBaseURL + objectKey})
 ```go
 download, err := usecase.GetMyTaskDownload(ctx, usecase.TaskDownloadQry{TaskID: c.Param("id")})
 return httpresponse.OK(c, TaskDownloadResponse{URL: download.URL, ExpiresAt: download.ExpiresAt, Filename: download.Filename})
+```
+
+#### Wrong
+
+```go
+_, _ = db.ExecContext(ctx, "UPDATE async_tasks SET status = 'cleared' WHERE user_id = ?", userID)
+```
+
+#### Correct
+
+```go
+cleared, err := usecase.ClearMyTasks(ctx)
+return httpresponse.OK(c, ClearTasksResponse{ClearedCount: cleared.ClearedCount})
 ```
 
 ---

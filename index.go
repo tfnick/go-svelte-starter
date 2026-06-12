@@ -296,6 +296,7 @@ func main() {
 
 			protected.POST("/user/tasks", user.EnqueueTask)
 			protected.GET("/user/tasks", user.ListMyTasks)
+			protected.POST("/user/tasks/clear", user.ClearMyTasks)
 			protected.GET("/user/tasks/:id/download", user.GetMyTaskDownload)
 		}
 

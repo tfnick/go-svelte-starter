@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canDownloadTask, taskFilename, taskTitle, taskTypes } from './helpers/tasks.js';
+import { canClearTask, canDownloadTask, taskFilename, taskTitle, taskTypes } from './helpers/tasks.js';
 
 test('completed order export tasks are downloadable from task center', () => {
   assert.equal(canDownloadTask({
@@ -31,4 +31,11 @@ test('task helpers provide stable labels and filename fallback', () => {
   assert.equal(taskFilename({
     result_json: '{invalid'
   }), 'orders.xlsx');
+});
+
+test('task clearing is limited to terminal statuses', () => {
+  assert.equal(canClearTask({ status: 'completed' }), true);
+  assert.equal(canClearTask({ status: 'failed' }), true);
+  assert.equal(canClearTask({ status: 'queued' }), false);
+  assert.equal(canClearTask({ status: 'processing' }), false);
 });

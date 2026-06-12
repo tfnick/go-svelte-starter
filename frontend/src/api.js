@@ -536,6 +536,12 @@ export function listMyTasks(pagination = {}) {
   return request(`/api/user/tasks${query ? `?${query}` : ''}`);
 }
 
+export function clearMyTasks() {
+  return request('/api/user/tasks/clear', {
+    method: 'POST'
+  });
+}
+
 export function getTaskDownload(taskId) {
   return request(`/api/user/tasks/${encodeURIComponent(taskId)}/download`);
 }

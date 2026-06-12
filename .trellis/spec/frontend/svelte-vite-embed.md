@@ -218,6 +218,9 @@ listVariables()
 createVariable(payload)
 updateVariable(id, payload)
 setVariableEnabled(id, enabled)
+listMyTasks({ page, pageSize })
+clearMyTasks()
+getTaskDownload(taskId)
 realtimeWebSocketURL(locationObject = globalThis.location, options = {})
 createRealtimeWebSocketClient(options)
 ```
@@ -226,7 +229,7 @@ createRealtimeWebSocketClient(options)
 
 Frontend API helper namespace conventions:
 
-* 当前用户自服务 helper 默认使用 `/api/user/...`，例如 `getCurrentUser()`、`getMyOrders()`、`createOrder()`、`getMyPoints()`、`realtimeWebSocketURL()`。
+* 当前用户自服务 helper 默认使用 `/api/user/...`，例如 `getCurrentUser()`、`getMyOrders()`、`createOrder()`、`getMyPoints()`、`listMyTasks()`、`clearMyTasks()`、`getTaskDownload()`、`realtimeWebSocketURL()`。
 * 管理页面 helper 默认使用 `/api/admin/...`，例如 users、dictionary management、scheduler、events、messages、parameters、notifications、variables、settings upload 和 products write。
 * 公开读取 helper 默认使用 `/api/public/...`，例如 `getDictionaries()` 和 `getSiteSettings()`；`getProducts()` 目前保留 `GET /api/products`。
 * Legacy helper 只用于迁移兼容，例如 `getUserOrders(userId, ...)`；新页面不要继续依赖旧 path。

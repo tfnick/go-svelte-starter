@@ -1,19 +1,20 @@
 <script>
-  import { ClipboardCheck, Download, RefreshCw, X } from 'lucide-svelte';
+  import { ArchiveX, ClipboardCheck, Download, RefreshCw, X } from 'lucide-svelte';
 
-  import { getTaskDownload, listMyTasks } from '../api.js';
-  import { canDownloadTask, taskFilename, taskTitle } from '../helpers/tasks.js';
+  import { clearMyTasks, getTaskDownload, listMyTasks } from '../api.js';
+  import { canClearTask, canDownloadTask, taskFilename, taskTitle } from '../helpers/tasks.js';
 
   let { refreshTrigger = 0, docked = false } = $props();
   let open = $state(false);
   let tasks = $state([]);
   let loading = $state(false);
+  let clearing = $state(false);
   let downloadingTaskId = $state('');
-  let downloadError = $state('');
+  let taskError = $state('');
 
   async function loadTasks() {
     loading = true;
-    downloadError = '';
+    taskError = '';
     try {
       tasks = (await listMyTasks({ page: 1, pageSize: 20 }))?.items || [];
     } catch {
@@ -27,16 +28,31 @@
     if (!task?.id || downloadingTaskId) return;
 
     downloadingTaskId = task.id;
-    downloadError = '';
+    taskError = '';
     try {
       const result = await getTaskDownload(task.id);
       if (result?.url) {
         globalThis.location?.assign(result.url);
       }
     } catch (err) {
-      downloadError = err.message || 'Failed to prepare task download';
+      taskError = err.message || 'Failed to prepare task download';
     } finally {
       downloadingTaskId = '';
+    }
+  }
+
+  async function clearTasks() {
+    if (clearing || loading || !hasClearableTasks()) return;
+
+    clearing = true;
+    taskError = '';
+    try {
+      await clearMyTasks();
+      await loadTasks();
+    } catch (err) {
+      taskError = err.message || 'Failed to clear tasks';
+    } finally {
+      clearing = false;
     }
   }
 
@@ -57,6 +73,10 @@
     }
   }
 
+  function hasClearableTasks() {
+    return tasks.some(canClearTask);
+  }
+
   $effect(() => {
     if (refreshTrigger > 0 && open) {
       loadTasks();
@@ -71,6 +91,13 @@
         <div class="flex items-center justify-between">
           <h3 class="card-title text-sm">Tasks</h3>
           <div class="flex items-center gap-1">
+            <button class="btn btn-square btn-ghost btn-xs" type="button" aria-label="Clear completed tasks" onclick={clearTasks} disabled={clearing || loading || !hasClearableTasks()}>
+              {#if clearing}
+                <span class="loading loading-spinner loading-xs"></span>
+              {:else}
+                <ArchiveX size={14} />
+              {/if}
+            </button>
             <button class="btn btn-square btn-ghost btn-xs" type="button" aria-label="Refresh tasks" onclick={loadTasks} disabled={loading}>
               {#if loading}
                 <span class="loading loading-spinner loading-xs"></span>
@@ -83,8 +110,8 @@
             </button>
           </div>
         </div>
-        {#if downloadError}
-          <div class="alert alert-error py-2 text-xs">{downloadError}</div>
+        {#if taskError}
+          <div class="alert alert-error py-2 text-xs">{taskError}</div>
         {/if}
         {#if tasks.length === 0}
           <div class="py-4 text-center text-sm text-base-content/50">No tasks</div>

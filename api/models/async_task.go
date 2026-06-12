@@ -30,6 +30,7 @@ type AsyncTask struct {
 	ErrorMessage string `db:"error_message"`
 	RetryCount   int    `db:"retry_count"`
 	MessageID    string `db:"message_id"`
+	ClearedAt    string `db:"cleared_at"`
 	CreatedAt    string `db:"created_at"`
 	UpdatedAt    string `db:"updated_at"`
 }
@@ -134,6 +135,7 @@ func ListAsyncTasksByUser(ctx context.Context, userID string, limit int, offset 
 	sql := `
 		SELECT * FROM async_tasks
 		WHERE user_id = :user_id
+		  AND cleared_at = ''
 		ORDER BY created_at DESC, id DESC
 		LIMIT :limit OFFSET :offset
 	`
@@ -151,10 +153,37 @@ func CountAsyncTasksByUser(ctx context.Context, userID string) (int, error) {
 		return 0, fmt.Errorf("get executor for count async tasks: %w", err)
 	}
 
-	query := d.Rebind("SELECT COUNT(*) FROM async_tasks WHERE user_id = ?")
+	query := d.Rebind("SELECT COUNT(*) FROM async_tasks WHERE user_id = ? AND cleared_at = ''")
 	var count int
 	if err := d.Get(&count, query, userID); err != nil {
 		return 0, fmt.Errorf("count async tasks: %w", err)
 	}
 	return count, nil
+}
+
+func ClearTerminalAsyncTasksByUser(ctx context.Context, userID string) (int, error) {
+	now := timefmt.NowSQLiteDateTime()
+
+	d, err := db.ExecutorFor(ctx, "app")
+	if err != nil {
+		return 0, fmt.Errorf("get executor for clear async tasks: %w", err)
+	}
+
+	query := d.Rebind(`
+		UPDATE async_tasks
+		SET cleared_at = ?, updated_at = ?
+		WHERE user_id = ?
+		  AND cleared_at = ''
+		  AND status IN (?, ?)
+	`)
+	result, err := d.Exec(query, now, now, userID, AsyncTaskStatusCompleted, AsyncTaskStatusFailed)
+	if err != nil {
+		return 0, fmt.Errorf("clear async tasks: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("read affected rows: %w", err)
+	}
+	return int(rows), nil
 }

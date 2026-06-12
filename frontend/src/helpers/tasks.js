@@ -22,3 +22,7 @@ export function taskFilename(task) {
 export function canDownloadTask(task) {
   return task?.status === 'completed' && task?.task_type === taskTypes.ordersExcelExport;
 }
+
+export function canClearTask(task) {
+  return task?.status === 'completed' || task?.status === 'failed';
+}

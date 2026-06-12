@@ -48,6 +48,7 @@ type TaskCo struct {
 	ResultJSON   string `json:"result_json"`
 	ErrorMessage string `json:"error_message"`
 	RetryCount   int    `json:"retry_count"`
+	ClearedAt    string `json:"cleared_at"`
 	CreatedAt    string `json:"created_at"`
 	UpdatedAt    string `json:"updated_at"`
 }
@@ -55,6 +56,10 @@ type TaskCo struct {
 type TasksCo struct {
 	Items      []TaskCo             `json:"items"`
 	Pagination fwusecase.PageResult `json:"pagination"`
+}
+
+type ClearMyTasksCo struct {
+	ClearedCount int `json:"cleared_count"`
 }
 
 func EnqueueHeavyTask(ctx fwusecase.Context, cmd EnqueueHeavyTaskCmd) (EnqueueHeavyTaskResult, error) {
@@ -235,6 +240,7 @@ func ListMyTasks(ctx fwusecase.Context, qry ListMyTasksQry) (TasksCo, error) {
 			ResultJSON:   t.ResultJSON,
 			ErrorMessage: t.ErrorMessage,
 			RetryCount:   t.RetryCount,
+			ClearedAt:    t.ClearedAt,
 			CreatedAt:    t.CreatedAt,
 			UpdatedAt:    t.UpdatedAt,
 		})
@@ -244,4 +250,17 @@ func ListMyTasks(ctx fwusecase.Context, qry ListMyTasksQry) (TasksCo, error) {
 		Items:      items,
 		Pagination: fwusecase.NewPageResult(pageQry, total),
 	}, nil
+}
+
+func ClearMyTasks(ctx fwusecase.Context) (ClearMyTasksCo, error) {
+	userID := ctx.Actor.UserID
+	if userID == "" {
+		return ClearMyTasksCo{}, fwusecase.E(fwusecase.CodeUnauthorized, "not logged in", nil)
+	}
+
+	count, err := models.ClearTerminalAsyncTasksByUser(ctx.Std(), userID)
+	if err != nil {
+		return ClearMyTasksCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to clear tasks", err)
+	}
+	return ClearMyTasksCo{ClearedCount: count}, nil
 }
