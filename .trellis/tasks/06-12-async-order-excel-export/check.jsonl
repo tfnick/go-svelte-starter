@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/backend/index.md", "reason": "Verify backend layer boundaries and quality checks."}
-{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify tests cover risky async/export behavior and permission boundaries."}
-{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify bounded batch query implementation uses project SQL conventions."}
-{"file": ".trellis/spec/frontend/index.md", "reason": "Verify frontend helper and Svelte changes follow local frontend conventions."}
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify end-to-end export flow stays consistent across layers."}
-{"file": ".trellis/tasks/06-12-async-order-excel-export/research/excel-streaming.md", "reason": "Verify the XLSX generation approach matches researched streaming constraints."}

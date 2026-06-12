@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/backend/index.md", "reason": "Backend layer entrypoint for route/usecase/model implementation rules."}
-{"file": ".trellis/spec/backend/route-handler-guidelines.md", "reason": "Order export and task download routes must keep DTO mapping and permission handoff in the route layer only."}
-{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Order batch iteration must use project dynamic SQL conventions and bounded DB access."}
-{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend API helpers and Svelte UI changes must follow local frontend conventions."}
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Async export spans storage, usecase, route, realtime, and UI flows."}
-{"file": ".trellis/tasks/06-12-async-order-excel-export/research/excel-streaming.md", "reason": "Excel streaming writer behavior and constraints for large XLSX exports."}
