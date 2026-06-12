@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 27
+- **Total Sessions**: 28
 - **Last Active**: 2026-06-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~905 | Active |
+| `journal-1.md` | ~939 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 28 | 2026-06-12 | Fix KB embedding and reindex failures | `add7877`, `ee7a5c7` | `master` |
 | 27 | 2026-06-12 | LLM KB Support Feasibility PRD | `e896aa8`, `a6f6b05` | `master` |
 | 26 | 2026-06-11 | Optimize marketing conversion pages | `b5ac98d` | `master` |
 | 25 | 2026-06-09 | Marketing SaaS SEO landing implementation | `bcd7cf9` | `codex/marketing-saas-seo-landing` |

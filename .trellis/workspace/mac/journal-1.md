@@ -903,3 +903,37 @@ Completed and archived the LLM knowledge-base customer support feasibility PRD. 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: Fix KB embedding and reindex failures
+
+**Date**: 2026-06-12
+**Task**: Fix KB embedding and reindex failures
+**Branch**: `master`
+
+### Summary
+
+Fixed Knowledge Base embedding channel-only config, corrected KB document/source contracts, mapped empty-content reindex to validation, and added regression tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `add7877` | (see git log) |
+| `ee7a5c7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
