@@ -93,7 +93,7 @@
   }
 
   function sidebarHeaderClass() {
-    return collapsed ? 'justify-between px-5 lg:h-24 lg:flex-col lg:justify-center lg:gap-2 lg:px-2' : 'justify-between gap-2 px-3';
+    return collapsed ? 'justify-between px-5 lg:h-24 lg:flex-col lg:justify-center lg:gap-2 lg:px-2' : 'justify-between px-5';
   }
 
   function menuItemClass(routePath) {
@@ -184,7 +184,7 @@
           />
         </button>
         <button
-          class={`btn btn-ghost hidden shrink-0 lg:inline-flex ${collapsed ? 'btn-square btn-sm' : 'btn-sm gap-2 px-2'}`}
+          class="btn btn-square btn-ghost hidden shrink-0 lg:inline-flex"
           type="button"
           aria-label={sidebarToggleLabel}
           aria-pressed={collapsed}
@@ -196,8 +196,7 @@
           {#if collapsed}
             <PanelLeftOpen size={18} />
           {:else}
-            <PanelLeftClose size={16} />
-            <span class="text-xs font-medium">{sidebarToggleLabel}</span>
+            <PanelLeftClose size={18} />
           {/if}
         </button>
       </div>
