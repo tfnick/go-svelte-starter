@@ -615,3 +615,37 @@ Added SendNotification StorePolicy boundary, routed business WebSocket messages 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: Sidebar Collapse Toggle
+
+**Date**: 2026-06-12
+**Task**: Sidebar Collapse Toggle
+**Branch**: `feature-task`
+
+### Summary
+
+Implemented desktop sidebar collapse and expand, refined the toggle to icon-only right-aligned placement, kept mobile drawer unchanged, and verified frontend/backend quality gates plus browser smoke checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fa74e48` | (see git log) |
+| `41ffe5b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
