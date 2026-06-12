@@ -23,8 +23,10 @@ const (
 
 	deepSeekOpenAICompatibleAdapterKey          = "llm.deepseek.openai_compatible"
 	deepSeekEmbeddingOpenAICompatibleAdapterKey = "embedding.deepseek.openai_compatible"
+	localHashEmbeddingAdapterKey                = "embedding.local_hash_64"
 	defaultDeepSeekModelCode                    = "deepseek-chat"
 	defaultDeepSeekEmbeddingModelCode           = "deepseek-embedding"
+	defaultLocalHashEmbeddingModelCode          = "local-hash-64"
 
 	IntegrationInvocationStatusStarted   = "started"
 	IntegrationInvocationStatusSucceeded = "succeeded"
@@ -880,12 +882,32 @@ func defaultEmbeddingModelOptionForChannel(scenario string, channel IntegrationC
 	if !errors.Is(err, modelerror.ErrNotFound) {
 		return IntegrationModelOption{}, false
 	}
-	if scenario != IntegrationScenarioEmbedding || channel.AdapterKey != deepSeekEmbeddingOpenAICompatibleAdapterKey {
+	if scenario != IntegrationScenarioEmbedding {
 		return IntegrationModelOption{}, false
 	}
 
 	normalizedModelCode := strings.TrimSpace(modelCode)
-	if normalizedModelCode != "" && normalizedModelCode != defaultDeepSeekEmbeddingModelCode {
+
+	switch channel.AdapterKey {
+	case localHashEmbeddingAdapterKey:
+		if normalizedModelCode != "" && normalizedModelCode != defaultLocalHashEmbeddingModelCode {
+			return IntegrationModelOption{}, false
+		}
+		return IntegrationModelOption{
+			Scenario:          IntegrationScenarioEmbedding,
+			ChannelID:         channel.ID,
+			ModelCode:         defaultLocalHashEmbeddingModelCode,
+			ProviderModelID:   defaultLocalHashEmbeddingModelCode,
+			CapabilitiesJSON:  "{}",
+			DefaultParamsJSON: `{"dimensions":64}`,
+			CostPolicyJSON:    "{}",
+			Enabled:           1,
+		}, true
+	case deepSeekEmbeddingOpenAICompatibleAdapterKey:
+		if normalizedModelCode != "" && normalizedModelCode != defaultDeepSeekEmbeddingModelCode {
+			return IntegrationModelOption{}, false
+		}
+	default:
 		return IntegrationModelOption{}, false
 	}
 

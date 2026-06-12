@@ -24,12 +24,12 @@ func embeddingProviderConfig(config models.IntegrationEmbeddingConfig) (embeddin
 			return embedding.ProviderConfig{}, fmt.Errorf("parse channel config failed: %w", err)
 		}
 	}
-	if strings.TrimSpace(channelConfig.BaseURL) == "" {
+	if strings.TrimSpace(channelConfig.BaseURL) == "" && !isLocalHashEmbeddingAdapter(config.Channel.AdapterKey) {
 		return embedding.ProviderConfig{}, fmt.Errorf("channel base_url is required")
 	}
 
 	apiKey := config.Credential.ValueText
-	if strings.TrimSpace(apiKey) == "" {
+	if strings.TrimSpace(apiKey) == "" && !isLocalHashEmbeddingAdapter(config.Channel.AdapterKey) {
 		return embedding.ProviderConfig{}, fmt.Errorf("credential is empty")
 	}
 
@@ -50,10 +50,10 @@ func embeddingProviderConfig(config models.IntegrationEmbeddingConfig) (embeddin
 	}
 
 	return embedding.ProviderConfig{
-		ChannelID:       config.Channel.ID,
-		ChannelCode:     config.Channel.ChannelCode,
-		AdapterKey:      config.Channel.AdapterKey,
-		Provider:        config.Channel.ProviderCode,
+		ChannelID:        config.Channel.ID,
+		ChannelCode:      config.Channel.ChannelCode,
+		AdapterKey:       config.Channel.AdapterKey,
+		Provider:         config.Channel.ProviderCode,
 		CredentialValue:  apiKey,
 		BaseURL:          channelConfig.BaseURL,
 		ModelCode:        config.Model.ModelCode,
@@ -61,4 +61,9 @@ func embeddingProviderConfig(config models.IntegrationEmbeddingConfig) (embeddin
 		ModelSettings:    modelSettings,
 		ProviderSettings: providerSettings,
 	}, nil
+}
+
+func isLocalHashEmbeddingAdapter(adapterKey string) bool {
+	normalized := strings.TrimSpace(adapterKey)
+	return normalized == "embedding.local_hash_64" || strings.HasPrefix(normalized, "embedding.local_hash_64.")
 }

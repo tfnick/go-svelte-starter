@@ -36,10 +36,10 @@ func TestGetDictionariesLoadsIntegrationCredentialTypes(t *testing.T) {
 		t.Fatalf("get dictionaries: %v", err)
 	}
 	values := batch.Dictionaries["integration_credential_type"]
-	if len(values) != 4 {
+	if len(values) != 5 {
 		t.Fatalf("expected seeded integration credential types, got %#v", values)
 	}
-	if values[0].Value != "payment_bundle" || values[1].Value != "api_key" || values[2].Value != "smtp_password" || values[3].Value != "s3_access_key" {
+	if values[0].Value != "none" || values[1].Value != "payment_bundle" || values[2].Value != "api_key" || values[3].Value != "smtp_password" || values[4].Value != "s3_access_key" {
 		t.Fatalf("unexpected integration credential type ordering: %#v", values)
 	}
 }

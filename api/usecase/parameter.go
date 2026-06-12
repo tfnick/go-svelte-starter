@@ -141,7 +141,7 @@ func UpdateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 			}
 			return fwusecase.E(fwusecase.CodeInternal, "failed to load integration channel", err)
 		}
-		updateCredential := input.CredentialValue != ""
+		updateCredential := input.CredentialValue != "" || !parameterIntegrationSchemaRequiresCredential(input.AdapterKey)
 		if _, err := models.UpdateIntegrationCredential(txCtx.Std(), models.UpdateIntegrationCredentialCmd{
 			ID:             current.CredentialID,
 			CredentialType: input.CredentialType,
@@ -261,7 +261,7 @@ func parameterIntegrationChannelInput(cmd SaveParameterIntegrationChannelCmd, cr
 	if input.CredentialType == "" {
 		return parameterIntegrationChannelInputData{}, fwusecase.E(fwusecase.CodeValidation, "credential type is required", nil)
 	}
-	if create && input.CredentialValue == "" {
+	if create && input.CredentialValue == "" && parameterIntegrationSchemaRequiresCredential(input.AdapterKey) {
 		return parameterIntegrationChannelInputData{}, fwusecase.E(fwusecase.CodeValidation, "credential value is required", nil)
 	}
 

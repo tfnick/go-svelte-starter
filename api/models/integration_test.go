@@ -112,8 +112,8 @@ func TestGetEnabledEmbeddingConfigFallsBackToDefaultDeepSeekModelForChannelOnlyC
 	}
 
 	config, err := models.GetEnabledEmbeddingConfig(t.Context(), models.EmbeddingConfigQuery{
-		Scenario:  models.IntegrationScenarioEmbedding,
-		Operation: "embedding_create",
+		Scenario:    models.IntegrationScenarioEmbedding,
+		ChannelCode: channel.ChannelCode,
 	})
 	if err != nil {
 		t.Fatalf("get enabled embedding config: %v", err)
@@ -130,6 +130,31 @@ func TestGetEnabledEmbeddingConfigFallsBackToDefaultDeepSeekModelForChannelOnlyC
 	}
 	if config.Credential.ValueText != "models-embedding-api-key" {
 		t.Fatalf("unexpected credential value: %q", config.Credential.ValueText)
+	}
+}
+
+func TestGetEnabledEmbeddingConfigUsesDefaultLocalHashProvider(t *testing.T) {
+	setupModelsTestDB(t)
+
+	config, err := models.GetEnabledEmbeddingConfig(t.Context(), models.EmbeddingConfigQuery{
+		Scenario:  models.IntegrationScenarioEmbedding,
+		Operation: "embedding_create",
+	})
+	if err != nil {
+		t.Fatalf("get enabled embedding config: %v", err)
+	}
+
+	if config.Channel.ChannelCode != "local-hash-64" || config.Channel.AdapterKey != "embedding.local_hash_64" {
+		t.Fatalf("unexpected default embedding channel: %#v", config.Channel)
+	}
+	if config.Model.ModelCode != "local-hash-64" || config.Model.ProviderModelID != "local-hash-64" {
+		t.Fatalf("unexpected default embedding model option: %#v", config.Model)
+	}
+	if config.Model.DefaultParamsJSON != `{"dimensions":64}` {
+		t.Fatalf("unexpected fallback embedding params: %q", config.Model.DefaultParamsJSON)
+	}
+	if config.Credential.CredentialType != "none" || config.Credential.ValueText != "" {
+		t.Fatalf("unexpected local embedding credential: %#v", config.Credential)
 	}
 }
 

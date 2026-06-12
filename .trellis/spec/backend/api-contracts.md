@@ -1551,6 +1551,7 @@ DB:
 kb_sources(id, title, source_type, enabled, index_status, content_hash, last_index_error, ...)
 kb_documents(id, source_id, title, content, extracted_text, content_hash, enabled, index_status, last_index_error, ...)
 kb_chunks(id, source_id, document_id, chunk_index, content, embedding_model_code, embedding_dimensions, ...)
+integration_operation_configs(scenario='embedding', operation='embedding_create', channel_code, model_code, enabled, ...)
 ```
 
 ### 3. Contracts
@@ -1563,6 +1564,8 @@ kb_chunks(id, source_id, document_id, chunk_index, content, embedding_model_code
 * Reindex failure updates both source and document `index_status`/`last_index_error` through `UpdateKnowledgeIndexStatus`.
 * Index replacement should preserve old chunks until the new content is indexable and embeddings are ready to store; `ReplaceKnowledgeDocumentChunks` owns the final delete-and-insert step.
 * Embedding config for indexing is resolved from `scenario=embedding` and `operation=embedding_create`; admin guidance must point to `Parameter > Embedding`.
+* Fresh installs must seed `embedding_create` to the local 64-dimensional provider: channel `local-hash-64`, adapter `embedding.local_hash_64`, provider `local`, credential type `none`, model `local-hash-64`, default params `{"dimensions":64}`. This avoids KB indexing depending on an external embedding API by default.
+* External embedding providers may still be configured under `Parameter > Embedding`; they must only be selected when the provider exposes a compatible embeddings endpoint. Provider request failures must not delete existing chunks.
 
 Successful source response includes:
 
@@ -1589,6 +1592,7 @@ Successful source response includes:
 | reindex empty document/extracted text | `CodeValidation`, safe message `document content is required before indexing`; status becomes `failed` |
 | reindex produces no chunks | `CodeValidation`, safe message `document content produced no indexable chunks`; status becomes `failed` |
 | missing embedding channel/config | `CodeInternal`, status `failed`, `last_index_error` mentions `Parameter > Embedding` |
+| default local embedding config present | reindex succeeds without `base_url` or credential value; stored chunk dimensions are `64` |
 | embedding generation/store failure | `CodeInternal`, status `failed`, old chunks are preserved until replacement can succeed |
 
 ### 5. Good/Base/Bad Cases
@@ -1599,13 +1603,19 @@ Good: Admin adds a document under an existing source; the new row has the reques
 
 Base: A historical document has empty `content` and empty `extracted_text`; reindex returns a validation envelope instead of a 500, and the row records `last_index_error="document has no content"`.
 
+Base: A new install has never configured an external embedding API; KB reindex still works through the seeded local provider and records `embedding_model_code="local-hash-64"`.
+
 Bad: `CreateKBDocument` calls `CreateKnowledgeSource`; that creates a new source and breaks the UI's source/document hierarchy.
 
 Bad: Reindex deletes old chunks before validating content and embedding configuration; a failed retry should not destroy a previously usable index.
 
+Bad: The default Embedding schema points to an external DeepSeek/OpenAI-compatible embeddings endpoint that may not exist or may be unreachable; this causes `embedding generation failed: embedding provider request failed` on reindex.
+
 ### 6. Tests Required
 
-* `api/usecase/kb_embedding_test.go` covers empty content validation, source/document status mirroring, old chunk preservation on invalid reindex, embedding guidance, and child document creation under requested source.
+* `api/usecase/kb_embedding_test.go` covers default local hash embedding, empty content validation, source/document status mirroring, old chunk preservation on invalid reindex, embedding guidance, and child document creation under requested source.
+* `api/models/integration_test.go` covers seeded default local embedding config and provider-specific fallback model mapping.
+* `api/usecase/parameter_test.go` covers local embedding schema and no-credential channel creation.
 * `api/routes/kb_test.go` covers `KBSourceResponse.description` for frontend edit round-trips.
 * `go test ./...`
 * If frontend KB page or helpers change, also run `cd frontend && npm test` and `cd frontend && npm run build`.

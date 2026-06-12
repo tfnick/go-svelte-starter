@@ -215,16 +215,22 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list Embedding schemas: %v", err)
 	}
-	if len(embeddingSchemas) != 1 {
-		t.Fatalf("expected one Embedding schema, got %#v", embeddingSchemas)
+	if len(embeddingSchemas) != 2 {
+		t.Fatalf("expected two Embedding schemas, got %#v", embeddingSchemas)
 	}
-	if embeddingSchemas[0].AdapterKey != "embedding.deepseek.openai_compatible" || embeddingSchemas[0].ProviderCode != "deepseek" {
-		t.Fatalf("unexpected Embedding schema: %#v", embeddingSchemas[0])
+	if embeddingSchemas[0].AdapterKey != "embedding.local_hash_64" || embeddingSchemas[0].ProviderCode != "local" {
+		t.Fatalf("unexpected default Embedding schema: %#v", embeddingSchemas[0])
 	}
-	if embeddingSchemas[0].CredentialType != "api_key" || embeddingSchemas[0].CredentialFormat != usecase.ParameterIntegrationCredentialFormatPlain {
-		t.Fatalf("unexpected Embedding credential schema: %#v", embeddingSchemas[0])
+	if embeddingSchemas[0].CredentialType != "none" || len(embeddingSchemas[0].CredentialFields) != 0 {
+		t.Fatalf("unexpected local Embedding credential schema: %#v", embeddingSchemas[0])
 	}
-	embeddingBaseURLField, ok := schemaFieldByKey(embeddingSchemas[0].ConfigFields, "base_url")
+	if embeddingSchemas[1].AdapterKey != "embedding.deepseek.openai_compatible" || embeddingSchemas[1].ProviderCode != "deepseek" {
+		t.Fatalf("unexpected DeepSeek Embedding schema: %#v", embeddingSchemas[1])
+	}
+	if embeddingSchemas[1].CredentialType != "api_key" || embeddingSchemas[1].CredentialFormat != usecase.ParameterIntegrationCredentialFormatPlain {
+		t.Fatalf("unexpected DeepSeek Embedding credential schema: %#v", embeddingSchemas[1])
+	}
+	embeddingBaseURLField, ok := schemaFieldByKey(embeddingSchemas[1].ConfigFields, "base_url")
 	if !ok || embeddingBaseURLField.Kind != usecase.ParameterIntegrationSchemaFieldURL || embeddingBaseURLField.DefaultValue != "https://api.deepseek.com" {
 		t.Fatalf("unexpected Embedding base_url field: %#v", embeddingBaseURLField)
 	}
@@ -384,6 +390,72 @@ func TestParameterIntegrationChannelAcceptsPlainCredentialSchema(t *testing.T) {
 	}
 	if embeddingChannel.Scenario != models.IntegrationScenarioEmbedding || embeddingChannel.CredentialValue != "sk_embedding" {
 		t.Fatalf("unexpected Embedding channel: %#v", embeddingChannel)
+	}
+}
+
+func TestParameterIntegrationChannelAcceptsLocalEmbeddingWithoutCredential(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+
+	channel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioEmbedding,
+		ChannelCode:     "schema-local-embedding",
+		ProviderCode:    "local",
+		AdapterKey:      "embedding.local_hash_64",
+		Environment:     "test",
+		Enabled:         true,
+		ConfigJSON:      "{}",
+		MetadataJSON:    "{}",
+		CredentialType:  "none",
+		CredentialValue: "",
+	})
+	if err != nil {
+		t.Fatalf("create local Embedding channel without credential: %v", err)
+	}
+	if channel.Scenario != models.IntegrationScenarioEmbedding || channel.CredentialType != "none" || channel.CredentialValue != "" {
+		t.Fatalf("unexpected local Embedding channel: %#v", channel)
+	}
+}
+
+func TestParameterIntegrationChannelClearsCredentialWhenUpdatedToLocalEmbedding(t *testing.T) {
+	setupUsecaseOrderTxDB(t)
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+
+	channel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioEmbedding,
+		ChannelCode:     "schema-embedding-switch",
+		ProviderCode:    "deepseek",
+		AdapterKey:      "embedding.deepseek.openai_compatible",
+		Environment:     "test",
+		Enabled:         true,
+		ConfigJSON:      `{"base_url":"https://api.deepseek.com"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "api_key",
+		CredentialValue: "sk_embedding",
+	})
+	if err != nil {
+		t.Fatalf("create external Embedding channel: %v", err)
+	}
+
+	updated, err := usecase.UpdateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		ID:              channel.ID,
+		Scenario:        models.IntegrationScenarioEmbedding,
+		ChannelCode:     channel.ChannelCode,
+		ProviderCode:    "local",
+		AdapterKey:      "embedding.local_hash_64",
+		Environment:     channel.Environment,
+		Enabled:         true,
+		Priority:        channel.Priority,
+		ConfigJSON:      "{}",
+		MetadataJSON:    "{}",
+		CredentialType:  "none",
+		CredentialValue: "",
+	})
+	if err != nil {
+		t.Fatalf("update Embedding channel to local: %v", err)
+	}
+	if updated.CredentialType != "none" || updated.CredentialValue != "" {
+		t.Fatalf("expected local Embedding update to clear credential, got %#v", updated)
 	}
 }
 

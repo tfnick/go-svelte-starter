@@ -15,7 +15,7 @@
   const scenarios = [
     { key: 'payment', label: 'Payment', defaultProvider: 'creem', defaultAdapter: 'payment.creem.hosted_checkout', credentialType: 'payment_bundle' },
     { key: 'llm', label: 'LLM', defaultProvider: 'deepseek', defaultAdapter: 'llm.deepseek.openai_compatible', credentialType: 'api_key' },
-    { key: 'embedding', label: 'Embedding', defaultProvider: 'deepseek', defaultAdapter: 'embedding.deepseek.openai_compatible', credentialType: 'api_key' },
+    { key: 'embedding', label: 'Embedding', defaultProvider: 'local', defaultAdapter: 'embedding.local_hash_64', credentialType: 'none' },
     { key: 'sms', label: 'SMS', defaultProvider: 'aliyun', defaultAdapter: 'sms.aliyun.adapter', credentialType: 'api_key' },
     { key: 'email', label: 'Email', defaultProvider: 'aliyun', defaultAdapter: 'email.aliyun.smtp', credentialType: 'smtp_password' },
     { key: 'oss', label: 'OSS', defaultProvider: 'cloudflare_r2', defaultAdapter: 'oss.cloudflare_r2.s3_compatible', credentialType: 's3_access_key' }
@@ -29,6 +29,7 @@
     { value: 'production', label: 'Production' }
   ];
   const fallbackCredentialTypeOptions = [
+    { value: 'none', label: 'None' },
     { value: 'payment_bundle', label: 'Payment Bundle' },
     { value: 'api_key', label: 'API Key' },
     { value: 'smtp_password', label: 'SMTP Password' },
@@ -671,7 +672,7 @@
         </fieldset>
         </div>
 
-        {#if currentSchema()}
+        {#if currentSchema() && currentCredentialFields().length > 0}
           <div class="rounded-box border border-base-200 p-3">
             <h3 class="mb-2 text-sm font-semibold">Credential</h3>
             <div class="grid gap-3">
@@ -729,7 +730,7 @@
               {/each}
             </div>
           </div>
-        {:else}
+        {:else if !currentSchema()}
           <fieldset class="fieldset">
           <legend class="fieldset-legend">Credential value</legend>
             <div class="join w-full">

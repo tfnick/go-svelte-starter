@@ -25,7 +25,8 @@ import (
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	deepseekembedding "github.com/tfnick/go-svelte-starter/api/providers/embedding/deepseek"
-		deepseekllm "github.com/tfnick/go-svelte-starter/api/providers/llm/deepseek"
+	localhashembedding "github.com/tfnick/go-svelte-starter/api/providers/embedding/localhash"
+	deepseekllm "github.com/tfnick/go-svelte-starter/api/providers/llm/deepseek"
 	githuboauth "github.com/tfnick/go-svelte-starter/api/providers/oauth/github"
 	googleoauth "github.com/tfnick/go-svelte-starter/api/providers/oauth/google"
 	s3compatibleoss "github.com/tfnick/go-svelte-starter/api/providers/oss/s3compatible"
@@ -104,6 +105,9 @@ func main() {
 	}
 	if err := appusecase.RegisterEmbeddingAdapter("embedding.deepseek.openai_compatible", deepseekembedding.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register embedding adapter")
+	}
+	if err := appusecase.RegisterEmbeddingAdapter("embedding.local_hash_64", localhashembedding.NewAdapter(64)); err != nil {
+		logger.Fatal().Err(err).Msg("failed to register local embedding adapter")
 	}
 	if err := appusecase.RegisterPaymentAdapter("payment.creem.hosted_checkout", creempayment.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register payment adapter")

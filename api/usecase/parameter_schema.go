@@ -147,9 +147,21 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 	},
 	{
 		Scenario:         models.IntegrationScenarioEmbedding,
+		AdapterKey:       "embedding.local_hash_64",
+		Label:            "Local Hash 64 Embedding",
+		Description:      "Local deterministic 64-dimensional embedding provider for Knowledge Base indexing.",
+		ProviderCode:     "local",
+		CredentialType:   "none",
+		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
+		AdvancedJSON:     true,
+		ConfigFields:     []ParameterIntegrationSchemaFieldCo{},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{},
+	},
+	{
+		Scenario:         models.IntegrationScenarioEmbedding,
 		AdapterKey:       "embedding.deepseek.openai_compatible",
 		Label:            "DeepSeek OpenAI Compatible Embedding",
-		Description:      "OpenAI-compatible embedding channel for DeepSeek.",
+		Description:      "OpenAI-compatible embedding channel. Use only when the provider exposes a compatible embeddings endpoint.",
 		ProviderCode:     "deepseek",
 		CredentialType:   "api_key",
 		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
@@ -515,6 +527,19 @@ func parameterIntegrationSchemaByAdapterKey(adapterKey string) (ParameterIntegra
 	return ParameterIntegrationAdapterSchemaCo{}, false
 }
 
+func parameterIntegrationSchemaRequiresCredential(adapterKey string) bool {
+	schema, ok := parameterIntegrationSchemaByAdapterKey(adapterKey)
+	if !ok {
+		return true
+	}
+	for _, field := range schema.CredentialFields {
+		if field.Required {
+			return true
+		}
+	}
+	return false
+}
+
 func validateParameterIntegrationSchema(input parameterIntegrationChannelInputData, create bool) error {
 	schema, ok := parameterIntegrationSchemaByAdapterKey(input.AdapterKey)
 	if !ok {
@@ -549,6 +574,9 @@ func validateParameterIntegrationSchema(input parameterIntegrationChannelInputDa
 func validateParameterSchemaCredential(value string, schema ParameterIntegrationAdapterSchemaCo) error {
 	raw := strings.TrimSpace(value)
 	if raw == "" {
+		if len(schema.CredentialFields) == 0 {
+			return nil
+		}
 		return fwusecase.E(fwusecase.CodeValidation, "credential value is required", nil)
 	}
 

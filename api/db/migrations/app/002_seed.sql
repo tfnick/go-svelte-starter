@@ -51,6 +51,7 @@ INSERT OR IGNORE INTO dictionary_values (
     ('019ea0c1-0003-7000-8000-000000000005', '019ea0c1-0003-7000-8000-000000000001', 'tablet', 'Tablet', 40, 1, ''),
     ('019ea0c1-0003-7000-8000-000000000007', '019ea0c1-0003-7000-8000-000000000006', 'test', 'Test', 10, 1, ''),
     ('019ea0c1-0003-7000-8000-000000000008', '019ea0c1-0003-7000-8000-000000000006', 'production', 'Production', 20, 1, ''),
+    ('019ebcf0-0001-7000-8000-000000000001', '019ea0c1-0003-7000-8000-000000000009', 'none', 'None', 5, 1, 'No external credential required'),
     ('019ea0c1-0003-7000-8000-000000000010', '019ea0c1-0003-7000-8000-000000000009', 'payment_bundle', 'Payment Bundle', 10, 1, 'JSON object containing payment API key and webhook secret'),
     ('019ea0c1-0003-7000-8000-000000000011', '019ea0c1-0003-7000-8000-000000000009', 'api_key', 'API Key', 20, 1, 'Single API key credential value'),
     ('019ea0c1-0003-7000-8000-000000000017', '019ea0c1-0003-7000-8000-000000000009', 'smtp_password', 'SMTP Password', 30, 1, 'SMTP username and password credential bundle'),

@@ -7,6 +7,7 @@ import (
 
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
 	"github.com/tfnick/go-svelte-starter/api/models"
+	"github.com/tfnick/go-svelte-starter/api/providers/embedding/localhash"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/embedding"
 	"github.com/tfnick/sqlx"
@@ -101,8 +102,86 @@ func TestIndexDocumentUsesEmbeddingChannelOnlyConfig(t *testing.T) {
 	}
 }
 
+func TestIndexDocumentUsesDefaultLocalHashEmbeddingConfig(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	adapterKey := "embedding.local_hash_64.test.default"
+	if err := usecase.RegisterEmbeddingAdapter(adapterKey, localhash.NewAdapter(64)); err != nil {
+		t.Fatalf("register local embedding adapter: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_channels
+		SET adapter_key = ?
+		WHERE scenario = 'embedding' AND channel_code = 'local-hash-64'
+	`, adapterKey); err != nil {
+		t.Fatalf("isolate local embedding adapter key: %v", err)
+	}
+
+	source, err := models.CreateKnowledgeSource(t.Context(), models.SaveKnowledgeSourceCmd{
+		ID:         "kb-default-local-embedding-source",
+		Title:      "Default Local Embedding Source",
+		SourceType: models.KBSourceTypeManual,
+		Enabled:    true,
+		Content:    "Default local hash embedding should index without calling an external provider.",
+	})
+	if err != nil {
+		t.Fatalf("create knowledge source: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	if err := usecase.IndexDocument(ctx, usecase.IndexDocumentCmd{DocumentID: source.DocumentID}); err != nil {
+		doc, loadErr := models.GetKBDocumentByID(t.Context(), source.DocumentID)
+		if loadErr != nil {
+			t.Fatalf("index document: %v; load failed document: %v", err, loadErr)
+		}
+		t.Fatalf("index document: %v; last index error: %s", err, doc.LastIndexError)
+	}
+
+	doc, err := models.GetKBDocumentByID(t.Context(), source.DocumentID)
+	if err != nil {
+		t.Fatalf("load indexed document: %v", err)
+	}
+	if doc.IndexStatus != models.KBIndexStatusIndexed || doc.LastIndexError != "" {
+		t.Fatalf("expected indexed document without error, got %#v", doc)
+	}
+
+	var chunk struct {
+		EmbeddingModelCode       string `db:"embedding_model_code"`
+		EmbeddingProviderModelID string `db:"embedding_provider_model_id"`
+		EmbeddingDimensions      int    `db:"embedding_dimensions"`
+	}
+	if err := appDB.Get(&chunk, `
+		SELECT embedding_model_code, embedding_provider_model_id, embedding_dimensions
+		FROM kb_chunks
+		WHERE document_id = ?
+		LIMIT 1`, source.DocumentID); err != nil {
+		t.Fatalf("load chunk: %v", err)
+	}
+	if chunk.EmbeddingModelCode != "local-hash-64" || chunk.EmbeddingProviderModelID != "local-hash-64" || chunk.EmbeddingDimensions != 64 {
+		t.Fatalf("unexpected chunk embedding metadata: %#v", chunk)
+	}
+}
+
 func TestIndexDocumentMissingEmbeddingConfigMentionsParameterMenu(t *testing.T) {
-	setupUsecaseOrderTxDB(t)
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+	for _, query := range []string{
+		`DELETE FROM integration_operation_configs WHERE scenario = 'embedding'`,
+		`DELETE FROM integration_model_options WHERE scenario = 'embedding'`,
+		`DELETE FROM integration_channels WHERE scenario = 'embedding'`,
+		`DELETE FROM integration_credentials WHERE credential_type = 'none'`,
+	} {
+		if _, err := appDB.Exec(query); err != nil {
+			t.Fatalf("remove default embedding config: %v", err)
+		}
+	}
+
 	source, err := models.CreateKnowledgeSource(t.Context(), models.SaveKnowledgeSourceCmd{
 		ID:         "kb-missing-embedding-source",
 		Title:      "Missing Embedding Source",
@@ -332,5 +411,17 @@ func seedEmbeddingChannelOnlyConfig(t *testing.T, appDB *sqlx.DB, channelCode st
 		) VALUES (?, 'embedding', ?, 'deepseek', 'embedding.deepseek.openai_compatible', 'test', 1, 1, ?, '{"base_url":"https://api.deepseek.com"}')
 	`), channelID, channelCode, credentialID); err != nil {
 		t.Fatalf("insert embedding channel: %v", err)
+	}
+	if _, err := appDB.Exec(appDB.Rebind(`
+		INSERT INTO integration_operation_configs (
+			id, scenario, operation, channel_code, model_code, enabled, config_json
+		) VALUES (?, 'embedding', 'embedding_create', ?, '', 1, '{}')
+		ON CONFLICT(scenario, operation) DO UPDATE SET
+			channel_code = excluded.channel_code,
+			model_code = excluded.model_code,
+			enabled = excluded.enabled,
+			config_json = excluded.config_json
+	`), channelCode+"-operation", channelCode); err != nil {
+		t.Fatalf("insert embedding operation config: %v", err)
 	}
 }
