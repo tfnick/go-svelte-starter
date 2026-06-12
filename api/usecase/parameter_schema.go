@@ -146,6 +146,35 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 		},
 	},
 	{
+		Scenario:         models.IntegrationScenarioEmbedding,
+		AdapterKey:       "embedding.deepseek.openai_compatible",
+		Label:            "DeepSeek OpenAI Compatible Embedding",
+		Description:      "OpenAI-compatible embedding channel for DeepSeek.",
+		ProviderCode:     "deepseek",
+		CredentialType:   "api_key",
+		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
+		AdvancedJSON:     true,
+		ConfigFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:          "base_url",
+				Label:        "API URL",
+				Kind:         ParameterIntegrationSchemaFieldURL,
+				Required:     true,
+				DefaultValue: "https://api.deepseek.com",
+			},
+		},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "api_key",
+				Label:       "API Key",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "sk_...",
+			},
+		},
+	},
+	{
 		Scenario:         models.IntegrationScenarioSMS,
 		AdapterKey:       "sms.aliyun.adapter",
 		Label:            "Aliyun SMS",
