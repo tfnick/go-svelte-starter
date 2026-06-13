@@ -649,3 +649,37 @@ Implemented desktop sidebar collapse and expand, refined the toggle to icon-only
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: SiliconFlow embedding provider
+
+**Date**: 2026-06-13
+**Task**: SiliconFlow embedding provider
+**Branch**: `master`
+
+### Summary
+
+Replaced DeepSeek embedding configuration with SiliconFlow, kept local hash fallback, fixed support chat vector search and citation persistence, and documented KB sqlite-vec contracts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `af9644e` | (see git log) |
+| `ff6a6f0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

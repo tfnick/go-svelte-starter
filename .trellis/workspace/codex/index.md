@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 19
-- **Last Active**: 2026-06-12
+- **Total Sessions**: 20
+- **Last Active**: 2026-06-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~651 | Active |
+| `journal-1.md` | ~685 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 20 | 2026-06-13 | SiliconFlow embedding provider | `af9644e`, `ff6a6f0` | `master` |
 | 19 | 2026-06-12 | Sidebar Collapse Toggle | `fa74e48`, `41ffe5b` | `feature-task` |
 | 18 | 2026-06-12 | Consolidate realtime notification boundary | `03b1a16` | `feature-task` |
 | 17 | 2026-06-12 | Task center clear action | `0808696` | `feature-task` |
