@@ -96,23 +96,28 @@ func GenerateSupportAnswer(ctx fwusecase.Context, cmd SupportChatMessageCmd) (Su
 		return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to load embedding configuration", err)
 	}
 
-	// 2. Get embedding adapter
-	embedAdapter, ok := registeredEmbeddingAdapter(embedCfg.Channel.AdapterKey)
-	if !ok {
-		return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal,
-			fmt.Sprintf("embedding adapter not registered: %s", embedCfg.Channel.AdapterKey), nil)
-	}
-
-	// 3. Build embedding provider config
-	providerCfg, err := embeddingProviderConfig(embedCfg)
+	// 2. Resolve embedding runtime. If the configured external provider has not
+	// been fully configured yet, chat can fall back to the local hash provider so
+	// existing local KB indexes remain usable.
+	embedRuntime, err := supportChatEmbeddingRuntime(ctx.Std(), embedCfg)
 	if err != nil {
-		return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal, "embedding provider config is invalid", err)
+		if errors.Is(err, errEmbeddingAdapterNotRegistered) {
+			adapterKey := strings.TrimSpace(embedCfg.Channel.AdapterKey)
+			if adapterKey == "" {
+				adapterKey = "unknown"
+			}
+			return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal,
+				fmt.Sprintf("embedding adapter not registered: %s", adapterKey), err)
+		}
+		return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal,
+			"embedding provider config is invalid", err)
 	}
 
-	// 4. Generate embedding for the question
-	embedResult, err := embedAdapter.Embed(ctx.Std(), providerCfg, embedding.EmbedRequest{
+	// 3. Generate embedding for the question
+	embedResult, err := embedRuntime.Adapter.Embed(ctx.Std(), embedRuntime.ProviderConfig, embedding.EmbedRequest{
 		Operation: embeddingOperationCreate,
 		Texts:     []string{message},
+		Params:    embedRuntime.ProviderConfig.ModelSettings,
 	})
 	if err != nil {
 		return SupportChatResponseCo{}, fwusecase.E(fwusecase.CodeInternal, "failed to generate question embedding", err)
@@ -211,11 +216,9 @@ func GenerateSupportAnswer(ctx fwusecase.Context, cmd SupportChatMessageCmd) (Su
 		if i >= defaultMaxCitations {
 			break
 		}
-		// Get source info for the citation
-		source, err := models.GetKnowledgeSourceByID(ctx.Std(), chunk.SourceID)
-		sourceName := "Unknown Source"
-		if err == nil {
-			sourceName = source.Title
+		sourceName := strings.TrimSpace(chunk.SourceName)
+		if sourceName == "" {
+			sourceName = "Unknown Source"
 		}
 
 		// Truncate excerpt to a reasonable length
@@ -231,10 +234,11 @@ func GenerateSupportAnswer(ctx fwusecase.Context, cmd SupportChatMessageCmd) (Su
 		})
 
 		citationModels = append(citationModels, models.KnowledgeSearchResult{
-			ChunkID:  chunk.ChunkID,
-			SourceID: chunk.SourceID,
-			Content:  excerpt,
-			Distance: chunk.Score,
+			ChunkID:    chunk.ChunkID,
+			SourceID:   chunk.SourceID,
+			DocumentID: chunk.DocumentID,
+			Content:    excerpt,
+			Distance:   chunk.Score,
 		})
 	}
 

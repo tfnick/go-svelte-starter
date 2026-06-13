@@ -10,6 +10,7 @@ import (
 	"github.com/tfnick/go-svelte-starter/api/providers/embedding/localhash"
 	"github.com/tfnick/go-svelte-starter/api/usecase"
 	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/embedding"
+	"github.com/tfnick/go-svelte-starter/api/usecase/integrations/llm"
 	"github.com/tfnick/sqlx"
 )
 
@@ -49,6 +50,80 @@ func (a fakeEmbeddingAdapter) Embed(_ context.Context, cfg embedding.ProviderCon
 		ProviderModelID: cfg.ProviderModelID,
 		Dimensions:      64,
 		Usage:           embedding.Usage{PromptTokens: len(req.Texts), TotalTokens: len(req.Texts)},
+	}, nil
+}
+
+type supportChatLLMAdapter struct {
+	t *testing.T
+}
+
+func (a supportChatLLMAdapter) Generate(_ context.Context, cfg llm.ProviderConfig, req llm.GenerateRequest) (llm.GenerateResult, error) {
+	a.t.Helper()
+	if cfg.ChannelCode != "kb-chat-llm" || cfg.ModelCode != "deepseek-chat" {
+		a.t.Fatalf("unexpected LLM config: %#v", cfg)
+	}
+	if len(req.Messages) < 2 || !strings.Contains(req.Messages[1].Content, "Local fallback answer") {
+		a.t.Fatalf("expected retrieved KB context in LLM prompt: %#v", req.Messages)
+	}
+	return llm.GenerateResult{
+		Content:           "Local fallback answer",
+		ProviderRequestID: "kb-chat-llm-request",
+		Usage:             llm.Usage{PromptTokens: 10, CompletionTokens: 3, TotalTokens: 13},
+	}, nil
+}
+
+type supportChatConfiguredEmbeddingAdapter struct {
+	t *testing.T
+}
+
+func (a supportChatConfiguredEmbeddingAdapter) Embed(_ context.Context, cfg embedding.ProviderConfig, req embedding.EmbedRequest) (embedding.EmbedResult, error) {
+	a.t.Helper()
+	if cfg.ChannelCode != "kb-chat-configured-embedding" {
+		a.t.Fatalf("unexpected embedding channel code: %s", cfg.ChannelCode)
+	}
+	if cfg.ModelCode != "qwen3-embedding-4b" || cfg.ProviderModelID != "Qwen/Qwen3-Embedding-4B" {
+		a.t.Fatalf("unexpected embedding model mapping: %#v", cfg)
+	}
+	dimensions, ok := req.Params["dimensions"].(int)
+	if !ok || dimensions != 64 || req.Params["encoding_format"] != "float" {
+		a.t.Fatalf("expected configured chat embedding dimensions=64, got %#v", req.Params)
+	}
+	if len(req.Texts) == 0 {
+		a.t.Fatalf("expected embedding texts")
+	}
+
+	vectors := make([]embedding.Vector, len(req.Texts))
+	for i := range req.Texts {
+		values := make([]float32, 64)
+		values[0] = 1
+		vectors[i] = embedding.Vector{Values: values}
+	}
+
+	return embedding.EmbedResult{
+		Vectors:         vectors,
+		ModelCode:       cfg.ModelCode,
+		ProviderModelID: cfg.ProviderModelID,
+		Dimensions:      64,
+		Usage:           embedding.Usage{PromptTokens: len(req.Texts), TotalTokens: len(req.Texts)},
+	}, nil
+}
+
+type supportChatConfiguredLLMAdapter struct {
+	t *testing.T
+}
+
+func (a supportChatConfiguredLLMAdapter) Generate(_ context.Context, cfg llm.ProviderConfig, req llm.GenerateRequest) (llm.GenerateResult, error) {
+	a.t.Helper()
+	if cfg.ChannelCode != "kb-chat-configured-llm" || cfg.ModelCode != "deepseek-chat" {
+		a.t.Fatalf("unexpected LLM config: %#v", cfg)
+	}
+	if len(req.Messages) < 2 || !strings.Contains(req.Messages[1].Content, "Pigsty is a PostgreSQL distribution") {
+		a.t.Fatalf("expected Pigsty KB context in LLM prompt: %#v", req.Messages)
+	}
+	return llm.GenerateResult{
+		Content:           "Pigsty is a PostgreSQL distribution and observability stack.",
+		ProviderRequestID: "kb-chat-configured-llm-request",
+		Usage:             llm.Usage{PromptTokens: 10, CompletionTokens: 8, TotalTokens: 18},
 	}, nil
 }
 
@@ -172,6 +247,220 @@ func TestIndexDocumentUsesDefaultLocalHashEmbeddingConfig(t *testing.T) {
 	}
 	if chunk.EmbeddingModelCode != "local-hash-64" || chunk.EmbeddingProviderModelID != "local-hash-64" || chunk.EmbeddingDimensions != 64 {
 		t.Fatalf("unexpected chunk embedding metadata: %#v", chunk)
+	}
+}
+
+func TestGenerateSupportAnswerFallsBackToLocalHashWhenDefaultEmbeddingCredentialIsEmpty(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+
+	embeddingAdapterKey := "embedding.local_hash_64.test.chat-fallback"
+	if err := usecase.RegisterEmbeddingAdapter(embeddingAdapterKey, localhash.NewAdapter(64)); err != nil {
+		t.Fatalf("register local embedding adapter: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_channels
+		SET adapter_key = ?
+		WHERE scenario = 'embedding' AND channel_code = 'local-hash-64'
+	`, embeddingAdapterKey); err != nil {
+		t.Fatalf("isolate local embedding adapter key: %v", err)
+	}
+
+	source, err := models.CreateKnowledgeSource(t.Context(), models.SaveKnowledgeSourceCmd{
+		ID:         "kb-chat-fallback-source",
+		Title:      "Chat Fallback Source",
+		SourceType: models.KBSourceTypeManual,
+		Enabled:    true,
+		Content:    "Local fallback answer is available from the local hash knowledge base.",
+	})
+	if err != nil {
+		t.Fatalf("create knowledge source: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	if _, err := appDB.Exec(`
+		UPDATE integration_operation_configs
+		SET channel_code = 'local-hash-64', model_code = 'local-hash-64'
+		WHERE scenario = 'embedding' AND operation = 'embedding_create'
+	`); err != nil {
+		t.Fatalf("select local embedding operation config for indexing: %v", err)
+	}
+	if err := usecase.IndexDocument(ctx, usecase.IndexDocumentCmd{DocumentID: source.DocumentID}); err != nil {
+		t.Fatalf("index document with local embedding: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_operation_configs
+		SET channel_code = 'siliconflow-qwen3-embedding', model_code = 'qwen3-embedding-0.6b'
+		WHERE scenario = 'embedding' AND operation = 'embedding_create'
+	`); err != nil {
+		t.Fatalf("restore default SiliconFlow embedding operation: %v", err)
+	}
+	unconfiguredExternalAdapterKey := "embedding.siliconflow.test.chat-unconfigured"
+	if err := usecase.RegisterEmbeddingAdapter(unconfiguredExternalAdapterKey, localhash.NewAdapter(64)); err != nil {
+		t.Fatalf("register unconfigured external embedding adapter placeholder: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_channels
+		SET adapter_key = ?
+		WHERE scenario = 'embedding' AND channel_code = 'siliconflow-qwen3-embedding'
+	`, unconfiguredExternalAdapterKey); err != nil {
+		t.Fatalf("isolate unconfigured external embedding adapter key: %v", err)
+	}
+
+	seedDeepSeekChannelOnlyConfig(t, appDB, "kb-chat-llm", "kb-chat-llm-key")
+	llmAdapterKey := "llm.deepseek.kb-chat-fallback"
+	if err := usecase.RegisterLLMAdapter(llmAdapterKey, supportChatLLMAdapter{t: t}); err != nil {
+		t.Fatalf("register LLM adapter: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_channels
+		SET adapter_key = ?
+		WHERE scenario = 'llm' AND channel_code = 'kb-chat-llm'
+	`, llmAdapterKey); err != nil {
+		t.Fatalf("isolate LLM adapter key: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		INSERT INTO integration_model_options (
+			id, scenario, channel_id, model_code, provider_model_id, default_params_json, enabled
+		) VALUES ('kb-chat-llm-model', 'llm', 'kb-chat-llm-channel', 'deepseek-chat', 'deepseek-chat', '{}', 1)
+	`); err != nil {
+		t.Fatalf("insert LLM model option for chat: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_operation_configs
+		SET channel_code = 'kb-chat-llm', model_code = 'deepseek-chat'
+		WHERE scenario = 'llm' AND operation = 'text_summary'
+	`); err != nil {
+		t.Fatalf("select LLM operation config for chat: %v", err)
+	}
+
+	conversation, err := usecase.StartSupportConversation(ctx, usecase.StartConversationCmd{
+		VisitorID:  "kb-chat-fallback-visitor",
+		VisitorIP:  "127.0.0.1",
+		SourcePage: "/app",
+	})
+	if err != nil {
+		t.Fatalf("start support conversation: %v", err)
+	}
+
+	response, err := usecase.GenerateSupportAnswer(ctx, usecase.SupportChatMessageCmd{
+		ConversationID: conversation.ConversationID,
+		Message:        "Local fallback answer is available from the local hash knowledge base.",
+	})
+	if err != nil {
+		t.Fatalf("generate support answer: %v; cause: %v", err, fwusecase.LogErrorOf(err))
+	}
+	if response.Message != "Local fallback answer" || len(response.Citations) == 0 {
+		t.Fatalf("expected answer with citations from local fallback, got %#v", response)
+	}
+}
+
+func TestGenerateSupportAnswerUsesConfiguredExternalEmbeddingForSearch(t *testing.T) {
+	manager := setupUsecaseOrderTxDB(t)
+	appDB, err := manager.GetDB("app")
+	if err != nil {
+		t.Fatalf("get app db: %v", err)
+	}
+
+	seedEmbeddingChannelOnlyConfig(t, appDB, "kb-chat-configured-embedding", "kb-chat-configured-api-key")
+	embeddingAdapterKey := "embedding.siliconflow.test.chat-configured"
+	if err := usecase.RegisterEmbeddingAdapter(embeddingAdapterKey, supportChatConfiguredEmbeddingAdapter{t: t}); err != nil {
+		t.Fatalf("register configured embedding adapter: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_channels
+		SET adapter_key = ?
+		WHERE scenario = 'embedding' AND channel_code = 'kb-chat-configured-embedding'
+	`, embeddingAdapterKey); err != nil {
+		t.Fatalf("isolate configured embedding adapter key: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		INSERT INTO integration_model_options (
+			id, scenario, channel_id, model_code, provider_model_id, default_params_json, enabled
+		) VALUES (
+			'kb-chat-configured-embedding-model',
+			'embedding',
+			'kb-chat-configured-embedding-channel',
+			'qwen3-embedding-4b',
+			'Qwen/Qwen3-Embedding-4B',
+			'{"dimensions":64,"encoding_format":"float"}',
+			1
+		)
+	`); err != nil {
+		t.Fatalf("insert configured embedding model option: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_operation_configs
+		SET channel_code = 'kb-chat-configured-embedding', model_code = 'qwen3-embedding-4b'
+		WHERE scenario = 'embedding' AND operation = 'embedding_create'
+	`); err != nil {
+		t.Fatalf("select configured embedding operation config: %v", err)
+	}
+
+	source, err := models.CreateKnowledgeSource(t.Context(), models.SaveKnowledgeSourceCmd{
+		ID:         "kb-chat-configured-source",
+		Title:      "Pigsty Source",
+		SourceType: models.KBSourceTypeManual,
+		Enabled:    true,
+		Content:    "Pigsty is a PostgreSQL distribution and observability stack for production databases.",
+	})
+	if err != nil {
+		t.Fatalf("create knowledge source: %v", err)
+	}
+
+	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
+	if err := usecase.IndexDocument(ctx, usecase.IndexDocumentCmd{DocumentID: source.DocumentID}); err != nil {
+		t.Fatalf("index configured external embedding document: %v", err)
+	}
+
+	seedDeepSeekChannelOnlyConfig(t, appDB, "kb-chat-configured-llm", "kb-chat-configured-llm-key")
+	llmAdapterKey := "llm.deepseek.kb-chat-configured"
+	if err := usecase.RegisterLLMAdapter(llmAdapterKey, supportChatConfiguredLLMAdapter{t: t}); err != nil {
+		t.Fatalf("register configured LLM adapter: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_channels
+		SET adapter_key = ?
+		WHERE scenario = 'llm' AND channel_code = 'kb-chat-configured-llm'
+	`, llmAdapterKey); err != nil {
+		t.Fatalf("isolate configured LLM adapter key: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		INSERT INTO integration_model_options (
+			id, scenario, channel_id, model_code, provider_model_id, default_params_json, enabled
+		) VALUES ('kb-chat-configured-llm-model', 'llm', 'kb-chat-configured-llm-channel', 'deepseek-chat', 'deepseek-chat', '{}', 1)
+	`); err != nil {
+		t.Fatalf("insert configured LLM model option: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_operation_configs
+		SET channel_code = 'kb-chat-configured-llm', model_code = 'deepseek-chat'
+		WHERE scenario = 'llm' AND operation = 'text_summary'
+	`); err != nil {
+		t.Fatalf("select configured LLM operation config: %v", err)
+	}
+
+	conversation, err := usecase.StartSupportConversation(ctx, usecase.StartConversationCmd{
+		VisitorID:  "kb-chat-configured-visitor",
+		VisitorIP:  "127.0.0.1",
+		SourcePage: "/app",
+	})
+	if err != nil {
+		t.Fatalf("start configured support conversation: %v", err)
+	}
+
+	response, err := usecase.GenerateSupportAnswer(ctx, usecase.SupportChatMessageCmd{
+		ConversationID: conversation.ConversationID,
+		Message:        "pigsty是什么？",
+	})
+	if err != nil {
+		t.Fatalf("generate configured support answer: %v; cause: %v", err, fwusecase.LogErrorOf(err))
+	}
+	if !strings.Contains(response.Message, "Pigsty") || len(response.Citations) == 0 {
+		t.Fatalf("expected configured provider answer with citations, got %#v", response)
 	}
 }
 

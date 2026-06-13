@@ -1557,6 +1557,8 @@ DB:
 kb_sources(id, title, source_type, enabled, index_status, content_hash, last_index_error, ...)
 kb_documents(id, source_id, title, content, extracted_text, content_hash, enabled, index_status, last_index_error, ...)
 kb_chunks(id, source_id, document_id, chunk_index, content, embedding_model_code, embedding_dimensions, ...)
+kb_chunk_embedding_vec(rowid, embedding float[64])
+support_answer_citations(id, message_id, conversation_id, chunk_id, source_id, document_id, snippet, distance, ...)
 integration_operation_configs(scenario='embedding', operation='embedding_create', channel_code, model_code, enabled, ...)
 ```
 
@@ -1573,9 +1575,13 @@ integration_operation_configs(scenario='embedding', operation='embedding_create'
 * Fresh installs must seed `embedding_create` to SiliconFlow: channel `siliconflow-qwen3-embedding`, adapter `embedding.siliconflow.openai_compatible`, provider `siliconflow`, credential type `api_key`, model code `qwen3-embedding-0.6b`, provider model `Qwen/Qwen3-Embedding-0.6B`, default params `{"dimensions":64,"encoding_format":"float"}`.
 * The seeded SiliconFlow credential value is empty until an admin enters a real API key in `Parameter > Embedding`; missing credentials fail safely and must not delete existing chunks.
 * `embedding.local_hash_64` remains a local/dev fallback. It should only be used when `integration_operation_configs` explicitly selects the local channel/model, not as the default fresh-install operation.
+* Support chat query embedding may use `embedding.local_hash_64` as a runtime fallback only when the selected external embedding provider is incomplete because `base_url` or credential value is missing. This preserves already-indexed local/dev KB chunks after the default operation has moved to SiliconFlow.
+* Support chat must not fall back to local hash after an actual external provider request failure. A configured-but-failing provider should surface a safe internal error so the admin can fix the provider/API key.
 * Embedding providers must only be selected when the provider returns vectors compatible with the fixed `kb_chunk_embedding_vec` schema (`float[64]`). Provider request failures must not delete existing chunks.
 * SiliconFlow embedding channels use config JSON `{"base_url":"https://api.siliconflow.cn","model":"Qwen/Qwen3-Embedding-0.6B","dimensions":64,"encoding_format":"float","endpoint_path":"/v1/embeddings"}` by default. The request contract is `POST {base_url}{endpoint_path}` with `Authorization: Bearer <api_key>`, `Content-Type: application/json`, and body `{"model":"Qwen/Qwen3-Embedding-0.6B","input":["chunk text"],"dimensions":64,"encoding_format":"float"}`.
 * KB indexing must use the embedding adapter registry and `embeddingProviderConfig`. Do not add KB-specific imports of `api/providers/*` or hard-coded provider branches in KB usecases.
+* `SearchKnowledgeChunks` must keep sqlite-vec `embedding MATCH ?` and `k = ?` inside a direct `kb_chunk_embedding_vec` subquery, then join business tables and apply the final `LIMIT ?`. Putting `k` in the outer joined query can still be missed by sqlite-vec and fail with `A LIMIT or 'k = ?' constraint is required on vec0 knn queries`.
+* Retrieved KB chunks used by support chat must carry `chunk_id`, `source_id`, `document_id`, source title, content, and distance. Citation persistence requires `document_id`; constructing citation rows from partial chunk metadata can fail the `support_answer_citations.document_id` foreign key.
 
 Successful source response includes:
 
@@ -1603,9 +1609,13 @@ Successful source response includes:
 | reindex produces no chunks | `CodeValidation`, safe message `document content produced no indexable chunks`; status becomes `failed` |
 | missing embedding channel/config | `CodeInternal`, status `failed`, `last_index_error` mentions `Parameter > Embedding` |
 | default SiliconFlow config present but API key empty | provider config validation fails safely; status becomes `failed`; old chunks are preserved |
+| support chat with default SiliconFlow config but empty API key and enabled local hash config | query embedding falls back to `embedding.local_hash_64`; existing local/dev KB chunks can still be retrieved and cited |
+| support chat external provider configured but provider call fails | `CodeInternal`, safe message `failed to generate question embedding`; no local fallback masks the provider failure |
 | SiliconFlow remote embedding selected and credential configured | adapter calls `/v1/embeddings` with `model`, batch `input`, `dimensions`, and `encoding_format`; stored chunk dimensions are `64` |
 | explicit local embedding config selected | reindex succeeds without `base_url` or credential value; stored chunk dimensions are `64` |
 | embedding generation/store failure | `CodeInternal`, status `failed`, old chunks are preserved until replacement can succeed |
+| vector search omits sqlite-vec `k` constraint or places it outside the direct vec0 scan | model query can fail before returning chunks; tests must catch the full chat retrieval path |
+| support chat citation is built without `document_id` | citation insert fails with a foreign key error; retriever metadata must include `document_id` |
 
 ### 5. Good/Base/Bad Cases
 
@@ -1617,6 +1627,8 @@ Base: A historical document has empty `content` and empty `extracted_text`; rein
 
 Base: A new install has not entered a SiliconFlow API key yet; KB reindex fails with guidance to configure `Parameter > Embedding` and preserves any existing chunks.
 
+Base: A logged-in user opens the home page chat after the default embedding operation moved to SiliconFlow but before an API key is configured; if the KB was indexed with local hash, query embedding falls back to local hash and can still retrieve/cite existing chunks.
+
 Base: Admin explicitly selects the local hash fallback for development; KB reindex records `embedding_model_code="local-hash-64"` and `embedding_dimensions=64`.
 
 Base: Admin configures SiliconFlow API key and keeps default Qwen3 0.6B/dimensions settings; the adapter posts batch input to `https://api.siliconflow.cn/v1/embeddings` and parses `data[].embedding`.
@@ -1627,9 +1639,11 @@ Bad: Reindex deletes old chunks before validating content and embedding configur
 
 Bad: KB indexing imports `api/providers/embedding/siliconflow` directly or switches on provider names in the KB usecase; this bypasses the registry boundary used by other integrations.
 
+Bad: `SQLiteVecRetriever` returns only `ChunkID`, `SourceID`, and content; support chat citations need `DocumentID` too, otherwise citation insert can fail.
+
 ### 6. Tests Required
 
-* `api/usecase/kb_embedding_test.go` covers SiliconFlow channel-only config, explicit local hash fallback, empty content validation, source/document status mirroring, old chunk preservation on invalid reindex, embedding guidance, and child document creation under requested source.
+* `api/usecase/kb_embedding_test.go` covers SiliconFlow channel-only config, explicit local hash fallback, support chat local-hash query fallback when default SiliconFlow credentials are empty, support chat configured external embedding search, sqlite-vec retrieval, citation persistence, empty content validation, source/document status mirroring, old chunk preservation on invalid reindex, embedding guidance, and child document creation under requested source.
 * `api/providers/embedding/siliconflow/siliconflow_test.go` covers SiliconFlow `/v1/embeddings` request/response mapping, default endpoint path, and provider error classification.
 * `api/models/integration_test.go` covers seeded default SiliconFlow embedding config, local fallback availability, and provider-specific fallback model mapping.
 * `api/usecase/parameter_test.go` covers SiliconFlow embedding schema, local embedding schema, and no-credential channel creation.
@@ -1673,6 +1687,31 @@ result, err := adapter.Embed(ctx, providerCfg, request)
 adapter, ok := registeredEmbeddingAdapter(embedCfg.Channel.AdapterKey)
 providerCfg, err := embeddingProviderConfig(embedCfg)
 embedResult, err := adapter.Embed(ctx, providerCfg, request)
+```
+
+#### Wrong
+
+```sql
+FROM kb_chunk_embedding_vec v
+JOIN kb_chunks c ON c.id = ...
+WHERE v.embedding MATCH ?
+  AND c.enabled = 1
+ORDER BY v.distance
+LIMIT ?
+```
+
+#### Correct
+
+```sql
+FROM (
+  SELECT rowid, distance
+  FROM kb_chunk_embedding_vec
+  WHERE embedding MATCH ?
+    AND k = ?
+) v
+JOIN kb_chunks c ON c.id = ...
+ORDER BY v.distance
+LIMIT ?
 ```
 
 ---

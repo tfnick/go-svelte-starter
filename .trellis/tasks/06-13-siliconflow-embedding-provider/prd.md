@@ -107,6 +107,7 @@ Completed scope:
 * KB indexing/reindexing still uses the unified embedding config lookup and adapter registry; it now passes SiliconFlow model/dimension/encoding settings through `embeddingProviderConfig`.
 * Chunk embedding metadata uses the actual adapter result model metadata, so a configured Qwen3 model override is recorded correctly.
 * Backend spec was updated for Parameter Embedding and KB embedding provider contracts.
+* Follow-up fix: support chat query embedding falls back to `embedding.local_hash_64` only when the selected external embedding config is incomplete because `base_url` or credential value is missing, preserving existing local/dev KB search before a SiliconFlow API key is configured. The same fix also adds the sqlite-vec `v.k = ?` KNN constraint and carries `document_id` through retrieved chunks so support chat citations persist successfully.
 
 Quality gates run:
 

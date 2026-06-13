@@ -4,10 +4,12 @@ import "context"
 
 // Chunk represents a retrieved knowledge-base chunk with its metadata.
 type Chunk struct {
-	ChunkID  string
-	SourceID string
-	Content  string
-	Score    float64
+	ChunkID    string
+	SourceID   string
+	DocumentID string
+	SourceName string
+	Content    string
+	Score      float64
 }
 
 // Retriever searches for relevant chunks given a query embedding.

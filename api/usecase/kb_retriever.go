@@ -48,10 +48,12 @@ func (r *SQLiteVecRetriever) Search(ctx context.Context, queryEmbedding []float3
 			continue
 		}
 		chunks = append(chunks, kb.Chunk{
-			ChunkID:  result.ChunkID,
-			SourceID: result.SourceID,
-			Content:  result.Content,
-			Score:    result.Distance,
+			ChunkID:    result.ChunkID,
+			SourceID:   result.SourceID,
+			DocumentID: result.DocumentID,
+			SourceName: result.Title,
+			Content:    result.Content,
+			Score:      result.Distance,
 		})
 	}
 

@@ -1,7 +1,9 @@
 package usecase
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +12,15 @@ import (
 )
 
 const embeddingOperationCreate = embedding.OperationCreate
+
+const localHashEmbeddingChannelCode = "local-hash-64"
+const localHashEmbeddingModelCode = "local-hash-64"
+
+var (
+	errEmbeddingAdapterNotRegistered  = errors.New("embedding adapter not registered")
+	errEmbeddingChannelBaseURLMissing = errors.New("channel base_url is required")
+	errEmbeddingCredentialMissing     = errors.New("credential is empty")
+)
 
 type embeddingChannelConfig struct {
 	BaseURL        string `json:"base_url"`
@@ -30,12 +41,12 @@ func embeddingProviderConfig(config models.IntegrationEmbeddingConfig) (embeddin
 		}
 	}
 	if strings.TrimSpace(channelConfig.BaseURL) == "" && !isLocalHashEmbeddingAdapter(config.Channel.AdapterKey) {
-		return embedding.ProviderConfig{}, fmt.Errorf("channel base_url is required")
+		return embedding.ProviderConfig{}, errEmbeddingChannelBaseURLMissing
 	}
 
 	apiKey := config.Credential.ValueText
 	if strings.TrimSpace(apiKey) == "" && !isLocalHashEmbeddingAdapter(config.Channel.AdapterKey) {
-		return embedding.ProviderConfig{}, fmt.Errorf("credential is empty")
+		return embedding.ProviderConfig{}, errEmbeddingCredentialMissing
 	}
 
 	modelSettings := map[string]interface{}{}
@@ -85,6 +96,62 @@ func embeddingProviderConfig(config models.IntegrationEmbeddingConfig) (embeddin
 		ModelSettings:    modelSettings,
 		ProviderSettings: providerSettings,
 	}, nil
+}
+
+type embeddingRuntimeConfig struct {
+	Config         models.IntegrationEmbeddingConfig
+	Adapter        embedding.Adapter
+	ProviderConfig embedding.ProviderConfig
+}
+
+func embeddingRuntimeForConfig(config models.IntegrationEmbeddingConfig) (embeddingRuntimeConfig, error) {
+	adapter, ok := registeredEmbeddingAdapter(config.Channel.AdapterKey)
+	if !ok {
+		return embeddingRuntimeConfig{}, fmt.Errorf("%w: %s", errEmbeddingAdapterNotRegistered, config.Channel.AdapterKey)
+	}
+
+	providerConfig, err := embeddingProviderConfig(config)
+	if err != nil {
+		return embeddingRuntimeConfig{}, err
+	}
+
+	return embeddingRuntimeConfig{
+		Config:         config,
+		Adapter:        adapter,
+		ProviderConfig: providerConfig,
+	}, nil
+}
+
+func supportChatEmbeddingRuntime(ctx context.Context, config models.IntegrationEmbeddingConfig) (embeddingRuntimeConfig, error) {
+	runtime, err := embeddingRuntimeForConfig(config)
+	if err == nil {
+		return runtime, nil
+	}
+	if !shouldFallbackToLocalHashEmbedding(config, err) {
+		return embeddingRuntimeConfig{}, err
+	}
+
+	localConfig, localErr := models.GetEnabledEmbeddingConfig(ctx, models.EmbeddingConfigQuery{
+		Scenario:    models.IntegrationScenarioEmbedding,
+		ChannelCode: localHashEmbeddingChannelCode,
+		ModelCode:   localHashEmbeddingModelCode,
+	})
+	if localErr != nil {
+		return embeddingRuntimeConfig{}, fmt.Errorf("%w; local hash fallback unavailable: %v", err, localErr)
+	}
+
+	localRuntime, localErr := embeddingRuntimeForConfig(localConfig)
+	if localErr != nil {
+		return embeddingRuntimeConfig{}, fmt.Errorf("%w; local hash fallback invalid: %v", err, localErr)
+	}
+	return localRuntime, nil
+}
+
+func shouldFallbackToLocalHashEmbedding(config models.IntegrationEmbeddingConfig, err error) bool {
+	if isLocalHashEmbeddingAdapter(config.Channel.AdapterKey) {
+		return false
+	}
+	return errors.Is(err, errEmbeddingCredentialMissing) || errors.Is(err, errEmbeddingChannelBaseURLMissing)
 }
 
 func isLocalHashEmbeddingAdapter(adapterKey string) bool {

@@ -471,6 +471,12 @@ func SearchKnowledgeChunks(ctx context.Context, embeddingJSON string, limit int)
 	if limit <= 0 {
 		limit = 5
 	}
+	// sqlite-vec requires the MATCH/k constraints to stay inside the direct vec0
+	// scan; wrap it in a subquery before joining and post-filtering business rows.
+	candidateLimit := limit
+	if candidateLimit < 20 {
+		candidateLimit = 20
+	}
 	d, err := db.ExecutorFor(ctx, "app")
 	if err != nil {
 		return nil, fmt.Errorf("database unavailable: %w", err)
@@ -480,18 +486,22 @@ func SearchKnowledgeChunks(ctx context.Context, embeddingJSON string, limit int)
 	SELECT
 	  c.id AS chunk_id, c.source_id, c.document_id, s.title, s.source_type, s.source_url,
 	  c.content, v.distance, c.embedding_model_code, c.embedding_provider_model_id
-	FROM kb_chunk_embedding_vec v
+	FROM (
+	  SELECT rowid, distance
+	  FROM kb_chunk_embedding_vec
+	  WHERE embedding MATCH ?
+	    AND k = ?
+	) v
 	JOIN kb_embedding_rows er ON er.vector_rowid = v.rowid
 	JOIN kb_chunks c ON c.id = er.chunk_id
 	JOIN kb_sources s ON s.id = c.source_id
 	JOIN kb_documents d ON d.id = c.document_id
-	WHERE v.embedding MATCH ?
-	  AND c.enabled = 1
+	WHERE c.enabled = 1
 	  AND d.enabled = 1
 	  AND s.enabled = 1
 	  AND c.embedding_status = ?
 	ORDER BY v.distance
-	LIMIT ?`, embeddingJSON, KBEmbeddingStatusEmbedded, limit)
+	LIMIT ?`, embeddingJSON, candidateLimit, KBEmbeddingStatusEmbedded, limit)
 	return rows, err
 }
 
