@@ -178,6 +178,14 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 	if embeddingDimension == 0 && len(embedResult.Vectors) > 0 {
 		embeddingDimension = len(embedResult.Vectors[0].Values)
 	}
+	embeddingModelCode := embedResult.ModelCode
+	if embeddingModelCode == "" {
+		embeddingModelCode = embedCfg.Model.ModelCode
+	}
+	embeddingProviderModelID := embedResult.ProviderModelID
+	if embeddingProviderModelID == "" {
+		embeddingProviderModelID = embedCfg.Model.ProviderModelID
+	}
 
 	for i, c := range chunks {
 		embeddingJSON, err := json.Marshal(embedResult.Vectors[i].Values)
@@ -194,8 +202,8 @@ func indexDocumentInternal(ctx context.Context, documentID string) error {
 			ContentHash:              c.ContentHash,
 			TokenCount:               c.TokenCount,
 			CharCount:                c.CharCount,
-			EmbeddingModelCode:       embedCfg.Model.ModelCode,
-			EmbeddingProviderModelID: embedCfg.Model.ProviderModelID,
+			EmbeddingModelCode:       embeddingModelCode,
+			EmbeddingProviderModelID: embeddingProviderModelID,
 			EmbeddingDimensions:      embeddingDimension,
 			EmbeddingJSON:            string(embeddingJSON),
 		}

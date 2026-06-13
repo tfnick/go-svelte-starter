@@ -22,14 +22,14 @@ func (a fakeEmbeddingAdapter) Embed(_ context.Context, cfg embedding.ProviderCon
 	if cfg.ChannelCode != "kb-embedding-channel-only" {
 		a.t.Fatalf("unexpected embedding channel code: %s", cfg.ChannelCode)
 	}
-	if cfg.ModelCode != "deepseek-embedding" || cfg.ProviderModelID != "deepseek-embedding" {
+	if cfg.ModelCode != "qwen3-embedding-4b" || cfg.ProviderModelID != "Qwen/Qwen3-Embedding-4B" {
 		a.t.Fatalf("unexpected embedding model mapping: %#v", cfg)
 	}
-	if cfg.ProviderSettings["api_style"] != "deepseek_embedding" || cfg.ProviderSettings["endpoint_path"] != "/v1/embedding" {
+	if cfg.ProviderSettings["endpoint_path"] != "/v1/embeddings" {
 		a.t.Fatalf("expected channel embedding endpoint settings, got %#v", cfg.ProviderSettings)
 	}
-	dimensions, ok := req.Params["dimensions"].(float64)
-	if !ok || dimensions != 64 {
+	dimensions, ok := req.Params["dimensions"].(int)
+	if !ok || dimensions != 64 || req.Params["encoding_format"] != "float" {
 		a.t.Fatalf("expected dimensions=64 from model defaults, got %#v", req.Params)
 	}
 	if len(req.Texts) == 0 {
@@ -60,7 +60,7 @@ func TestIndexDocumentUsesEmbeddingChannelOnlyConfig(t *testing.T) {
 	}
 	seedEmbeddingChannelOnlyConfig(t, appDB, "kb-embedding-channel-only", "kb-embedding-api-key")
 
-	if err := usecase.RegisterEmbeddingAdapter("embedding.deepseek.openai_compatible", fakeEmbeddingAdapter{t: t}); err != nil {
+	if err := usecase.RegisterEmbeddingAdapter("embedding.siliconflow.openai_compatible", fakeEmbeddingAdapter{t: t}); err != nil {
 		t.Fatalf("register fake embedding adapter: %v", err)
 	}
 
@@ -100,7 +100,7 @@ func TestIndexDocumentUsesEmbeddingChannelOnlyConfig(t *testing.T) {
 		LIMIT 1`, source.DocumentID); err != nil {
 		t.Fatalf("load chunk: %v", err)
 	}
-	if chunk.EmbeddingModelCode != "deepseek-embedding" || chunk.EmbeddingProviderModelID != "deepseek-embedding" || chunk.EmbeddingDimensions != 64 {
+	if chunk.EmbeddingModelCode != "qwen3-embedding-4b" || chunk.EmbeddingProviderModelID != "Qwen/Qwen3-Embedding-4B" || chunk.EmbeddingDimensions != 64 {
 		t.Fatalf("unexpected chunk embedding metadata: %#v", chunk)
 	}
 }
@@ -121,6 +121,13 @@ func TestIndexDocumentUsesDefaultLocalHashEmbeddingConfig(t *testing.T) {
 		WHERE scenario = 'embedding' AND channel_code = 'local-hash-64'
 	`, adapterKey); err != nil {
 		t.Fatalf("isolate local embedding adapter key: %v", err)
+	}
+	if _, err := appDB.Exec(`
+		UPDATE integration_operation_configs
+		SET channel_code = 'local-hash-64', model_code = 'local-hash-64'
+		WHERE scenario = 'embedding' AND operation = 'embedding_create'
+	`); err != nil {
+		t.Fatalf("select local embedding operation config: %v", err)
 	}
 
 	source, err := models.CreateKnowledgeSource(t.Context(), models.SaveKnowledgeSourceCmd{
@@ -411,7 +418,7 @@ func seedEmbeddingChannelOnlyConfig(t *testing.T, appDB *sqlx.DB, channelCode st
 	if _, err := appDB.Exec(appDB.Rebind(`
 		INSERT INTO integration_channels (
 			id, scenario, channel_code, provider_code, adapter_key, environment, enabled, priority, credential_id, config_json
-		) VALUES (?, 'embedding', ?, 'deepseek', 'embedding.deepseek.openai_compatible', 'test', 1, 1, ?, '{"base_url":"https://api.deepseek.com","api_style":"deepseek_embedding","endpoint_path":"/v1/embedding"}')
+		) VALUES (?, 'embedding', ?, 'siliconflow', 'embedding.siliconflow.openai_compatible', 'test', 1, 1, ?, '{"base_url":"https://api.siliconflow.cn","model":"Qwen/Qwen3-Embedding-4B","dimensions":64,"encoding_format":"float","endpoint_path":"/v1/embeddings"}')
 	`), channelID, channelCode, credentialID); err != nil {
 		t.Fatalf("insert embedding channel: %v", err)
 	}

@@ -15,7 +15,7 @@
   const scenarios = [
     { key: 'payment', label: 'Payment', defaultProvider: 'creem', defaultAdapter: 'payment.creem.hosted_checkout', credentialType: 'payment_bundle' },
     { key: 'llm', label: 'LLM', defaultProvider: 'deepseek', defaultAdapter: 'llm.deepseek.openai_compatible', credentialType: 'api_key' },
-    { key: 'embedding', label: 'Embedding', defaultProvider: 'local', defaultAdapter: 'embedding.local_hash_64', credentialType: 'none' },
+    { key: 'embedding', label: 'Embedding', defaultProvider: 'siliconflow', defaultAdapter: 'embedding.siliconflow.openai_compatible', credentialType: 'api_key' },
     { key: 'sms', label: 'SMS', defaultProvider: 'aliyun', defaultAdapter: 'sms.aliyun.adapter', credentialType: 'api_key' },
     { key: 'email', label: 'Email', defaultProvider: 'aliyun', defaultAdapter: 'email.aliyun.smtp', credentialType: 'smtp_password' },
     { key: 'oss', label: 'OSS', defaultProvider: 'cloudflare_r2', defaultAdapter: 'oss.cloudflare_r2.s3_compatible', credentialType: 's3_access_key' }

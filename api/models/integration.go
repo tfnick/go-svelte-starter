@@ -21,12 +21,13 @@ const (
 	IntegrationScenarioOSS       = "oss"
 	IntegrationScenarioEmbedding = "embedding"
 
-	deepSeekOpenAICompatibleAdapterKey          = "llm.deepseek.openai_compatible"
-	deepSeekEmbeddingOpenAICompatibleAdapterKey = "embedding.deepseek.openai_compatible"
-	localHashEmbeddingAdapterKey                = "embedding.local_hash_64"
-	defaultDeepSeekModelCode                    = "deepseek-chat"
-	defaultDeepSeekEmbeddingModelCode           = "deepseek-embedding"
-	defaultLocalHashEmbeddingModelCode          = "local-hash-64"
+	deepSeekOpenAICompatibleAdapterKey             = "llm.deepseek.openai_compatible"
+	siliconFlowEmbeddingOpenAICompatibleAdapterKey = "embedding.siliconflow.openai_compatible"
+	localHashEmbeddingAdapterKey                   = "embedding.local_hash_64"
+	defaultDeepSeekModelCode                       = "deepseek-chat"
+	defaultSiliconFlowEmbeddingModelCode           = "qwen3-embedding-0.6b"
+	defaultSiliconFlowEmbeddingProviderModelID     = "Qwen/Qwen3-Embedding-0.6B"
+	defaultLocalHashEmbeddingModelCode             = "local-hash-64"
 
 	IntegrationInvocationStatusStarted   = "started"
 	IntegrationInvocationStatusSucceeded = "succeeded"
@@ -903,8 +904,8 @@ func defaultEmbeddingModelOptionForChannel(scenario string, channel IntegrationC
 			CostPolicyJSON:    "{}",
 			Enabled:           1,
 		}, true
-	case deepSeekEmbeddingOpenAICompatibleAdapterKey:
-		if normalizedModelCode != "" && normalizedModelCode != defaultDeepSeekEmbeddingModelCode {
+	case siliconFlowEmbeddingOpenAICompatibleAdapterKey:
+		if normalizedModelCode != "" && normalizedModelCode != defaultSiliconFlowEmbeddingModelCode {
 			return IntegrationModelOption{}, false
 		}
 	default:
@@ -914,10 +915,10 @@ func defaultEmbeddingModelOptionForChannel(scenario string, channel IntegrationC
 	return IntegrationModelOption{
 		Scenario:          IntegrationScenarioEmbedding,
 		ChannelID:         channel.ID,
-		ModelCode:         defaultDeepSeekEmbeddingModelCode,
-		ProviderModelID:   defaultDeepSeekEmbeddingModelCode,
+		ModelCode:         defaultSiliconFlowEmbeddingModelCode,
+		ProviderModelID:   defaultSiliconFlowEmbeddingProviderModelID,
 		CapabilitiesJSON:  "{}",
-		DefaultParamsJSON: `{"dimensions":64}`,
+		DefaultParamsJSON: `{"dimensions":64,"encoding_format":"float"}`,
 		CostPolicyJSON:    "{}",
 		Enabled:           1,
 	}, true

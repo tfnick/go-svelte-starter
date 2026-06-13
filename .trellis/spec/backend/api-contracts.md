@@ -1169,8 +1169,8 @@ Modify `Parameter` management, external integration channel configuration, crede
 Backend API:
 
 ```text
-GET   /api/admin/parameters/integration-schemas?scenario=payment|llm|sms|email|oss
-GET   /api/admin/parameters/integration-channels?scenario=payment|llm|sms|email|oss
+GET   /api/admin/parameters/integration-schemas?scenario=payment|llm|embedding|sms|email|oss
+GET   /api/admin/parameters/integration-channels?scenario=payment|llm|embedding|sms|email|oss
 POST  /api/admin/parameters/integration-channels
 PUT   /api/admin/parameters/integration-channels/:id
 PATCH /api/admin/parameters/integration-channels/:id/enabled
@@ -1215,10 +1215,10 @@ integration_credentials(id, credential_type, value_text, enabled, rotated_at)
 dictionary_types(type_key='integration_environment')
 dictionary_values(value_code='test'|'production')
 dictionary_types(type_key='integration_credential_type')
-dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_access_key')
+dictionary_values(value_code='none'|'payment_bundle'|'api_key'|'smtp_password'|'s3_access_key')
 ```
 
-`smtp_password` is present in baseline `002_seed.sql` and is also backfilled for already-migrated databases by `008_add_email_integration_seed.sql`. `s3_access_key` is present in baseline `002_seed.sql` and is backfilled by `011_add_oss_integration_seed.sql`.
+`none` is backfilled by the local embedding migration for channels that do not need external credentials. `smtp_password` is present in baseline `002_seed.sql` and is also backfilled for already-migrated databases by `008_add_email_integration_seed.sql`. `s3_access_key` is present in baseline `002_seed.sql` and is backfilled by `011_add_oss_integration_seed.sql`.
 
 ### 3. Contracts
 
@@ -1238,6 +1238,8 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_acce
 | --- | --- | --- | --- | --- | --- |
 | `payment.creem.hosted_checkout` | `payment` | `creem` | `json_object` | `base_url` required URL, `product_id` required text, optional `success_url` URL, optional `units` number | `api_key`, `webhook_secret` |
 | `llm.deepseek.openai_compatible` | `llm` | `deepseek` | `plain` | `base_url` required URL | `api_key` |
+| `embedding.siliconflow.openai_compatible` | `embedding` | `siliconflow` | `plain` | `base_url` required URL default `https://api.siliconflow.cn`, `model` required option default `Qwen/Qwen3-Embedding-0.6B`, optional `dimensions` number default `64`, optional `encoding_format` option default `float`, optional `endpoint_path` default `/v1/embeddings` | `api_key` |
+| `embedding.local_hash_64` | `embedding` | `local` | `plain` | none | none; credential type `none` |
 | `sms.aliyun.adapter` | `sms` | `aliyun` | `plain` | optional `base_url` URL, optional `sign_name` text, optional `template_code` text | `api_key` |
 | `email.aliyun.smtp` | `email` | `aliyun` | `json_object` | `smtp_host` required text default `smtp.qiye.aliyun.com`, `smtp_port` required number default `465`, `security` required option default `ssl`, `from_email` required text, optional `from_name` text | `username`, `password` with help text reminding admins to use the mailbox client authorization password instead of the account login password |
 | `email.resend.api` | `email` | `resend` | `plain` | `base_url` required URL default `https://api.resend.com`, `from_email` required text, optional `from_name` text | `api_key` |
@@ -1246,8 +1248,8 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_acce
 
 * API only manages `integration_channels + integration_credentials`; it does not manage `integration_operation_configs`, `integration_model_options`, policy, webhook receipts, invocation raw data, provider request/response, prompt, stream chunks, OSS upload/download runtime, presigned URLs, or artifact lifecycle.
 * Parameter APIs are protected internal admin configuration APIs. Routes must run behind `RequireAuth()` and `RequireAdmin()`; admin access is represented by `users.is_admin=1`.
-* `scenario` only allows `payment`, `llm`, `sms`, `email`, and `oss`.
-* `credential_type` uses the `integration_credential_type` dictionary. Current seeded values are `payment_bundle`, `api_key`, `smtp_password`, and `s3_access_key`; save usecases reject values that are not enabled dictionary values.
+* `scenario` only allows `payment`, `llm`, `embedding`, `sms`, `email`, and `oss`.
+* `credential_type` uses the `integration_credential_type` dictionary. Current seeded values are `none`, `payment_bundle`, `api_key`, `smtp_password`, and `s3_access_key`; save usecases reject values that are not enabled dictionary values.
 * `config_json` and `metadata_json` must be JSON objects and may only contain non-sensitive config. Obvious sensitive keys such as `api_key`, `secret`, `password`, `token`, and `private_key` are rejected recursively, including inside arrays.
 * OSS `use_path_style` is an optional boolean addressing-style override. Cloudflare R2 schema defaults it to `true`; Aliyun OSS should usually omit it so the provider adapter uses AWS SDK virtual-hosted addressing by default.
 * create requires `credential_value`; update with empty `credential_value` preserves the existing credential value.
@@ -1287,6 +1289,10 @@ Good: Create a `payment.creem.hosted_checkout` channel with non-sensitive `base_
 
 Good: Create an `email.aliyun.smtp` channel with SMTP host/port/security/from fields in `config_json`, and username/password in admin-managed `credential_value`.
 
+Good: Create an `embedding.siliconflow.openai_compatible` channel with non-sensitive base URL, model, dimensions, encoding format, and endpoint path in `config_json`, and the SiliconFlow API key in admin-managed `credential_value`.
+
+Base: Create an `embedding.local_hash_64` development fallback channel with `credential_type="none"` and empty `credential_value`.
+
 Good: Create an `oss.cloudflare_r2.s3_compatible` channel with R2 endpoint/bucket/region/use_path_style in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API.
 
 Good: Create an `oss.aliyun_oss.s3_compatible` channel with Aliyun OSS endpoint/bucket/region in `config_json`, and access key id plus secret access key in admin-managed `credential_value`; no OSS SDK call is made by the Parameter API and virtual-hosted addressing remains the adapter default.
@@ -1305,7 +1311,7 @@ Bad: Enforce primary-provider uniqueness only in the frontend. The backend trans
 
 * `api/models/integration_test.go` covers channel/credential CRUD, admin credential value view, duplicate conflict, OSS primary uniqueness, and clearing primary on disable.
 * `api/usecase/dictionary_test.go` covers seeded `integration_credential_type` values, including `smtp_password` and `s3_access_key`.
-* `api/usecase/parameter_test.go` covers schema listing including OSS `use_path_style`, credential value persistence, empty value preservation, non-empty value update, sensitive JSON key rejection including arrays, schema required field validation, URL validation, plain vs JSON object credential formats, enable/disable, OSS primary at-most-one behavior, zero-primary behavior, and non-OSS primary normalization.
+* `api/usecase/parameter_test.go` covers schema listing including SiliconFlow Embedding, Local Hash Embedding, OSS `use_path_style`, credential value persistence, empty value preservation, non-empty value update, sensitive JSON key rejection including arrays, schema required field validation, URL validation, plain vs JSON object credential formats, no-credential local embedding channels, enable/disable, OSS primary at-most-one behavior, zero-primary behavior, and non-OSS primary normalization.
 * `api/routes/parameter_test.go` covers schema route DTO, internal envelope, DTO without legacy plaintext/ciphertext/masked fields, create response, `is_primary` mapping, and enable/disable response.
 * `frontend/src/api.test.js` covers parameter helper paths, HTTP methods, encoded IDs, `is_primary`, and bodies.
 * `frontend/src/router.test.js` covers `/parameters`, `/parameters.html`, menu label, and title.
@@ -1564,10 +1570,12 @@ integration_operation_configs(scenario='embedding', operation='embedding_create'
 * Reindex failure updates both source and document `index_status`/`last_index_error` through `UpdateKnowledgeIndexStatus`.
 * Index replacement should preserve old chunks until the new content is indexable and embeddings are ready to store; `ReplaceKnowledgeDocumentChunks` owns the final delete-and-insert step.
 * Embedding config for indexing is resolved from `scenario=embedding` and `operation=embedding_create`; admin guidance must point to `Parameter > Embedding`.
-* Fresh installs must seed `embedding_create` to the local 64-dimensional provider: channel `local-hash-64`, adapter `embedding.local_hash_64`, provider `local`, credential type `none`, model `local-hash-64`, default params `{"dimensions":64}`. This avoids KB indexing depending on an external embedding API by default.
-* External embedding providers may still be configured under `Parameter > Embedding`; they must only be selected when the provider returns vectors compatible with the fixed `kb_chunk_embedding_vec` schema (`float[64]`). Provider request failures must not delete existing chunks.
-* DeepSeek embedding channels use config JSON `{"base_url":"https://api.deepseek.com","api_style":"deepseek_embedding","endpoint_path":"/v1/embedding"}` by default. The request contract is `POST {base_url}{endpoint_path}` with `Authorization: Bearer <api_key>`, `Content-Type: application/json`, and body `{"text":"chunk text"}`. The primary response contract is `{"embedding":[...]}`.
-* The same adapter can run OpenAI-compatible embeddings only when config JSON explicitly sets `{"api_style":"openai_compatible"}`. That path sends body `{"model":"...","input":["..."],"dimensions":64}` to the configured endpoint path, defaulting to `embeddings`.
+* Fresh installs must seed `embedding_create` to SiliconFlow: channel `siliconflow-qwen3-embedding`, adapter `embedding.siliconflow.openai_compatible`, provider `siliconflow`, credential type `api_key`, model code `qwen3-embedding-0.6b`, provider model `Qwen/Qwen3-Embedding-0.6B`, default params `{"dimensions":64,"encoding_format":"float"}`.
+* The seeded SiliconFlow credential value is empty until an admin enters a real API key in `Parameter > Embedding`; missing credentials fail safely and must not delete existing chunks.
+* `embedding.local_hash_64` remains a local/dev fallback. It should only be used when `integration_operation_configs` explicitly selects the local channel/model, not as the default fresh-install operation.
+* Embedding providers must only be selected when the provider returns vectors compatible with the fixed `kb_chunk_embedding_vec` schema (`float[64]`). Provider request failures must not delete existing chunks.
+* SiliconFlow embedding channels use config JSON `{"base_url":"https://api.siliconflow.cn","model":"Qwen/Qwen3-Embedding-0.6B","dimensions":64,"encoding_format":"float","endpoint_path":"/v1/embeddings"}` by default. The request contract is `POST {base_url}{endpoint_path}` with `Authorization: Bearer <api_key>`, `Content-Type: application/json`, and body `{"model":"Qwen/Qwen3-Embedding-0.6B","input":["chunk text"],"dimensions":64,"encoding_format":"float"}`.
+* KB indexing must use the embedding adapter registry and `embeddingProviderConfig`. Do not add KB-specific imports of `api/providers/*` or hard-coded provider branches in KB usecases.
 
 Successful source response includes:
 
@@ -1594,9 +1602,9 @@ Successful source response includes:
 | reindex empty document/extracted text | `CodeValidation`, safe message `document content is required before indexing`; status becomes `failed` |
 | reindex produces no chunks | `CodeValidation`, safe message `document content produced no indexable chunks`; status becomes `failed` |
 | missing embedding channel/config | `CodeInternal`, status `failed`, `last_index_error` mentions `Parameter > Embedding` |
-| default local embedding config present | reindex succeeds without `base_url` or credential value; stored chunk dimensions are `64` |
-| DeepSeek remote embedding selected | adapter calls `/v1/embedding` with `text`; it must not call `/embeddings` with `input/model` unless `api_style=openai_compatible` |
-| invalid embedding `api_style` | provider validation error, status `failed`, old chunks are preserved |
+| default SiliconFlow config present but API key empty | provider config validation fails safely; status becomes `failed`; old chunks are preserved |
+| SiliconFlow remote embedding selected and credential configured | adapter calls `/v1/embeddings` with `model`, batch `input`, `dimensions`, and `encoding_format`; stored chunk dimensions are `64` |
+| explicit local embedding config selected | reindex succeeds without `base_url` or credential value; stored chunk dimensions are `64` |
 | embedding generation/store failure | `CodeInternal`, status `failed`, old chunks are preserved until replacement can succeed |
 
 ### 5. Good/Base/Bad Cases
@@ -1607,22 +1615,24 @@ Good: Admin adds a document under an existing source; the new row has the reques
 
 Base: A historical document has empty `content` and empty `extracted_text`; reindex returns a validation envelope instead of a 500, and the row records `last_index_error="document has no content"`.
 
-Base: A new install has never configured an external embedding API; KB reindex still works through the seeded local provider and records `embedding_model_code="local-hash-64"`.
+Base: A new install has not entered a SiliconFlow API key yet; KB reindex fails with guidance to configure `Parameter > Embedding` and preserves any existing chunks.
 
-Base: Admin selects a DeepSeek remote embedding channel created from the Parameter schema defaults; the adapter posts each chunk as `{"text":"..."}` to `https://api.deepseek.com/v1/embedding` and parses the top-level `embedding` array.
+Base: Admin explicitly selects the local hash fallback for development; KB reindex records `embedding_model_code="local-hash-64"` and `embedding_dimensions=64`.
+
+Base: Admin configures SiliconFlow API key and keeps default Qwen3 0.6B/dimensions settings; the adapter posts batch input to `https://api.siliconflow.cn/v1/embeddings` and parses `data[].embedding`.
 
 Bad: `CreateKBDocument` calls `CreateKnowledgeSource`; that creates a new source and breaks the UI's source/document hierarchy.
 
 Bad: Reindex deletes old chunks before validating content and embedding configuration; a failed retry should not destroy a previously usable index.
 
-Bad: A DeepSeek remote embedding channel posts `{"model":"...","input":[...]}` to `/embeddings` while the configured provider expects `/v1/embedding` and `{"text":"..."}`; this causes `embedding generation failed: embedding provider request failed` on reindex.
+Bad: KB indexing imports `api/providers/embedding/siliconflow` directly or switches on provider names in the KB usecase; this bypasses the registry boundary used by other integrations.
 
 ### 6. Tests Required
 
-* `api/usecase/kb_embedding_test.go` covers default local hash embedding, empty content validation, source/document status mirroring, old chunk preservation on invalid reindex, embedding guidance, and child document creation under requested source.
-* `api/providers/embedding/deepseek/deepseek_test.go` covers DeepSeek `/v1/embedding` request/response mapping, multi-chunk request fan-out, explicit OpenAI-compatible request/response mapping, and provider error classification.
-* `api/models/integration_test.go` covers seeded default local embedding config and provider-specific fallback model mapping.
-* `api/usecase/parameter_test.go` covers local embedding schema, DeepSeek embedding `api_style`/`endpoint_path` defaults, and no-credential channel creation.
+* `api/usecase/kb_embedding_test.go` covers SiliconFlow channel-only config, explicit local hash fallback, empty content validation, source/document status mirroring, old chunk preservation on invalid reindex, embedding guidance, and child document creation under requested source.
+* `api/providers/embedding/siliconflow/siliconflow_test.go` covers SiliconFlow `/v1/embeddings` request/response mapping, default endpoint path, and provider error classification.
+* `api/models/integration_test.go` covers seeded default SiliconFlow embedding config, local fallback availability, and provider-specific fallback model mapping.
+* `api/usecase/parameter_test.go` covers SiliconFlow embedding schema, local embedding schema, and no-credential channel creation.
 * `api/routes/kb_test.go` covers `KBSourceResponse.description` for frontend edit round-trips.
 * `go test ./...`
 * If frontend KB page or helpers change, also run `cd frontend && npm test` and `cd frontend && npm run build`.
@@ -1650,16 +1660,19 @@ doc, err := models.CreateKBDocument(ctx.Std(), models.SaveKBDocumentCmd{
 
 #### Wrong
 
-```json
-POST https://api.deepseek.com/embeddings
-{"model":"deepseek-embedding","input":["chunk text"],"dimensions":64}
+```go
+import "github.com/tfnick/go-svelte-starter/api/providers/embedding/siliconflow"
+
+adapter := siliconflow.NewAdapter(nil)
+result, err := adapter.Embed(ctx, providerCfg, request)
 ```
 
 #### Correct
 
-```json
-POST https://api.deepseek.com/v1/embedding
-{"text":"chunk text"}
+```go
+adapter, ok := registeredEmbeddingAdapter(embedCfg.Channel.AdapterKey)
+providerCfg, err := embeddingProviderConfig(embedCfg)
+embedResult, err := adapter.Embed(ctx, providerCfg, request)
 ```
 
 ---

@@ -24,8 +24,8 @@ import (
 	"github.com/tfnick/go-svelte-starter/api/framework/logging"
 	"github.com/tfnick/go-svelte-starter/api/framework/queue"
 	fwusecase "github.com/tfnick/go-svelte-starter/api/framework/usecase"
-	deepseekembedding "github.com/tfnick/go-svelte-starter/api/providers/embedding/deepseek"
 	localhashembedding "github.com/tfnick/go-svelte-starter/api/providers/embedding/localhash"
+	siliconflowembedding "github.com/tfnick/go-svelte-starter/api/providers/embedding/siliconflow"
 	deepseekllm "github.com/tfnick/go-svelte-starter/api/providers/llm/deepseek"
 	githuboauth "github.com/tfnick/go-svelte-starter/api/providers/oauth/github"
 	googleoauth "github.com/tfnick/go-svelte-starter/api/providers/oauth/google"
@@ -103,7 +103,7 @@ func main() {
 	if err := appusecase.RegisterLLMAdapter("llm.deepseek.openai_compatible", deepseekllm.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register LLM adapter")
 	}
-	if err := appusecase.RegisterEmbeddingAdapter("embedding.deepseek.openai_compatible", deepseekembedding.NewAdapter(nil)); err != nil {
+	if err := appusecase.RegisterEmbeddingAdapter("embedding.siliconflow.openai_compatible", siliconflowembedding.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register embedding adapter")
 	}
 	if err := appusecase.RegisterEmbeddingAdapter("embedding.local_hash_64", localhashembedding.NewAdapter(64)); err != nil {

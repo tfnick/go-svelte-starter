@@ -84,7 +84,7 @@ func TestGetEnabledLLMConfigFallsBackToDefaultDeepSeekModelForChannelOnlyConfig(
 	}
 }
 
-func TestGetEnabledEmbeddingConfigFallsBackToDefaultDeepSeekModelForChannelOnlyConfig(t *testing.T) {
+func TestGetEnabledEmbeddingConfigFallsBackToDefaultSiliconFlowModelForChannelOnlyConfig(t *testing.T) {
 	setupModelsTestDB(t)
 
 	credential, err := models.CreateIntegrationCredential(t.Context(), models.CreateIntegrationCredentialCmd{
@@ -98,13 +98,13 @@ func TestGetEnabledEmbeddingConfigFallsBackToDefaultDeepSeekModelForChannelOnlyC
 	channel, err := models.CreateIntegrationChannel(t.Context(), models.CreateIntegrationChannelCmd{
 		Scenario:     models.IntegrationScenarioEmbedding,
 		ChannelCode:  "models-embedding-channel-only",
-		ProviderCode: "deepseek",
-		AdapterKey:   "embedding.deepseek.openai_compatible",
+		ProviderCode: "siliconflow",
+		AdapterKey:   "embedding.siliconflow.openai_compatible",
 		Environment:  "test",
 		Enabled:      true,
 		Priority:     1,
 		CredentialID: credential.ID,
-		ConfigJSON:   `{"base_url":"https://api.deepseek.com"}`,
+		ConfigJSON:   `{"base_url":"https://api.siliconflow.cn","endpoint_path":"/v1/embeddings"}`,
 		MetadataJSON: "{}",
 	})
 	if err != nil {
@@ -122,10 +122,10 @@ func TestGetEnabledEmbeddingConfigFallsBackToDefaultDeepSeekModelForChannelOnlyC
 	if config.Channel.ID != channel.ID {
 		t.Fatalf("unexpected channel: %#v", config.Channel)
 	}
-	if config.Model.ModelCode != "deepseek-embedding" || config.Model.ProviderModelID != "deepseek-embedding" {
+	if config.Model.ModelCode != "qwen3-embedding-0.6b" || config.Model.ProviderModelID != "Qwen/Qwen3-Embedding-0.6B" {
 		t.Fatalf("unexpected fallback embedding model option: %#v", config.Model)
 	}
-	if config.Model.DefaultParamsJSON != `{"dimensions":64}` {
+	if config.Model.DefaultParamsJSON != `{"dimensions":64,"encoding_format":"float"}` {
 		t.Fatalf("unexpected fallback embedding params: %q", config.Model.DefaultParamsJSON)
 	}
 	if config.Credential.ValueText != "models-embedding-api-key" {
@@ -133,7 +133,7 @@ func TestGetEnabledEmbeddingConfigFallsBackToDefaultDeepSeekModelForChannelOnlyC
 	}
 }
 
-func TestGetEnabledEmbeddingConfigUsesDefaultLocalHashProvider(t *testing.T) {
+func TestGetEnabledEmbeddingConfigUsesDefaultSiliconFlowProvider(t *testing.T) {
 	setupModelsTestDB(t)
 
 	config, err := models.GetEnabledEmbeddingConfig(t.Context(), models.EmbeddingConfigQuery{
@@ -144,17 +144,17 @@ func TestGetEnabledEmbeddingConfigUsesDefaultLocalHashProvider(t *testing.T) {
 		t.Fatalf("get enabled embedding config: %v", err)
 	}
 
-	if config.Channel.ChannelCode != "local-hash-64" || config.Channel.AdapterKey != "embedding.local_hash_64" {
+	if config.Channel.ChannelCode != "siliconflow-qwen3-embedding" || config.Channel.AdapterKey != "embedding.siliconflow.openai_compatible" {
 		t.Fatalf("unexpected default embedding channel: %#v", config.Channel)
 	}
-	if config.Model.ModelCode != "local-hash-64" || config.Model.ProviderModelID != "local-hash-64" {
+	if config.Model.ModelCode != "qwen3-embedding-0.6b" || config.Model.ProviderModelID != "Qwen/Qwen3-Embedding-0.6B" {
 		t.Fatalf("unexpected default embedding model option: %#v", config.Model)
 	}
-	if config.Model.DefaultParamsJSON != `{"dimensions":64}` {
+	if config.Model.DefaultParamsJSON != `{"dimensions":64,"encoding_format":"float"}` {
 		t.Fatalf("unexpected fallback embedding params: %q", config.Model.DefaultParamsJSON)
 	}
-	if config.Credential.CredentialType != "none" || config.Credential.ValueText != "" {
-		t.Fatalf("unexpected local embedding credential: %#v", config.Credential)
+	if config.Credential.CredentialType != "api_key" || config.Credential.ValueText != "" {
+		t.Fatalf("unexpected SiliconFlow embedding credential: %#v", config.Credential)
 	}
 }
 

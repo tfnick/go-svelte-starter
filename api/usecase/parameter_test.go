@@ -218,29 +218,37 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 	if len(embeddingSchemas) != 2 {
 		t.Fatalf("expected two Embedding schemas, got %#v", embeddingSchemas)
 	}
-	if embeddingSchemas[0].AdapterKey != "embedding.local_hash_64" || embeddingSchemas[0].ProviderCode != "local" {
+	if embeddingSchemas[0].AdapterKey != "embedding.siliconflow.openai_compatible" || embeddingSchemas[0].ProviderCode != "siliconflow" {
 		t.Fatalf("unexpected default Embedding schema: %#v", embeddingSchemas[0])
 	}
-	if embeddingSchemas[0].CredentialType != "none" || len(embeddingSchemas[0].CredentialFields) != 0 {
-		t.Fatalf("unexpected local Embedding credential schema: %#v", embeddingSchemas[0])
+	if embeddingSchemas[0].CredentialType != "api_key" || embeddingSchemas[0].CredentialFormat != usecase.ParameterIntegrationCredentialFormatPlain {
+		t.Fatalf("unexpected SiliconFlow Embedding credential schema: %#v", embeddingSchemas[0])
 	}
-	if embeddingSchemas[1].AdapterKey != "embedding.deepseek.openai_compatible" || embeddingSchemas[1].ProviderCode != "deepseek" {
-		t.Fatalf("unexpected DeepSeek Embedding schema: %#v", embeddingSchemas[1])
-	}
-	if embeddingSchemas[1].CredentialType != "api_key" || embeddingSchemas[1].CredentialFormat != usecase.ParameterIntegrationCredentialFormatPlain {
-		t.Fatalf("unexpected DeepSeek Embedding credential schema: %#v", embeddingSchemas[1])
-	}
-	embeddingBaseURLField, ok := schemaFieldByKey(embeddingSchemas[1].ConfigFields, "base_url")
-	if !ok || embeddingBaseURLField.Kind != usecase.ParameterIntegrationSchemaFieldURL || embeddingBaseURLField.DefaultValue != "https://api.deepseek.com" {
+	embeddingBaseURLField, ok := schemaFieldByKey(embeddingSchemas[0].ConfigFields, "base_url")
+	if !ok || embeddingBaseURLField.Kind != usecase.ParameterIntegrationSchemaFieldURL || embeddingBaseURLField.DefaultValue != "https://api.siliconflow.cn" {
 		t.Fatalf("unexpected Embedding base_url field: %#v", embeddingBaseURLField)
 	}
-	embeddingAPIStyleField, ok := schemaFieldByKey(embeddingSchemas[1].ConfigFields, "api_style")
-	if !ok || embeddingAPIStyleField.DefaultValue != "deepseek_embedding" || len(embeddingAPIStyleField.Options) != 2 {
-		t.Fatalf("unexpected Embedding api_style field: %#v", embeddingAPIStyleField)
+	embeddingModelField, ok := schemaFieldByKey(embeddingSchemas[0].ConfigFields, "model")
+	if !ok || embeddingModelField.DefaultValue != "Qwen/Qwen3-Embedding-0.6B" || len(embeddingModelField.Options) != 3 {
+		t.Fatalf("unexpected Embedding model field: %#v", embeddingModelField)
 	}
-	embeddingEndpointPathField, ok := schemaFieldByKey(embeddingSchemas[1].ConfigFields, "endpoint_path")
-	if !ok || embeddingEndpointPathField.DefaultValue != "/v1/embedding" {
+	embeddingDimensionsField, ok := schemaFieldByKey(embeddingSchemas[0].ConfigFields, "dimensions")
+	if !ok || embeddingDimensionsField.Kind != usecase.ParameterIntegrationSchemaFieldNumber || embeddingDimensionsField.DefaultValue != "64" {
+		t.Fatalf("unexpected Embedding dimensions field: %#v", embeddingDimensionsField)
+	}
+	embeddingEncodingField, ok := schemaFieldByKey(embeddingSchemas[0].ConfigFields, "encoding_format")
+	if !ok || embeddingEncodingField.DefaultValue != "float" || len(embeddingEncodingField.Options) != 1 {
+		t.Fatalf("unexpected Embedding encoding_format field: %#v", embeddingEncodingField)
+	}
+	embeddingEndpointPathField, ok := schemaFieldByKey(embeddingSchemas[0].ConfigFields, "endpoint_path")
+	if !ok || embeddingEndpointPathField.DefaultValue != "/v1/embeddings" {
 		t.Fatalf("unexpected Embedding endpoint_path field: %#v", embeddingEndpointPathField)
+	}
+	if embeddingSchemas[1].AdapterKey != "embedding.local_hash_64" || embeddingSchemas[1].ProviderCode != "local" {
+		t.Fatalf("unexpected local Embedding schema: %#v", embeddingSchemas[1])
+	}
+	if embeddingSchemas[1].CredentialType != "none" || len(embeddingSchemas[1].CredentialFields) != 0 {
+		t.Fatalf("unexpected local Embedding credential schema: %#v", embeddingSchemas[1])
 	}
 
 	smsSchemas, err := usecase.ListParameterIntegrationSchemas(ctx, usecase.ListParameterIntegrationSchemasQry{
@@ -383,12 +391,12 @@ func TestParameterIntegrationChannelAcceptsPlainCredentialSchema(t *testing.T) {
 
 	embeddingChannel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
 		Scenario:        models.IntegrationScenarioEmbedding,
-		ChannelCode:     "schema-deepseek-embedding",
-		ProviderCode:    "deepseek",
-		AdapterKey:      "embedding.deepseek.openai_compatible",
+		ChannelCode:     "schema-siliconflow-embedding",
+		ProviderCode:    "siliconflow",
+		AdapterKey:      "embedding.siliconflow.openai_compatible",
 		Environment:     "test",
 		Enabled:         true,
-		ConfigJSON:      `{"base_url":"https://api.deepseek.com"}`,
+		ConfigJSON:      `{"base_url":"https://api.siliconflow.cn","model":"Qwen/Qwen3-Embedding-0.6B","dimensions":64,"encoding_format":"float","endpoint_path":"/v1/embeddings"}`,
 		MetadataJSON:    "{}",
 		CredentialType:  "api_key",
 		CredentialValue: "sk_embedding",
@@ -432,11 +440,11 @@ func TestParameterIntegrationChannelClearsCredentialWhenUpdatedToLocalEmbedding(
 	channel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
 		Scenario:        models.IntegrationScenarioEmbedding,
 		ChannelCode:     "schema-embedding-switch",
-		ProviderCode:    "deepseek",
-		AdapterKey:      "embedding.deepseek.openai_compatible",
+		ProviderCode:    "siliconflow",
+		AdapterKey:      "embedding.siliconflow.openai_compatible",
 		Environment:     "test",
 		Enabled:         true,
-		ConfigJSON:      `{"base_url":"https://api.deepseek.com"}`,
+		ConfigJSON:      `{"base_url":"https://api.siliconflow.cn","model":"Qwen/Qwen3-Embedding-0.6B","dimensions":64,"encoding_format":"float","endpoint_path":"/v1/embeddings"}`,
 		MetadataJSON:    "{}",
 		CredentialType:  "api_key",
 		CredentialValue: "sk_embedding",
