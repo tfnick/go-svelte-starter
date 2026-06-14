@@ -209,6 +209,28 @@ func TestListParameterIntegrationSchemasFiltersByScenario(t *testing.T) {
 		t.Fatalf("payment API URL must be a free URL input, got %#v", baseURLField)
 	}
 
+	llmSchemas, err := usecase.ListParameterIntegrationSchemas(ctx, usecase.ListParameterIntegrationSchemasQry{
+		Scenario: models.IntegrationScenarioLLM,
+	})
+	if err != nil {
+		t.Fatalf("list LLM schemas: %v", err)
+	}
+	if len(llmSchemas) != 2 {
+		t.Fatalf("expected two LLM schemas, got %#v", llmSchemas)
+	}
+	if llmSchemas[0].AdapterKey != "llm.deepseek.openai_compatible" || llmSchemas[0].ProviderCode != "deepseek" {
+		t.Fatalf("unexpected DeepSeek LLM schema: %#v", llmSchemas[0])
+	}
+	if llmSchemas[0].ModelDictionaryType != "llm_model_deepseek" {
+		t.Fatalf("expected DeepSeek LLM model dictionary, got %#v", llmSchemas[0])
+	}
+	if llmSchemas[1].AdapterKey != "llm.siliconflow.openai_compatible" || llmSchemas[1].ProviderCode != "siliconflow" {
+		t.Fatalf("unexpected SiliconFlow LLM schema: %#v", llmSchemas[1])
+	}
+	if llmSchemas[1].ModelDictionaryType != "llm_model_siliconflow" {
+		t.Fatalf("expected SiliconFlow LLM model dictionary, got %#v", llmSchemas[1])
+	}
+
 	embeddingSchemas, err := usecase.ListParameterIntegrationSchemas(ctx, usecase.ListParameterIntegrationSchemasQry{
 		Scenario: models.IntegrationScenarioEmbedding,
 	})
@@ -379,6 +401,60 @@ func TestParameterIntegrationChannelAcceptsPlainCredentialSchema(t *testing.T) {
 	}
 	if channel.CredentialType != "api_key" || channel.CredentialValue != "sk_deepseek" {
 		t.Fatalf("unexpected channel: %#v", channel)
+	}
+
+	modelChannel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		Scenario:        models.IntegrationScenarioLLM,
+		ChannelCode:     "schema-deepseek-with-model",
+		ProviderCode:    "deepseek",
+		AdapterKey:      "llm.deepseek.openai_compatible",
+		Environment:     "test",
+		Enabled:         true,
+		ConfigJSON:      `{"base_url":"https://api.deepseek.com"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "api_key",
+		CredentialValue: "sk_deepseek_model",
+		ModelCode:       "deepseek-v4-flash",
+		ProviderModelID: "deepseek-v4-flash",
+		Operation:       "chat.completion",
+	})
+	if err != nil {
+		t.Fatalf("create LLM channel with model: %v", err)
+	}
+	if modelChannel.ModelCode != "deepseek-v4-flash" || modelChannel.ProviderModelID != "deepseek-v4-flash" {
+		t.Fatalf("expected created channel to return model selection, got %#v", modelChannel)
+	}
+	modelChannels, err := usecase.ListParameterIntegrationChannels(ctx, usecase.ListParameterIntegrationChannelsQry{
+		Scenario: models.IntegrationScenarioLLM,
+	})
+	if err != nil {
+		t.Fatalf("list LLM channels: %v", err)
+	}
+	listedModelChannel := parameterChannelByCode(modelChannels, "schema-deepseek-with-model")
+	if listedModelChannel.ModelCode != "deepseek-v4-flash" || listedModelChannel.ProviderModelID != "deepseek-v4-flash" {
+		t.Fatalf("expected listed channel to return model selection, got %#v", listedModelChannel)
+	}
+	updatedModelChannel, err := usecase.UpdateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
+		ID:              modelChannel.ID,
+		Scenario:        models.IntegrationScenarioLLM,
+		ChannelCode:     "schema-deepseek-with-model",
+		ProviderCode:    "deepseek",
+		AdapterKey:      "llm.deepseek.openai_compatible",
+		Environment:     "test",
+		Enabled:         true,
+		ConfigJSON:      `{"base_url":"https://api.deepseek.com"}`,
+		MetadataJSON:    "{}",
+		CredentialType:  "api_key",
+		CredentialValue: "",
+		ModelCode:       "deepseek-v4-pro",
+		ProviderModelID: "deepseek-v4-pro",
+		Operation:       "chat.completion",
+	})
+	if err != nil {
+		t.Fatalf("update LLM channel model: %v", err)
+	}
+	if updatedModelChannel.ModelCode != "deepseek-v4-pro" || updatedModelChannel.ProviderModelID != "deepseek-v4-pro" {
+		t.Fatalf("expected updated channel to return new model selection, got %#v", updatedModelChannel)
 	}
 
 	embeddingChannel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
@@ -825,6 +901,15 @@ func countPrimaryChannels(channels []usecase.ParameterIntegrationChannelCo) int 
 func primaryChannel(channels []usecase.ParameterIntegrationChannelCo) usecase.ParameterIntegrationChannelCo {
 	for i := range channels {
 		if channels[i].IsPrimary {
+			return channels[i]
+		}
+	}
+	return usecase.ParameterIntegrationChannelCo{}
+}
+
+func parameterChannelByCode(channels []usecase.ParameterIntegrationChannelCo, channelCode string) usecase.ParameterIntegrationChannelCo {
+	for i := range channels {
+		if channels[i].ChannelCode == channelCode {
 			return channels[i]
 		}
 	}

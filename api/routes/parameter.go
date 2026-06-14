@@ -50,16 +50,17 @@ type ParameterIntegrationSchemaFieldResponse struct {
 }
 
 type ParameterIntegrationAdapterSchemaResponse struct {
-	Scenario         string                                    `json:"scenario"`
-	AdapterKey       string                                    `json:"adapter_key"`
-	Label            string                                    `json:"label"`
-	Description      string                                    `json:"description"`
-	ProviderCode     string                                    `json:"provider_code"`
-	CredentialType   string                                    `json:"credential_type"`
-	CredentialFormat string                                    `json:"credential_format"`
-	AdvancedJSON     bool                                      `json:"advanced_json"`
-	ConfigFields     []ParameterIntegrationSchemaFieldResponse `json:"config_fields"`
-	CredentialFields []ParameterIntegrationSchemaFieldResponse `json:"credential_fields"`
+	Scenario            string                                    `json:"scenario"`
+	AdapterKey          string                                    `json:"adapter_key"`
+	Label               string                                    `json:"label"`
+	Description         string                                    `json:"description"`
+	ProviderCode        string                                    `json:"provider_code"`
+	CredentialType      string                                    `json:"credential_type"`
+	CredentialFormat    string                                    `json:"credential_format"`
+	ModelDictionaryType string                                    `json:"model_dictionary_type"`
+	AdvancedJSON        bool                                      `json:"advanced_json"`
+	ConfigFields        []ParameterIntegrationSchemaFieldResponse `json:"config_fields"`
+	CredentialFields    []ParameterIntegrationSchemaFieldResponse `json:"credential_fields"`
 }
 
 type ParameterIntegrationChannelResponse struct {
@@ -77,6 +78,8 @@ type ParameterIntegrationChannelResponse struct {
 	IsPrimary       bool   `json:"is_primary"`
 	ConfigJSON      string `json:"config_json"`
 	MetadataJSON    string `json:"metadata_json"`
+	ModelCode       string `json:"model_code"`
+	ProviderModelID string `json:"provider_model_id"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
 }
@@ -214,16 +217,17 @@ func toParameterIntegrationSchemaFieldResponses(fields []usecase.ParameterIntegr
 
 func toParameterIntegrationAdapterSchemaResponse(schema usecase.ParameterIntegrationAdapterSchemaCo) ParameterIntegrationAdapterSchemaResponse {
 	return ParameterIntegrationAdapterSchemaResponse{
-		Scenario:         schema.Scenario,
-		AdapterKey:       schema.AdapterKey,
-		Label:            schema.Label,
-		Description:      schema.Description,
-		ProviderCode:     schema.ProviderCode,
-		CredentialType:   schema.CredentialType,
-		CredentialFormat: schema.CredentialFormat,
-		AdvancedJSON:     schema.AdvancedJSON,
-		ConfigFields:     toParameterIntegrationSchemaFieldResponses(schema.ConfigFields),
-		CredentialFields: toParameterIntegrationSchemaFieldResponses(schema.CredentialFields),
+		Scenario:            schema.Scenario,
+		AdapterKey:          schema.AdapterKey,
+		Label:               schema.Label,
+		Description:         schema.Description,
+		ProviderCode:        schema.ProviderCode,
+		CredentialType:      schema.CredentialType,
+		CredentialFormat:    schema.CredentialFormat,
+		ModelDictionaryType: schema.ModelDictionaryType,
+		AdvancedJSON:        schema.AdvancedJSON,
+		ConfigFields:        toParameterIntegrationSchemaFieldResponses(schema.ConfigFields),
+		CredentialFields:    toParameterIntegrationSchemaFieldResponses(schema.CredentialFields),
 	}
 }
 
@@ -251,6 +255,8 @@ func toParameterIntegrationChannelResponse(channel usecase.ParameterIntegrationC
 		IsPrimary:       channel.IsPrimary,
 		ConfigJSON:      channel.ConfigJSON,
 		MetadataJSON:    channel.MetadataJSON,
+		ModelCode:       channel.ModelCode,
+		ProviderModelID: channel.ProviderModelID,
 		CreatedAt:       channel.CreatedAt,
 		UpdatedAt:       channel.UpdatedAt,
 	}

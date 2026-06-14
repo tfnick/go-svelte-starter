@@ -56,6 +56,8 @@ type ParameterIntegrationChannelCo struct {
 	IsPrimary       bool
 	ConfigJSON      string
 	MetadataJSON    string
+	ModelCode       string
+	ProviderModelID string
 	CreatedAt       string
 	UpdatedAt       string
 }
@@ -117,26 +119,12 @@ func CreateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 		}
 
 		if input.ModelCode != "" && input.ProviderModelID != "" {
-			if _, err := models.CreateIntegrationModelOption(txCtx.Std(), models.CreateIntegrationModelOptionCmd{
-				Scenario:        input.Scenario,
-				ChannelID:       created.ID,
-				ModelCode:       input.ModelCode,
-				ProviderModelID: input.ProviderModelID,
-				Enabled:         true,
-			}); err != nil {
-				return fwusecase.E(fwusecase.CodeInternal, "failed to create integration model option", err)
+			if err := saveParameterIntegrationModelSelection(txCtx, created.ID, input); err != nil {
+				return err
 			}
-
-			if input.Operation != "" {
-				if _, err := models.CreateIntegrationOperationConfig(txCtx.Std(), models.CreateIntegrationOperationConfigCmd{
-					Scenario:    input.Scenario,
-					Operation:   input.Operation,
-					ChannelCode: input.ChannelCode,
-					ModelCode:   input.ModelCode,
-					Enabled:     true,
-				}); err != nil {
-					return fwusecase.E(fwusecase.CodeInternal, "failed to create integration operation config", err)
-				}
+			created, err = models.GetIntegrationChannelConfigByID(txCtx.Std(), created.ID)
+			if err != nil {
+				return fwusecase.E(fwusecase.CodeInternal, "failed to reload integration channel", err)
 			}
 		}
 		return nil
@@ -208,12 +196,47 @@ func UpdateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 			}
 			return fwusecase.E(fwusecase.CodeInternal, "failed to update integration channel", err)
 		}
+		if input.ModelCode != "" && input.ProviderModelID != "" {
+			if err := saveParameterIntegrationModelSelection(txCtx, updated.ID, input); err != nil {
+				return err
+			}
+			updated, err = models.GetIntegrationChannelConfigByID(txCtx.Std(), updated.ID)
+			if err != nil {
+				return fwusecase.E(fwusecase.CodeInternal, "failed to reload integration channel", err)
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return ParameterIntegrationChannelCo{}, err
 	}
 	return parameterIntegrationChannelCoFromModel(updated), nil
+}
+
+func saveParameterIntegrationModelSelection(ctx fwusecase.Context, channelID string, input parameterIntegrationChannelInputData) error {
+	if _, err := models.SetIntegrationChannelModelOption(ctx.Std(), models.CreateIntegrationModelOptionCmd{
+		Scenario:        input.Scenario,
+		ChannelID:       channelID,
+		ModelCode:       input.ModelCode,
+		ProviderModelID: input.ProviderModelID,
+		Enabled:         true,
+	}); err != nil {
+		return fwusecase.E(fwusecase.CodeInternal, "failed to save integration model option", err)
+	}
+
+	if input.Operation == "" {
+		return nil
+	}
+	if _, err := models.UpsertIntegrationOperationConfig(ctx.Std(), models.CreateIntegrationOperationConfigCmd{
+		Scenario:    input.Scenario,
+		Operation:   input.Operation,
+		ChannelCode: input.ChannelCode,
+		ModelCode:   input.ModelCode,
+		Enabled:     true,
+	}); err != nil {
+		return fwusecase.E(fwusecase.CodeInternal, "failed to save integration operation config", err)
+	}
+	return nil
 }
 
 func SetParameterIntegrationChannelEnabled(ctx fwusecase.Context, cmd SetParameterIntegrationChannelEnabledCmd) (ParameterIntegrationChannelCo, error) {
@@ -430,6 +453,8 @@ func parameterIntegrationChannelCoFromModel(channel models.IntegrationChannelCon
 		IsPrimary:       (channel.Scenario == models.IntegrationScenarioOSS || channel.Scenario == models.IntegrationScenarioLLM || channel.Scenario == models.IntegrationScenarioEmbedding) && channel.IsPrimary == 1,
 		ConfigJSON:      channel.ConfigJSON,
 		MetadataJSON:    channel.MetadataJSON,
+		ModelCode:       channel.ModelCode,
+		ProviderModelID: channel.ProviderModelID,
 		CreatedAt:       channel.CreatedAt,
 		UpdatedAt:       channel.UpdatedAt,
 	}

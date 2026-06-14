@@ -24,7 +24,6 @@
   const defaultJSON = '{}';
   const environmentDictionaryType = 'integration_environment';
   const credentialTypeDictionaryType = 'integration_credential_type';
-  const modelDictionaryType = 'llm_model';
   const fallbackEnvironmentOptions = [
     { value: 'test', label: 'Test' },
     { value: 'production', label: 'Production' }
@@ -155,7 +154,8 @@
   }
 
   function modelOptions() {
-    return dictionariesByType[modelDictionaryType] || [];
+    const dictionaryType = currentSchema()?.model_dictionary_type || '';
+    return dictionaryType ? dictionariesByType[dictionaryType] || [] : [];
   }
 
   function selectModel(value) {
@@ -204,8 +204,11 @@
   }
 
   async function loadSchemaDictionaries(schemas) {
-    const types = new Set([environmentDictionaryType, credentialTypeDictionaryType, modelDictionaryType]);
+    const types = new Set([environmentDictionaryType, credentialTypeDictionaryType]);
     for (const schema of schemas || []) {
+      if (schema.model_dictionary_type) {
+        types.add(schema.model_dictionary_type);
+      }
       for (const field of [...(schema.config_fields || []), ...(schema.credential_fields || [])]) {
         if (field.dictionary_type) {
           types.add(field.dictionary_type);
@@ -255,8 +258,8 @@
       metadata_json: formatJSON(channel.metadata_json),
       credential_type: channel.credential_type,
       credential_value: channel.credential_value || '',
-      model_code: '',
-      provider_model_id: ''
+      model_code: channel.model_code || '',
+      provider_model_id: channel.provider_model_id || channel.model_code || ''
     };
     syncStructuredStateFromForm();
   }
@@ -272,6 +275,7 @@
     form.credential_type = schema.credential_type || form.credential_type;
     form.config_json = configJSONFromSchema(schema);
     form.credential_value = '';
+    clearInvalidModelSelection();
     syncStructuredStateFromForm();
   }
 
@@ -381,6 +385,23 @@
     structuredCredential = parseCredentialValue(form.credential_value, currentSchema());
     credentialVisibility = {};
     customCredentialVisible = false;
+    clearInvalidModelSelection();
+  }
+
+  function clearInvalidModelSelection() {
+    if (form.scenario !== 'llm' && form.scenario !== 'embedding') {
+      form.model_code = '';
+      form.provider_model_id = '';
+      return;
+    }
+
+    const options = modelOptions();
+    if (options.length === 0 || !form.model_code) {
+      return;
+    }
+    if (!options.some((option) => option.value === form.model_code)) {
+      selectModel('');
+    }
   }
 
   function updateConfigField(field, value) {

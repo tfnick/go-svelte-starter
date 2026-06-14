@@ -1226,8 +1226,9 @@ dictionary_values(value_code='payment_bundle'|'api_key'|'smtp_password'|'s3_acce
 
 * `GET /api/admin/parameters/integration-schemas` 返回 code-owned adapter schema DTO；该 DTO 用于前端动态渲染，也用于后端保存时校验。
 * schema 按 `adapter_key` 定义，DB 只存 `adapter_key` 字符串，不存可执行逻辑。
-* schema DTO 字段包括 `scenario`、`adapter_key`、`label`、`description`、`provider_code`、`credential_type`、`credential_format`、`advanced_json`、`config_fields`、`credential_fields`。
+* schema DTO 字段包括 `scenario`、`adapter_key`、`label`、`description`、`provider_code`、`credential_type`、`credential_format`、`model_dictionary_type`、`advanced_json`、`config_fields`、`credential_fields`。
 * field DTO 字段包括 `key`、`label`、`kind`、`required`、`placeholder`、`help_text`、`default_value`、`dictionary_type`、`sensitive`、`options`。
+* LLM adapter schema 必须暴露 provider-specific `model_dictionary_type`，例如 `llm_model_deepseek` 和 `llm_model_siliconflow`；支持模型不同的 provider 不能共用同一个模型字典。
 * `credential_format` 当前只允许 `plain` 和 `json_object`：`plain` 表示 `credential_value` 是原始字符串；`json_object` 表示 `credential_value` 是 JSON object 字符串。
 * `advanced_json=true` 表示前端可以保留折叠的 Advanced JSON 编辑区；schema 外的额外 `config_json` key 可以保留，但仍不得含敏感 key。
 * provider API URL / `base_url` 这类自由 URL 字段应使用 `kind=url`，且不设置 `dictionary_type` 或 `options`；Payment、LLM、SMS、Email 保持一致由用户输入 URL。
