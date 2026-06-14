@@ -26,16 +26,17 @@ type ListParameterIntegrationSchemasQry struct {
 }
 
 type ParameterIntegrationAdapterSchemaCo struct {
-	Scenario         string
-	AdapterKey       string
-	Label            string
-	Description      string
-	ProviderCode     string
-	CredentialType   string
-	CredentialFormat string
-	AdvancedJSON     bool
-	ConfigFields     []ParameterIntegrationSchemaFieldCo
-	CredentialFields []ParameterIntegrationSchemaFieldCo
+	Scenario            string
+	AdapterKey          string
+	Label               string
+	Description         string
+	ProviderCode        string
+	CredentialType      string
+	CredentialFormat    string
+	ModelDictionaryType string
+	AdvancedJSON        bool
+	ConfigFields        []ParameterIntegrationSchemaFieldCo
+	CredentialFields    []ParameterIntegrationSchemaFieldCo
 }
 
 type ParameterIntegrationSchemaFieldCo struct {
@@ -117,14 +118,15 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 		},
 	},
 	{
-		Scenario:         models.IntegrationScenarioLLM,
-		AdapterKey:       "llm.deepseek.openai_compatible",
-		Label:            "DeepSeek OpenAI Compatible",
-		Description:      "OpenAI-compatible LLM channel for DeepSeek.",
-		ProviderCode:     "deepseek",
-		CredentialType:   "api_key",
-		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
-		AdvancedJSON:     true,
+		Scenario:            models.IntegrationScenarioLLM,
+		AdapterKey:          "llm.deepseek.openai_compatible",
+		Label:               "DeepSeek OpenAI Compatible",
+		Description:         "OpenAI-compatible LLM channel for DeepSeek.",
+		ProviderCode:        "deepseek",
+		CredentialType:      "api_key",
+		CredentialFormat:    ParameterIntegrationCredentialFormatPlain,
+		ModelDictionaryType: "llm_model_deepseek",
+		AdvancedJSON:        true,
 		ConfigFields: []ParameterIntegrationSchemaFieldCo{
 			{
 				Key:          "base_url",
@@ -142,6 +144,36 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 				Required:    true,
 				Sensitive:   true,
 				Placeholder: "sk_...",
+			},
+		},
+	},
+	{
+		Scenario:            models.IntegrationScenarioLLM,
+		AdapterKey:          "llm.siliconflow.openai_compatible",
+		Label:               "SiliconFlow OpenAI Compatible",
+		Description:         "OpenAI-compatible LLM channel for SiliconFlow (aggregated models).",
+		ProviderCode:        "siliconflow",
+		CredentialType:      "api_key",
+		CredentialFormat:    ParameterIntegrationCredentialFormatPlain,
+		ModelDictionaryType: "llm_model_siliconflow",
+		AdvancedJSON:        true,
+		ConfigFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:          "base_url",
+				Label:        "API URL",
+				Kind:         ParameterIntegrationSchemaFieldURL,
+				Required:     true,
+				DefaultValue: "https://api.siliconflow.cn/v1",
+			},
+		},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "api_key",
+				Label:       "API Key",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "sk-...",
 			},
 		},
 	},

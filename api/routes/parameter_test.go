@@ -56,6 +56,74 @@ func TestListParameterIntegrationChannelsReturnsAdminDTO(t *testing.T) {
 	}
 }
 
+func TestListParameterIntegrationChannelsReturnsModelSelectionDTO(t *testing.T) {
+	setupRouteTestDBs(t)
+
+	router := echo.New()
+	body := bytes.NewBufferString(`{
+		"scenario":"llm",
+		"channel_code":"route-deepseek",
+		"provider_code":"deepseek",
+		"adapter_key":"llm.deepseek.openai_compatible",
+		"environment":"test",
+		"enabled":true,
+		"priority":10,
+		"webhook_enabled":false,
+		"config_json":"{\"base_url\":\"https://api.deepseek.com\"}",
+		"metadata_json":"{}",
+		"credential_type":"api_key",
+		"credential_value":"route-deepseek-key",
+		"model_code":"deepseek-v4-flash",
+		"provider_model_id":"deepseek-v4-flash",
+		"operation":"chat.completion"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/parameters/integration-channels", body)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := router.NewContext(req, rec)
+
+	if err := routes.CreateParameterIntegrationChannel(c); err != nil {
+		t.Fatalf("create LLM channel: %v", err)
+	}
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	var createEnvelope struct {
+		Success bool                                       `json:"success"`
+		Data    routes.ParameterIntegrationChannelResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createEnvelope); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	if createEnvelope.Data.ModelCode != "deepseek-v4-flash" || createEnvelope.Data.ProviderModelID != "deepseek-v4-flash" {
+		t.Fatalf("expected created response model selection, got %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/parameters/integration-channels?scenario=llm", nil)
+	rec = httptest.NewRecorder()
+	c = router.NewContext(req, rec)
+
+	if err := routes.ListParameterIntegrationChannels(c); err != nil {
+		t.Fatalf("list LLM channels: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+	var listEnvelope struct {
+		Success bool                                         `json:"success"`
+		Data    []routes.ParameterIntegrationChannelResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listEnvelope); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	if !listEnvelope.Success || len(listEnvelope.Data) != 1 {
+		t.Fatalf("unexpected list response: %s", rec.Body.String())
+	}
+	if listEnvelope.Data[0].ModelCode != "deepseek-v4-flash" || listEnvelope.Data[0].ProviderModelID != "deepseek-v4-flash" {
+		t.Fatalf("expected listed response model selection, got %s", rec.Body.String())
+	}
+}
+
 func TestListParameterIntegrationSchemasReturnsDTO(t *testing.T) {
 	setupRouteTestDBs(t)
 
@@ -96,6 +164,32 @@ func TestListParameterIntegrationSchemasReturnsDTO(t *testing.T) {
 	}
 	if baseURLField.DictionaryType != "" || len(baseURLField.Options) != 0 {
 		t.Fatalf("payment API URL DTO must be a free URL input, got %#v", baseURLField)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/parameters/integration-schemas?scenario=llm", nil)
+	rec = httptest.NewRecorder()
+	c = router.NewContext(req, rec)
+	if err := routes.ListParameterIntegrationSchemas(c); err != nil {
+		t.Fatalf("list LLM schemas: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	envelope = struct {
+		Success bool                                               `json:"success"`
+		Data    []routes.ParameterIntegrationAdapterSchemaResponse `json:"data"`
+	}{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode LLM schema response: %v", err)
+	}
+	if !envelope.Success || len(envelope.Data) != 2 {
+		t.Fatalf("unexpected LLM schema envelope: %s", rec.Body.String())
+	}
+	if envelope.Data[0].ProviderCode != "deepseek" || envelope.Data[0].ModelDictionaryType != "llm_model_deepseek" {
+		t.Fatalf("unexpected DeepSeek LLM schema response: %#v", envelope.Data[0])
+	}
+	if envelope.Data[1].ProviderCode != "siliconflow" || envelope.Data[1].ModelDictionaryType != "llm_model_siliconflow" {
+		t.Fatalf("unexpected SiliconFlow LLM schema response: %#v", envelope.Data[1])
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/parameters/integration-schemas?scenario=email", nil)

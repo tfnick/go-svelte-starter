@@ -970,3 +970,36 @@ Fixed remote DeepSeek KB embedding requests to use /v1/embedding with text paylo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 30: Fix LLM model dictionary by provider
+
+**Date**: 2026-06-14
+**Task**: Fix LLM model dictionary by provider
+**Branch**: `master`
+
+### Summary
+
+Split LLM model dictionaries by provider, exposed schema model dictionary types, fixed Parameter LLM model edit backfill, and added regression tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c578fcf` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

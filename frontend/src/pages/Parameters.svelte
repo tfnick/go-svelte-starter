@@ -109,7 +109,9 @@
       config_json: configJSONFromSchema(schema),
       metadata_json: defaultJSON,
       credential_type: schema?.credential_type || meta.credentialType,
-      credential_value: ''
+      credential_value: '',
+      model_code: '',
+      provider_model_id: ''
     };
   }
 
@@ -149,6 +151,16 @@
   function credentialTypeOptions() {
     const options = dictionariesByType[credentialTypeDictionaryType] || [];
     return options.length > 0 ? options : fallbackCredentialTypeOptions;
+  }
+
+  function modelOptions() {
+    const dictionaryType = currentSchema()?.model_dictionary_type || '';
+    return dictionaryType ? dictionariesByType[dictionaryType] || [] : [];
+  }
+
+  function selectModel(value) {
+    form.model_code = String(value || '').trim();
+    form.provider_model_id = form.model_code;
   }
 
   async function selectScenario(key) {
@@ -194,6 +206,9 @@
   async function loadSchemaDictionaries(schemas) {
     const types = new Set([environmentDictionaryType, credentialTypeDictionaryType]);
     for (const schema of schemas || []) {
+      if (schema.model_dictionary_type) {
+        types.add(schema.model_dictionary_type);
+      }
       for (const field of [...(schema.config_fields || []), ...(schema.credential_fields || [])]) {
         if (field.dictionary_type) {
           types.add(field.dictionary_type);
@@ -242,7 +257,9 @@
       config_json: formatJSON(channel.config_json),
       metadata_json: formatJSON(channel.metadata_json),
       credential_type: channel.credential_type,
-      credential_value: channel.credential_value || ''
+      credential_value: channel.credential_value || '',
+      model_code: channel.model_code || '',
+      provider_model_id: channel.provider_model_id || channel.model_code || ''
     };
     syncStructuredStateFromForm();
   }
@@ -258,6 +275,7 @@
     form.credential_type = schema.credential_type || form.credential_type;
     form.config_json = configJSONFromSchema(schema);
     form.credential_value = '';
+    clearInvalidModelSelection();
     syncStructuredStateFromForm();
   }
 
@@ -282,6 +300,8 @@
     error = '';
     message = '';
 
+    const isModelScenario = form.scenario === 'llm' || form.scenario === 'embedding';
+
     const payload = {
       scenario: form.scenario,
       channel_code: form.channel_code,
@@ -291,11 +311,14 @@
       enabled: form.enabled,
       priority: Number(form.priority) || 100,
       webhook_enabled: form.webhook_enabled,
-      is_primary: form.scenario === 'oss' && form.enabled && form.is_primary,
+      is_primary: (form.scenario === 'oss' || form.scenario === 'llm' || form.scenario === 'embedding') && form.enabled && form.is_primary,
       config_json: compactJSON(form.config_json),
       metadata_json: compactJSON(form.metadata_json),
       credential_type: form.credential_type,
-      credential_value: credentialValueForSave()
+      credential_value: credentialValueForSave(),
+      model_code: isModelScenario ? String(form.model_code || '').trim() : '',
+      provider_model_id: isModelScenario ? String(form.provider_model_id || '').trim() : '',
+      operation: isModelScenario ? 'chat.completion' : String(form.operation || '').trim()
     };
 
     try {
@@ -327,11 +350,58 @@
     }
   }
 
+  async function togglePrimary(channel) {
+    error = '';
+    message = '';
+    try {
+      const payload = {
+        scenario: channel.scenario,
+        channel_code: channel.channel_code,
+        provider_code: channel.provider_code,
+        adapter_key: channel.adapter_key,
+        environment: channel.environment,
+        enabled: channel.enabled,
+        priority: channel.priority || 100,
+        webhook_enabled: channel.webhook_enabled,
+        is_primary: !channel.is_primary,
+        config_json: channel.config_json,
+        metadata_json: channel.metadata_json,
+        credential_type: channel.credential_type,
+        credential_value: ''
+      };
+      const updated = await updateParameterIntegrationChannel(channel.id, payload);
+      message = updated.is_primary ? 'Channel set as primary' : 'Channel unset as primary';
+      await loadScenario(channel.scenario);
+      if (form.id === channel.id) {
+        editChannel(updated);
+      }
+    } catch (err) {
+      error = err.message || 'Failed to update primary status';
+    }
+  }
+
   function syncStructuredStateFromForm() {
     structuredConfig = parseJSONObject(form.config_json);
     structuredCredential = parseCredentialValue(form.credential_value, currentSchema());
     credentialVisibility = {};
     customCredentialVisible = false;
+    clearInvalidModelSelection();
+  }
+
+  function clearInvalidModelSelection() {
+    if (form.scenario !== 'llm' && form.scenario !== 'embedding') {
+      form.model_code = '';
+      form.provider_model_id = '';
+      return;
+    }
+
+    const options = modelOptions();
+    if (options.length === 0 || !form.model_code) {
+      return;
+    }
+    if (!options.some((option) => option.value === form.model_code)) {
+      selectModel('');
+    }
   }
 
   function updateConfigField(field, value) {
@@ -596,7 +666,7 @@
           </label>
         </div>
 
-        {#if form.scenario === 'oss'}
+        {#if form.scenario === 'oss' || form.scenario === 'llm' || form.scenario === 'embedding'}
           <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 px-3 bg-base-200/40 py-3">
             <input class="toggle toggle-primary" type="checkbox" bind:checked={form.is_primary} disabled={!form.enabled} />
             <span>Primary provider</span>
@@ -610,6 +680,25 @@
               <span class="badge badge-ghost max-w-52 truncate">{currentSchema().label}</span>
             </div>
             <div class="grid gap-3">
+              {#if form.scenario === 'llm' || form.scenario === 'embedding'}
+                <fieldset class="fieldset">
+                  <span class="fieldset-label">
+                    <span class="inline-flex items-center gap-1.5">
+                      <span>Model</span>
+                    </span>
+                  </span>
+                  <select
+                    class="select font-mono text-sm w-full"
+                    value={form.model_code}
+                    onchange={(event) => selectModel(event.currentTarget.value)}
+                  >
+                    <option value=""></option>
+                    {#each modelOptions() as option}
+                      <option value={option.value}>{option.label}</option>
+                    {/each}
+                  </select>
+                </fieldset>
+              {/if}
               {#each currentConfigFields() as field}
                 <fieldset class="fieldset">
                   <span class="fieldset-label">
@@ -858,10 +947,22 @@
                             <span class="badge {channel.webhook_enabled ? 'badge-info' : 'badge-ghost'}">
                               {channel.webhook_enabled ? 'webhook' : 'no webhook'}
                             </span>
-                            {#if scenario.key === 'oss'}
-                              <span class="badge {channel.is_primary ? 'badge-primary' : 'badge-ghost'}">
-                                {channel.is_primary ? 'primary' : 'not primary'}
-                              </span>
+                            {#if scenario.key === 'oss' || scenario.key === 'llm' || scenario.key === 'embedding'}
+                              {#if channel.enabled}
+                                <button
+                                  class="badge cursor-pointer {channel.is_primary ? 'badge-primary' : 'badge-ghost'}"
+                                  type="button"
+                                  title={channel.is_primary ? 'Click to unset as primary' : 'Click to set as primary'}
+                                  aria-label={channel.is_primary ? 'Unset as primary' : 'Set as primary'}
+                                  onclick={() => togglePrimary(channel)}
+                                >
+                                  {channel.is_primary ? 'primary' : 'not primary'}
+                                </button>
+                              {:else}
+                                <span class="badge {channel.is_primary ? 'badge-primary' : 'badge-ghost'}">
+                                  {channel.is_primary ? 'primary' : 'not primary'}
+                                </span>
+                              {/if}
                             {/if}
                           </div>
                         </td>

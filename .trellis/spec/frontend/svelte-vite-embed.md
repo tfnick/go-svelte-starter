@@ -1159,6 +1159,7 @@ OSS primary-provider UI is scoped to the OSS tab only. The form renders a `Prima
 * 如果当前 `adapter_key` 没有 schema，或用户选择 `Custom adapter`，页面显示原始 `adapter_key` 输入和 credential value/Advanced JSON 输入，不能阻塞暂未建 schema 的渠道。
 * `credential_format=plain` 时，结构化 credential 输入保存为原始 `credential_value` 字符串；`credential_format=json_object` 时，保存为 JSON object 字符串。
 * schema field 的 `dictionary_type` 可以通过 `getDictionaries(types)` 动态加载 options；如果字典没有值，使用 schema 内置 `options` 兜底。
+* LLM/Embedding 模型下拉必须优先使用当前 adapter schema 的 `model_dictionary_type` 动态加载 options；不要在 Svelte 中写死 provider-specific 模型列表，也不要让 DeepSeek 与 SiliconFlow 共用一个模型字典。
 * config 和 credential 的 schema field 如果返回 `help_text`，页面应在字段名旁渲染 `?` 类型 tooltip，鼠标移入或键盘聚焦时展示说明；例如 Aliyun SMTP password 必须提示使用邮箱客户端授权密码，而不是账号登录密码。
 * 固定的 `Webhook` 开关虽然不是 adapter schema field，也必须在 label 旁渲染与 schema `help_text` 一致的 `?` tooltip；提示内容展示通用 provider callback URL 格式 `https://<public-domain>/api/integrations/<scenario>/<channel_code>/webhooks/<provider_code>`，并用当前 `form.scenario`、`form.channel_code`、`form.provider_code` 代入，空值保留占位符。当前已实现的 Payment/Creem 后端 route 是 `/api/integrations/payment/<channel_code>/webhooks/creem`；SMS/Email/LLM/Embedding 页面只展示统一格式提示，不代表已有真实 webhook route。
 * `environment` 使用 `integration_environment` 字典，缺失时 fallback 为 `test` 和 `production`；provider API URL 不走 dictionary，也不使用 schema `options`，应渲染为普通 URL 输入框，因为 dictionary/option value 是规范化 code。
