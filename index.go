@@ -103,6 +103,9 @@ func main() {
 	if err := appusecase.RegisterLLMAdapter("llm.deepseek.openai_compatible", deepseekllm.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register LLM adapter")
 	}
+	if err := appusecase.RegisterLLMAdapter("llm.siliconflow.openai_compatible", deepseekllm.NewAdapter(nil)); err != nil {
+		logger.Fatal().Err(err).Msg("failed to register SiliconFlow LLM adapter")
+	}
 	if err := appusecase.RegisterEmbeddingAdapter("embedding.deepseek.openai_compatible", deepseekembedding.NewAdapter(nil)); err != nil {
 		logger.Fatal().Err(err).Msg("failed to register embedding adapter")
 	}

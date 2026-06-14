@@ -746,7 +746,7 @@ func findEnabledChannel(ctx context.Context, scenario string, channelCode string
 		query += " AND channel_code = ?"
 		args = append(args, channelCode)
 	}
-	query += " ORDER BY priority ASC, channel_code ASC LIMIT 1"
+	query += " ORDER BY is_primary DESC, priority ASC, channel_code ASC LIMIT 1"
 
 	var channel IntegrationChannel
 	if err := d.Get(&channel, d.Rebind(query), args...); err != nil {

@@ -146,6 +146,35 @@ var parameterIntegrationAdapterSchemas = []ParameterIntegrationAdapterSchemaCo{
 		},
 	},
 	{
+		Scenario:         models.IntegrationScenarioLLM,
+		AdapterKey:       "llm.siliconflow.openai_compatible",
+		Label:            "SiliconFlow OpenAI Compatible",
+		Description:      "OpenAI-compatible LLM channel for SiliconFlow (aggregated models).",
+		ProviderCode:     "siliconflow",
+		CredentialType:   "api_key",
+		CredentialFormat: ParameterIntegrationCredentialFormatPlain,
+		AdvancedJSON:     true,
+		ConfigFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:          "base_url",
+				Label:        "API URL",
+				Kind:         ParameterIntegrationSchemaFieldURL,
+				Required:     true,
+				DefaultValue: "https://api.siliconflow.cn/v1",
+			},
+		},
+		CredentialFields: []ParameterIntegrationSchemaFieldCo{
+			{
+				Key:         "api_key",
+				Label:       "API Key",
+				Kind:        ParameterIntegrationSchemaFieldSecret,
+				Required:    true,
+				Sensitive:   true,
+				Placeholder: "sk-...",
+			},
+		},
+	},
+	{
 		Scenario:         models.IntegrationScenarioEmbedding,
 		AdapterKey:       "embedding.local_hash_64",
 		Label:            "Local Hash 64 Embedding",
