@@ -24,6 +24,7 @@
   const defaultJSON = '{}';
   const environmentDictionaryType = 'integration_environment';
   const credentialTypeDictionaryType = 'integration_credential_type';
+  const modelDictionaryType = 'llm_model';
   const fallbackEnvironmentOptions = [
     { value: 'test', label: 'Test' },
     { value: 'production', label: 'Production' }
@@ -111,8 +112,7 @@
       credential_type: schema?.credential_type || meta.credentialType,
       credential_value: '',
       model_code: '',
-      provider_model_id: '',
-      operation: ''
+      provider_model_id: ''
     };
   }
 
@@ -152,6 +152,15 @@
   function credentialTypeOptions() {
     const options = dictionariesByType[credentialTypeDictionaryType] || [];
     return options.length > 0 ? options : fallbackCredentialTypeOptions;
+  }
+
+  function modelOptions() {
+    return dictionariesByType[modelDictionaryType] || [];
+  }
+
+  function selectModel(value) {
+    form.model_code = String(value || '').trim();
+    form.provider_model_id = form.model_code;
   }
 
   async function selectScenario(key) {
@@ -195,7 +204,7 @@
   }
 
   async function loadSchemaDictionaries(schemas) {
-    const types = new Set([environmentDictionaryType, credentialTypeDictionaryType]);
+    const types = new Set([environmentDictionaryType, credentialTypeDictionaryType, modelDictionaryType]);
     for (const schema of schemas || []) {
       for (const field of [...(schema.config_fields || []), ...(schema.credential_fields || [])]) {
         if (field.dictionary_type) {
@@ -247,8 +256,7 @@
       credential_type: channel.credential_type,
       credential_value: channel.credential_value || '',
       model_code: '',
-      provider_model_id: '',
-      operation: ''
+      provider_model_id: ''
     };
     syncStructuredStateFromForm();
   }
@@ -306,7 +314,7 @@
       credential_value: credentialValueForSave(),
       model_code: isModelScenario ? String(form.model_code || '').trim() : '',
       provider_model_id: isModelScenario ? String(form.provider_model_id || '').trim() : '',
-      operation: String(form.operation || '').trim()
+      operation: isModelScenario ? 'chat.completion' : String(form.operation || '').trim()
     };
 
     try {
@@ -644,25 +652,6 @@
           </label>
         {/if}
 
-        {#if form.scenario === 'llm' || form.scenario === 'embedding'}
-          <div class="grid gap-3 sm:grid-cols-2">
-            <fieldset class="fieldset">
-              <legend class="fieldset-legend">Model code</legend>
-              <input class="input font-mono text-sm w-full" bind:value={form.model_code} placeholder="deepseek-chat" />
-            </fieldset>
-
-            <fieldset class="fieldset">
-              <legend class="fieldset-legend">Provider model ID</legend>
-              <input class="input font-mono text-sm w-full" bind:value={form.provider_model_id} placeholder="deepseek-chat" />
-            </fieldset>
-          </div>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Operation</legend>
-            <input class="input font-mono text-sm w-full" bind:value={form.operation} placeholder="chat.completion" />
-          </fieldset>
-        {/if}
-
         {#if currentSchema()}
           <div class="rounded-box border border-base-200 p-3">
             <div class="mb-2 flex items-center justify-between gap-3">
@@ -670,6 +659,25 @@
               <span class="badge badge-ghost max-w-52 truncate">{currentSchema().label}</span>
             </div>
             <div class="grid gap-3">
+              {#if form.scenario === 'llm' || form.scenario === 'embedding'}
+                <fieldset class="fieldset">
+                  <span class="fieldset-label">
+                    <span class="inline-flex items-center gap-1.5">
+                      <span>Model</span>
+                    </span>
+                  </span>
+                  <select
+                    class="select font-mono text-sm w-full"
+                    value={form.model_code}
+                    onchange={(event) => selectModel(event.currentTarget.value)}
+                  >
+                    <option value=""></option>
+                    {#each modelOptions() as option}
+                      <option value={option.value}>{option.label}</option>
+                    {/each}
+                  </select>
+                </fieldset>
+              {/if}
               {#each currentConfigFields() as field}
                 <fieldset class="fieldset">
                   <span class="fieldset-label">
