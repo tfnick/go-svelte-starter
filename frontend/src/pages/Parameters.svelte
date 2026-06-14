@@ -109,7 +109,10 @@
       config_json: configJSONFromSchema(schema),
       metadata_json: defaultJSON,
       credential_type: schema?.credential_type || meta.credentialType,
-      credential_value: ''
+      credential_value: '',
+      model_code: '',
+      provider_model_id: '',
+      operation: ''
     };
   }
 
@@ -242,7 +245,10 @@
       config_json: formatJSON(channel.config_json),
       metadata_json: formatJSON(channel.metadata_json),
       credential_type: channel.credential_type,
-      credential_value: channel.credential_value || ''
+      credential_value: channel.credential_value || '',
+      model_code: '',
+      provider_model_id: '',
+      operation: ''
     };
     syncStructuredStateFromForm();
   }
@@ -282,6 +288,8 @@
     error = '';
     message = '';
 
+    const isModelScenario = form.scenario === 'llm' || form.scenario === 'embedding';
+
     const payload = {
       scenario: form.scenario,
       channel_code: form.channel_code,
@@ -291,11 +299,14 @@
       enabled: form.enabled,
       priority: Number(form.priority) || 100,
       webhook_enabled: form.webhook_enabled,
-      is_primary: form.scenario === 'oss' && form.enabled && form.is_primary,
+      is_primary: (form.scenario === 'oss' || form.scenario === 'llm' || form.scenario === 'embedding') && form.enabled && form.is_primary,
       config_json: compactJSON(form.config_json),
       metadata_json: compactJSON(form.metadata_json),
       credential_type: form.credential_type,
-      credential_value: credentialValueForSave()
+      credential_value: credentialValueForSave(),
+      model_code: isModelScenario ? String(form.model_code || '').trim() : '',
+      provider_model_id: isModelScenario ? String(form.provider_model_id || '').trim() : '',
+      operation: String(form.operation || '').trim()
     };
 
     try {
@@ -324,6 +335,36 @@
       }
     } catch (err) {
       error = err.message || 'Failed to update integration channel';
+    }
+  }
+
+  async function togglePrimary(channel) {
+    error = '';
+    message = '';
+    try {
+      const payload = {
+        scenario: channel.scenario,
+        channel_code: channel.channel_code,
+        provider_code: channel.provider_code,
+        adapter_key: channel.adapter_key,
+        environment: channel.environment,
+        enabled: channel.enabled,
+        priority: channel.priority || 100,
+        webhook_enabled: channel.webhook_enabled,
+        is_primary: !channel.is_primary,
+        config_json: channel.config_json,
+        metadata_json: channel.metadata_json,
+        credential_type: channel.credential_type,
+        credential_value: ''
+      };
+      const updated = await updateParameterIntegrationChannel(channel.id, payload);
+      message = updated.is_primary ? 'Channel set as primary' : 'Channel unset as primary';
+      await loadScenario(channel.scenario);
+      if (form.id === channel.id) {
+        editChannel(updated);
+      }
+    } catch (err) {
+      error = err.message || 'Failed to update primary status';
     }
   }
 
@@ -596,11 +637,30 @@
           </label>
         </div>
 
-        {#if form.scenario === 'oss'}
+        {#if form.scenario === 'oss' || form.scenario === 'llm' || form.scenario === 'embedding'}
           <label class="fieldset-label cursor-pointer justify-start gap-3 rounded-box border border-base-200 px-3 bg-base-200/40 py-3">
             <input class="toggle toggle-primary" type="checkbox" bind:checked={form.is_primary} disabled={!form.enabled} />
             <span>Primary provider</span>
           </label>
+        {/if}
+
+        {#if form.scenario === 'llm' || form.scenario === 'embedding'}
+          <div class="grid gap-3 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Model code</legend>
+              <input class="input font-mono text-sm w-full" bind:value={form.model_code} placeholder="deepseek-chat" />
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Provider model ID</legend>
+              <input class="input font-mono text-sm w-full" bind:value={form.provider_model_id} placeholder="deepseek-chat" />
+            </fieldset>
+          </div>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Operation</legend>
+            <input class="input font-mono text-sm w-full" bind:value={form.operation} placeholder="chat.completion" />
+          </fieldset>
         {/if}
 
         {#if currentSchema()}
@@ -858,10 +918,22 @@
                             <span class="badge {channel.webhook_enabled ? 'badge-info' : 'badge-ghost'}">
                               {channel.webhook_enabled ? 'webhook' : 'no webhook'}
                             </span>
-                            {#if scenario.key === 'oss'}
-                              <span class="badge {channel.is_primary ? 'badge-primary' : 'badge-ghost'}">
-                                {channel.is_primary ? 'primary' : 'not primary'}
-                              </span>
+                            {#if scenario.key === 'oss' || scenario.key === 'llm' || scenario.key === 'embedding'}
+                              {#if channel.enabled}
+                                <button
+                                  class="badge cursor-pointer {channel.is_primary ? 'badge-primary' : 'badge-ghost'}"
+                                  type="button"
+                                  title={channel.is_primary ? 'Click to unset as primary' : 'Click to set as primary'}
+                                  aria-label={channel.is_primary ? 'Unset as primary' : 'Set as primary'}
+                                  onclick={() => togglePrimary(channel)}
+                                >
+                                  {channel.is_primary ? 'primary' : 'not primary'}
+                                </button>
+                              {:else}
+                                <span class="badge {channel.is_primary ? 'badge-primary' : 'badge-ghost'}">
+                                  {channel.is_primary ? 'primary' : 'not primary'}
+                                </span>
+                              {/if}
                             {/if}
                           </div>
                         </td>

@@ -31,6 +31,9 @@ type SaveParameterIntegrationChannelCmd struct {
 	MetadataJSON    string
 	CredentialType  string
 	CredentialValue string
+	ModelCode       string
+	ProviderModelID string
+	Operation       string
 }
 
 type SetParameterIntegrationChannelEnabledCmd struct {
@@ -89,7 +92,7 @@ func CreateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 		if err != nil {
 			return fwusecase.E(fwusecase.CodeInternal, "failed to create integration credential", err)
 		}
-		if err := clearOSSPrimaryIfNeeded(txCtx, input); err != nil {
+		if err := clearSSPrimaryIfNeeded(txCtx, input); err != nil {
 			return err
 		}
 		created, err = models.CreateIntegrationChannel(txCtx.Std(), models.CreateIntegrationChannelCmd{
@@ -111,6 +114,30 @@ func CreateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 				return fwusecase.E(fwusecase.CodeConflict, "integration channel already exists", err)
 			}
 			return fwusecase.E(fwusecase.CodeInternal, "failed to create integration channel", err)
+		}
+
+		if input.ModelCode != "" && input.ProviderModelID != "" {
+			if _, err := models.CreateIntegrationModelOption(txCtx.Std(), models.CreateIntegrationModelOptionCmd{
+				Scenario:        input.Scenario,
+				ChannelID:       created.ID,
+				ModelCode:       input.ModelCode,
+				ProviderModelID: input.ProviderModelID,
+				Enabled:         true,
+			}); err != nil {
+				return fwusecase.E(fwusecase.CodeInternal, "failed to create integration model option", err)
+			}
+
+			if input.Operation != "" {
+				if _, err := models.CreateIntegrationOperationConfig(txCtx.Std(), models.CreateIntegrationOperationConfigCmd{
+					Scenario:    input.Scenario,
+					Operation:   input.Operation,
+					ChannelCode: input.ChannelCode,
+					ModelCode:   input.ModelCode,
+					Enabled:     true,
+				}); err != nil {
+					return fwusecase.E(fwusecase.CodeInternal, "failed to create integration operation config", err)
+				}
+			}
 		}
 		return nil
 	})
@@ -154,7 +181,7 @@ func UpdateParameterIntegrationChannel(ctx fwusecase.Context, cmd SaveParameterI
 			}
 			return fwusecase.E(fwusecase.CodeInternal, "failed to update integration credential", err)
 		}
-		if err := clearOSSPrimaryIfNeeded(txCtx, input); err != nil {
+		if err := clearSSPrimaryIfNeeded(txCtx, input); err != nil {
 			return err
 		}
 
@@ -220,6 +247,9 @@ type parameterIntegrationChannelInputData struct {
 	MetadataJSON    string
 	CredentialType  string
 	CredentialValue string
+	ModelCode       string
+	ProviderModelID string
+	Operation       string
 }
 
 func parameterIntegrationChannelInput(cmd SaveParameterIntegrationChannelCmd, create bool) (parameterIntegrationChannelInputData, error) {
@@ -238,9 +268,12 @@ func parameterIntegrationChannelInput(cmd SaveParameterIntegrationChannelCmd, cr
 		Enabled:         cmd.Enabled,
 		Priority:        cmd.Priority,
 		WebhookEnabled:  cmd.WebhookEnabled,
-		IsPrimary:       cmd.IsPrimary && scenario == models.IntegrationScenarioOSS && cmd.Enabled,
+		IsPrimary:       cmd.IsPrimary && cmd.Enabled && (scenario == models.IntegrationScenarioOSS || scenario == models.IntegrationScenarioLLM || scenario == models.IntegrationScenarioEmbedding),
 		CredentialType:  strings.TrimSpace(cmd.CredentialType),
 		CredentialValue: strings.TrimSpace(cmd.CredentialValue),
+		ModelCode:       strings.TrimSpace(cmd.ModelCode),
+		ProviderModelID: strings.TrimSpace(cmd.ProviderModelID),
+		Operation:       strings.TrimSpace(cmd.Operation),
 	}
 	if input.Environment == "" {
 		input.Environment = "production"
@@ -281,12 +314,12 @@ func parameterIntegrationChannelInput(cmd SaveParameterIntegrationChannelCmd, cr
 	return input, nil
 }
 
-func clearOSSPrimaryIfNeeded(ctx fwusecase.Context, input parameterIntegrationChannelInputData) error {
+func clearSSPrimaryIfNeeded(ctx fwusecase.Context, input parameterIntegrationChannelInputData) error {
 	if !input.IsPrimary {
 		return nil
 	}
-	if err := models.ClearIntegrationChannelPrimary(ctx.Std(), models.IntegrationScenarioOSS); err != nil {
-		return fwusecase.E(fwusecase.CodeInternal, "failed to update OSS primary provider", err)
+	if err := models.ClearIntegrationChannelPrimary(ctx.Std(), input.Scenario); err != nil {
+		return fwusecase.E(fwusecase.CodeInternal, "failed to update primary provider", err)
 	}
 	return nil
 }
@@ -394,7 +427,7 @@ func parameterIntegrationChannelCoFromModel(channel models.IntegrationChannelCon
 		CredentialType:  channel.CredentialType,
 		CredentialValue: channel.CredentialValue,
 		WebhookEnabled:  channel.WebhookEnabled == 1,
-		IsPrimary:       channel.Scenario == models.IntegrationScenarioOSS && channel.IsPrimary == 1,
+		IsPrimary:       (channel.Scenario == models.IntegrationScenarioOSS || channel.Scenario == models.IntegrationScenarioLLM || channel.Scenario == models.IntegrationScenarioEmbedding) && channel.IsPrimary == 1,
 		ConfigJSON:      channel.ConfigJSON,
 		MetadataJSON:    channel.MetadataJSON,
 		CreatedAt:       channel.CreatedAt,

@@ -735,28 +735,28 @@ func TestOSSPrimaryProviderIsAtMostOneAndCanBeEmpty(t *testing.T) {
 	}
 }
 
-func TestNonOSSParameterChannelIgnoresPrimaryFlag(t *testing.T) {
+func TestNonModelScenarioIgnoresPrimaryFlag(t *testing.T) {
 	setupUsecaseOrderTxDB(t)
 	ctx := fwusecase.NewContext(t.Context(), fwusecase.SurfaceInternalAPI)
 
 	channel, err := usecase.CreateParameterIntegrationChannel(ctx, usecase.SaveParameterIntegrationChannelCmd{
-		Scenario:        models.IntegrationScenarioLLM,
-		ChannelCode:     "primary-ignored-llm",
-		ProviderCode:    "deepseek",
-		AdapterKey:      "llm.deepseek.openai_compatible",
+		Scenario:        models.IntegrationScenarioPayment,
+		ChannelCode:     "primary-ignored-payment",
+		ProviderCode:    "creem",
+		AdapterKey:      "payment.creem.hosted_checkout",
 		Environment:     "test",
 		Enabled:         true,
 		IsPrimary:       true,
-		ConfigJSON:      `{"base_url":"https://api.deepseek.com"}`,
+		ConfigJSON:      `{"base_url":"https://test-api.creem.io/v1","product_id":"prod_test"}`,
 		MetadataJSON:    "{}",
-		CredentialType:  "api_key",
-		CredentialValue: "sk_deepseek",
+		CredentialType:  "payment_bundle",
+		CredentialValue: `{"api_key":"sk_test","webhook_secret":"whsec_test"}`,
 	})
 	if err != nil {
-		t.Fatalf("create LLM channel with primary flag: %v", err)
+		t.Fatalf("create payment channel with primary flag: %v", err)
 	}
 	if channel.IsPrimary {
-		t.Fatalf("expected non-OSS channel primary flag to be ignored, got %#v", channel)
+		t.Fatalf("expected non-model scenario channel primary flag to be ignored, got %#v", channel)
 	}
 }
 

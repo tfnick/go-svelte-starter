@@ -22,6 +22,9 @@ type ParameterIntegrationChannelRequest struct {
 	CredentialType      string `json:"credential_type"`
 	CredentialValue     string `json:"credential_value"`
 	CredentialPlaintext string `json:"credential_plaintext"`
+	ModelCode           string `json:"model_code"`
+	ProviderModelID     string `json:"provider_model_id"`
+	Operation           string `json:"operation"`
 }
 
 type SetParameterIntegrationChannelEnabledRequest struct {
@@ -165,6 +168,9 @@ func parameterIntegrationChannelCmdFromRequest(id string, req ParameterIntegrati
 		MetadataJSON:    req.MetadataJSON,
 		CredentialType:  req.CredentialType,
 		CredentialValue: credentialValue,
+		ModelCode:       req.ModelCode,
+		ProviderModelID: req.ProviderModelID,
+		Operation:       req.Operation,
 	}
 }
 

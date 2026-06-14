@@ -591,7 +591,7 @@ func CreateIntegrationChannel(ctx context.Context, cmd CreateIntegrationChannelC
 	if channel.MetadataJSON == "" {
 		channel.MetadataJSON = "{}"
 	}
-	if channel.Scenario != IntegrationScenarioOSS || channel.Enabled == 0 {
+	if !(channel.Scenario == IntegrationScenarioOSS || channel.Scenario == IntegrationScenarioLLM || channel.Scenario == IntegrationScenarioEmbedding) || channel.Enabled == 0 {
 		channel.IsPrimary = 0
 	}
 
@@ -640,7 +640,7 @@ func UpdateIntegrationChannel(ctx context.Context, cmd UpdateIntegrationChannelC
 		return IntegrationChannelConfig{}, fmt.Errorf("database unavailable: %w", err)
 	}
 	isPrimary := boolToInt(cmd.IsPrimary)
-	if cmd.Scenario != IntegrationScenarioOSS || !cmd.Enabled {
+	if !(cmd.Scenario == IntegrationScenarioOSS || cmd.Scenario == IntegrationScenarioLLM || cmd.Scenario == IntegrationScenarioEmbedding) || !cmd.Enabled {
 		isPrimary = 0
 	}
 
@@ -923,7 +923,111 @@ func defaultEmbeddingModelOptionForChannel(scenario string, channel IntegrationC
 	}, true
 }
 
-type CreateIntegrationInvocationCmd struct {
+type CreateIntegrationModelOptionCmd struct {
+		Scenario          string
+		ChannelID         string
+		ModelCode         string
+		ProviderModelID   string
+		CapabilitiesJSON  string
+		DefaultParamsJSON string
+		CostPolicyJSON    string
+		Enabled           bool
+	}
+
+	func CreateIntegrationModelOption(ctx context.Context, cmd CreateIntegrationModelOptionCmd) (IntegrationModelOption, error) {
+		now := timefmt.NowSQLiteDateTime()
+		capabilitiesJSON := cmd.CapabilitiesJSON
+		if capabilitiesJSON == "" {
+			capabilitiesJSON = "{}"
+		}
+		defaultParamsJSON := cmd.DefaultParamsJSON
+		if defaultParamsJSON == "" {
+			defaultParamsJSON = "{}"
+		}
+		costPolicyJSON := cmd.CostPolicyJSON
+		if costPolicyJSON == "" {
+			costPolicyJSON = "{}"
+		}
+
+		model := IntegrationModelOption{
+			ID:                uuid.Must(uuid.NewV7()).String(),
+			Scenario:          cmd.Scenario,
+			ChannelID:         cmd.ChannelID,
+			ModelCode:         cmd.ModelCode,
+			ProviderModelID:   cmd.ProviderModelID,
+			CapabilitiesJSON:  capabilitiesJSON,
+			DefaultParamsJSON: defaultParamsJSON,
+			CostPolicyJSON:    costPolicyJSON,
+			Enabled:           boolToInt(cmd.Enabled),
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		}
+
+		d, err := db.ExecutorFor(ctx, "app")
+		if err != nil {
+			return IntegrationModelOption{}, fmt.Errorf("database unavailable: %w", err)
+		}
+		query := `
+			INSERT INTO integration_model_options (
+				id, scenario, channel_id, model_code, provider_model_id, capabilities_json,
+				default_params_json, cost_policy_json, enabled, created_at, updated_at
+			) VALUES (
+				:id, :scenario, :channel_id, :model_code, :provider_model_id, :capabilities_json,
+				:default_params_json, :cost_policy_json, :enabled, :created_at, :updated_at
+			)
+		`
+		if _, err := d.NamedExec(query, model); err != nil {
+			return IntegrationModelOption{}, fmt.Errorf("create integration model option failed: %w", err)
+		}
+		return model, nil
+	}
+
+	type CreateIntegrationOperationConfigCmd struct {
+		Scenario    string
+		Operation   string
+		ChannelCode string
+		ModelCode   string
+		Enabled     bool
+		ConfigJSON  string
+	}
+
+	func CreateIntegrationOperationConfig(ctx context.Context, cmd CreateIntegrationOperationConfigCmd) (IntegrationOperationConfig, error) {
+		now := timefmt.NowSQLiteDateTime()
+		configJSON := cmd.ConfigJSON
+		if configJSON == "" {
+			configJSON = "{}"
+		}
+
+		config := IntegrationOperationConfig{
+			ID:          uuid.Must(uuid.NewV7()).String(),
+			Scenario:    cmd.Scenario,
+			Operation:   cmd.Operation,
+			ChannelCode: cmd.ChannelCode,
+			ModelCode:   cmd.ModelCode,
+			Enabled:     boolToInt(cmd.Enabled),
+			ConfigJSON:  configJSON,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		d, err := db.ExecutorFor(ctx, "app")
+		if err != nil {
+			return IntegrationOperationConfig{}, fmt.Errorf("database unavailable: %w", err)
+		}
+		query := `
+			INSERT INTO integration_operation_configs (
+				id, scenario, operation, channel_code, model_code, enabled, config_json, created_at, updated_at
+			) VALUES (
+				:id, :scenario, :operation, :channel_code, :model_code, :enabled, :config_json, :created_at, :updated_at
+			)
+		`
+		if _, err := d.NamedExec(query, config); err != nil {
+			return IntegrationOperationConfig{}, fmt.Errorf("create integration operation config failed: %w", err)
+		}
+		return config, nil
+	}
+
+	type CreateIntegrationInvocationCmd struct {
 	Scenario       string
 	ChannelID      string
 	ChannelCode    string
